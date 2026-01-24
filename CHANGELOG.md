@@ -2,6 +2,13 @@
 
 Minden jelentős változás ebben a fájlban lesz dokumentálva. A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) elvein alapul.
 
+## [0.3.1] - 2024-05-23
+
+### Javítva (Fixed)
+
+- **Kritikus inicializálási hiba:** Javítva egy hiba, ami miatt az alkalmazás a "Könyv betöltése..." képernyőn ragadt. Az indító logika egy felesleges `DOMContentLoaded` eseményfigyelőt tartalmazott, ami a szkript betöltési sorrendje miatt soha nem futott le. Az eseményfigyelő eltávolításával az alkalmazás mostantól megbízhatóan elindul.
+- **Kódstruktúra:** Az `app.js` kódja egyetlen, tiszta objektum-literállá lett refaktorálva a jobb olvashatóság és karbantarthatóság érdekében.
+
 ## [0.3.0] - 2024-05-23
 
 ### Hozzáadva (Added)
