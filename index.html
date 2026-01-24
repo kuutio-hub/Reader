@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epubly - Prémium EPUB Olvasó</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- epub.js library from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js" integrity="sha512-PuJTp2kGk27w/i+U3/xK24INi2iBw0tC3F1HAPdU1D/Uj2N2P5/Qk3h_7233_aB7cM21M4T7b5DcSd1MvM8Cg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <style>
+        :root {
+            --brand: #D4AF37;
+            --brand-soft: #3A2F14;
+            --bg: #000000;
+            --bg-elevated: #0D0D0D;
+            --surface: #111111;
+            --surface-alt: #1A1A1A;
+            --text: #EDEDED;
+            --text-muted: #A0A0A0;
+            --border: #222222;
+            --radius-s: 8px;
+            --radius-m: 14px;
+            --radius-l: 22px;
+            --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
+            --shadow-s: 0 2px 6px rgba(0,0,0,0.5);
+            --shadow-m: 0 6px 18px rgba(0,0,0,0.55);
+            --shadow-l: 0 12px 32px rgba(0,0,0,0.6);
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --transition: 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            color-scheme: dark;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-size: 16px;
+            line-height: 1.6;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            grid-template-columns: auto 1fr auto;
+            height: 100vh;
+            grid-template-areas:
+                "topbar topbar topbar"
+                "sidebar-left main sidebar-right";
+        }
+
+        body.zen-mode #topbar,
+        body.zen-mode #sidebar-left,
+        body.zen-mode #sidebar-right {
+            transform: translateY(-150%);
+        }
+        
+        body.zen-mode #sidebar-left { transform: translateX(-150%); }
+        body.zen-mode #sidebar-right { transform: translateX(150%); }
+
+        /* --- LAYOUT --- */
+        #topbar {
+            grid-area: topbar;
+            position: fixed;
+            top: var(--space-4);
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 2 * var(--space-4));
+            max-width: 800px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-2) var(--space-5);
+            background: rgba(13, 13, 13, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-l);
+            box-shadow: var(--shadow-m);
+            z-index: 100;
+            transition: var(--transition);
+        }
+
+        #sidebar-left, #sidebar-right {
+            padding: var(--space-5);
+            background-color: var(--bg-elevated);
+            height: calc(100vh - 60px);
+            margin-top: 60px;
+            overflow-y: auto;
+            transition: transform var(--transition);
+            width: 300px;
+            z-index: 50;
+        }
+
+        #sidebar-left {
+            grid-area: sidebar-left;
+            border-right: 1px solid var(--border);
+            transform: translateX(0);
+        }
+        #sidebar-left.collapsed {
+            transform: translateX(-100%);
+        }
+
+        #sidebar-right {
+            grid-area: sidebar-right;
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+        }
+        #sidebar-right.visible {
+            transform: translateX(0);
+        }
+        
+        #main-content {
+            grid-area: main;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #loader {
+            position: absolute;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            opacity: 1;
+            transition: opacity var(--transition);
+        }
+        #loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .spinner {
+            border: 4px solid var(--surface-alt);
+            border-top: 4px solid var(--brand);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        #loader p {
+            margin-top: var(--space-4);
+            color: var(--text-muted);
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- COMPONENTS --- */
+        .logo {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--brand);
+        }
+
+        .main-nav a, .top-actions button {
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: var(--space-2) var(--space-3);
+            position: relative;
+            transition: color var(--transition);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .main-nav a:hover, .top-actions button:hover {
+            color: var(--text);
+        }
+
+        .main-nav a.active {
+            color: var(--brand);
+        }
+        
+        .main-nav a.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: var(--space-3);
+            right: var(--space-3);
+            height: 2px;
+            background-color: var(--brand);
+            border-radius: 2px;
+        }
+        
+        .icon-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+        }
+        
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--text-muted);
+            transition: stroke var(--transition);
+        }
+
+        .icon-btn:hover svg {
+            stroke: var(--text);
+        }
+
+        .sidebar-panel { display: none; }
+        .sidebar-panel.active { display: block; }
+        
+        .sidebar-header {
+            margin-bottom: var(--space-5);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        #toc-list {
+            list-style: none;
+        }
+        #toc-list li a {
+            color: var(--text-muted);
+            text-decoration: none;
+            display: block;
+            padding: var(--space-2) 0;
+            border-radius: var(--radius-s);
+            transition: all var(--transition);
+        }
+        #toc-list li a:hover {
+            color: var(--text);
+            background-color: var(--surface-alt);
+        }
+        #toc-list li a.active {
+            color: var(--brand);
+            font-weight: 500;
+        }
+        
+        /* --- READER AREA --- */
+        #viewer {
+            width: 100%;
+            height: 100%;
+        }
+        #prev, #next {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 10%;
+            cursor: pointer;
+            z-index: 10;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #prev { left: 0; }
+        #next { right: 0; }
+
+        /* --- MODALS --- */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition);
+        }
+        .modal.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-m);
+            padding: var(--space-6);
+            width: 90%;
+            max-width: 500px;
+            box-shadow: var(--shadow-l);
+            transform: scale(0.95);
+            transition: transform var(--transition);
+        }
+        .modal.visible .modal-content {
+            transform: scale(1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-5);
+        }
+        .modal-header h2 {
+            font-size: 1.5rem;
+        }
+        .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+        .modal-close-btn:hover { color: var(--text); }
+        .modal-close-btn svg { width: 24px; height: 24px; }
+        
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: var(--space-2);
+            color: var(--text-muted);
+        }
+        .form-group input[type="text"], .form-group input[type="url"], .form-group input[type="file"] {
+            width: 100%;
+            padding: var(--space-3);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-s);
+            color: var(--text);
+            font-size: 1rem;
+        }
+        
+        .btn {
+            padding: var(--space-3) var(--space-4);
+            border-radius: var(--radius-s);
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all var(--transition);
+        }
+        .btn-primary {
+            background-color: var(--brand);
+            color: var(--bg);
+        }
+        .btn-primary:hover {
+            filter: brightness(1.2);
+        }
+        .btn-secondary {
+            background-color: var(--surface-alt);
+            color: var(--text);
+        }
+        .btn-secondary:hover {
+            background-color: var(--border);
+        }
+
+        /* Library Placeholder */
+        #library-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: var(--space-4);
+        }
+        .book-card {
+            background: var(--surface);
+            border-radius: var(--radius-s);
+            overflow: hidden;
+            box-shadow: var(--shadow-s);
+            cursor: pointer;
+        }
+        .book-card-cover {
+            width: 100%;
+            aspect-ratio: 2 / 3;
+            background-color: var(--surface-alt);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+        .book-card-info {
+            padding: var(--space-3);
+        }
+        .book-card-title {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .book-card-author {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        
+    </style>
+</head>
+<body class="">
+
+    <header id="topbar">
+        <span class="logo">Epubly</span>
+        <nav class="main-nav">
+            <a href="#reader" class="nav-link active" data-target="reader">Olvasó</a>
+            <a href="#library" class="nav-link" data-target="library">Könyvtár</a>
+            <a href="#notes" class="nav-link" data-target="notes">Jegyzetek</a>
+            <a href="#settings" class="nav-link" data-target="settings">Beállítások</a>
+        </nav>
+        <div class="top-actions">
+            <button id="zen-mode-btn" class="icon-btn" title="Zen Mód">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9-9-1.8-9-9 1.8-9 9-9z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <aside id="sidebar-left">
+        <!-- Panel: Tartalomjegyzék -->
+        <div id="panel-toc" class="sidebar-panel active">
+            <h2 class="sidebar-header">Tartalom</h2>
+            <ul id="toc-list"><li>A tartalomjegyzék itt jelenik meg...</li></ul>
+        </div>
+        <!-- Panel: Könyvtár -->
+        <div id="panel-library-sidebar" class="sidebar-panel">
+            <h2 class="sidebar-header">Könyvtár</h2>
+            <div id="library-grid-sidebar">
+                 <!-- Placeholder Content -->
+                <p style="color: var(--text-muted);">A könyveid itt jelennek meg.</p>
+                <button class="btn btn-secondary" id="import-book-sidebar-btn" style="margin-top: 1rem;">Könyv importálása</button>
+            </div>
+        </div>
+    </aside>
+    
+    <main id="main-content">
+        <div id="viewer"></div>
+        <a id="prev"></a>
+        <a id="next"></a>
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Könyv betöltése...</p>
+        </div>
+    </main>
+
+    <aside id="sidebar-right">
+        <!-- Placeholder for Notes, Highlights, Search -->
+        <h2 class="sidebar-header">Jegyzetek</h2>
+        <p style="color: var(--text-muted);">A jegyzeteid és kiemeléseid itt fognak megjelenni.</p>
+    </aside>
+
+    <!-- Import Modal -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Könyv importálása</h2>
+                <button class="modal-close-btn" data-target="import-modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="epub-url">Importálás URL-ről</label>
+                <input type="url" id="epub-url" placeholder="https://example.com/book.epub">
+            </div>
+            <button id="import-from-url-btn" class="btn btn-primary">Betöltés</button>
+            <hr style="border-color: var(--border); margin: var(--space-5) 0;">
+            <div class="form-group">
+                <label for="epub-file">Feltöltés a gépről</label>
+                <input type="file" id="epub-file" accept=".epub">
+            </div>
+             <p style="color: var(--text-muted); font-size: 0.9rem;">A könyveket a böngésződ tárolja, nem töltődnek fel sehova.</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+             <div class="modal-header">
+                <h2>Beállítások</h2>
+                <button class="modal-close-btn" data-target="settings-modal">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="font-size-slider">Betűméret</label>
+                <input type="range" id="font-size-slider" min="80" max="200" value="100" step="10">
+            </div>
+             <div class="form-group">
+                <label for="margin-slider">Oldalmargó</label>
+                <input type="range" id="margin-slider" min="0" max="100" value="20" step="5">
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        const Epubly = {
+            state: {
+                book: null,
+                rendition: null,
+                isZenMode: false,
+                currentBookId: null,
+            },
+            
+            dom: {}, // To be populated in ui.init
+
+            // --- CORE MODULES --- //
+            
+            reader: {
+                init() {
+                    this.loadLastOpenedBook();
+                },
+
+                async loadBook(bookData, bookId) {
+                    if (Epubly.state.book) {
+                        Epubly.state.book.destroy();
+                    }
+                    Epubly.ui.showLoader('Könyv feldolgozása...');
+                    
+                    try {
+                        Epubly.state.book = ePub(bookData);
+                        Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
+                            width: "100%",
+                            height: "100%",
+                            flow: "paginated",
+                            spread: "auto"
+                        });
+
+                        await Epubly.state.rendition.display();
+                        Epubly.storage.saveLastOpenedBook(bookId);
+                        Epubly.state.currentBookId = bookId;
+
+                        Epubly.state.book.ready.then(() => {
+                            Epubly.toc.generate(Epubly.state.book.navigation.toc);
+                            
+                            // Apply saved settings
+                            const settings = Epubly.settings.get();
+                            this.applyTheme(settings);
+                        });
+
+                        Epubly.state.rendition.on("displayed", (location) => {
+                           Epubly.toc.updateActive(location.start.href);
+                        });
+
+                        Epubly.ui.hideLoader();
+                    } catch (error) {
+                        console.error("Error loading EPUB:", error);
+                        alert("Hiba a könyv betöltése közben.");
+                        Epubly.ui.hideLoader();
+                    }
+                },
+                
+                async loadDefaultBook() {
+                    const defaultBookUrl = "https://s3.amazonaws.com/moby-dick/moby-dick.epub";
+                    console.log("Loading default book: Moby Dick");
+                    this.loadBook(defaultBookUrl, 'default-moby-dick');
+                },
+
+                async loadLastOpenedBook() {
+                    const lastBookId = Epubly.storage.getLastOpenedBook();
+                    if (lastBookId) {
+                        const bookRecord = await Epubly.storage.db.getBook(lastBookId);
+                        if (bookRecord) {
+                            console.log(`Loading last opened book: ${bookRecord.metadata.title}`);
+                            this.loadBook(bookRecord.data, lastBookId);
+                        } else {
+                            this.loadDefaultBook();
+                        }
+                    } else {
+                        this.loadDefaultBook();
+                    }
+                },
+
+                nextPage() {
+                    Epubly.state.rendition?.next();
+                },
+
+                prevPage() {
+                    Epubly.state.rendition?.prev();
+                },
+
+                applyTheme(settings) {
+                    if (!Epubly.state.rendition) return;
+                    Epubly.state.rendition.themes.fontSize(`${settings.fontSize}%`);
+                    Epubly.state.rendition.themes.override("padding", `0 ${settings.margin}px`);
+                }
+            },
+
+            toc: {
+                generate(tocItems) {
+                    const tocList = Epubly.dom.tocList;
+                    tocList.innerHTML = '';
+                    const fragment = document.createDocumentFragment();
+                    
+                    tocItems.forEach(item => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.textContent = item.label.trim();
+                        a.href = item.href;
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            Epubly.state.rendition.display(item.href);
+                        });
+                        li.appendChild(a);
+                        fragment.appendChild(li);
+                    });
+
+                    tocList.appendChild(fragment);
+                },
+                updateActive(currentHref) {
+                    const links = Epubly.dom.tocList.querySelectorAll('a');
+                    links.forEach(link => {
+                        // Simple check, can be improved for more complex hrefs
+                        if (link.getAttribute('href').split('#')[0] === currentHref.split('#')[0]) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    });
+                }
+            },
+
+            library: {
+                async render() {
+                    console.log("Rendering library (placeholder)...");
+                    Epubly.ui.showMainPanel('library');
+                    const grid = document.getElementById('library-grid-sidebar');
+                    const books = await Epubly.storage.db.getAllBooks();
+
+                    if (!grid) {
+                        const libraryPanel = document.getElementById('panel-library-sidebar');
+                        const placeholder = libraryPanel.querySelector('p');
+                        if (books.length > 0) {
+                            placeholder.textContent = `${books.length} könyv a könyvtárban.`
+                        } else {
+                            placeholder.textContent = `Még nincsenek könyveid. Importálj egyet!`;
+                        }
+                        return;
+                    }
+
+                    // A more complete render would be here
+                    console.log("Books in library:", books);
+                },
+            },
+
+            settings: {
+                init() {
+                    Epubly.dom.fontSizeSlider.addEventListener('input', this.handleUpdate);
+                    Epubly.dom.marginSlider.addEventListener('input', this.handleUpdate);
+                    this.load();
+                },
+
+                get() {
+                    return {
+                        fontSize: localStorage.getItem('epubly-fontSize') || '100',
+                        margin: localStorage.getItem('epubly-margin') || '20',
+                    }
+                },
+                
+                save(settings) {
+                    localStorage.setItem('epubly-fontSize', settings.fontSize);
+                    localStorage.setItem('epubly-margin', settings.margin);
+                },
+
+                load() {
+                    const settings = this.get();
+                    Epubly.dom.fontSizeSlider.value = settings.fontSize;
+                    Epubly.dom.marginSlider.value = settings.margin;
+                    Epubly.reader.applyTheme(settings);
+                },
+
+                handleUpdate() {
+                    const newSettings = {
+                        fontSize: Epubly.dom.fontSizeSlider.value,
+                        margin: Epubly.dom.marginSlider.value
+                    };
+                    Epubly.settings.save(newSettings);
+                    Epubly.reader.applyTheme(newSettings);
+                }
+            },
+
+            storage: {
+                db: {
+                    _db: null,
+                    async init() {
+                        return new Promise((resolve, reject) => {
+                            if (this._db) {
+                                return resolve(this._db);
+                            }
+                            const request = indexedDB.open('EpublyDB', 1);
+                            request.onerror = (e) => reject("IndexedDB error: " + e.target.errorCode);
+                            request.onsuccess = (e) => {
+                                this._db = e.target.result;
+                                resolve(this._db);
+                            };
+                            request.onupgradeneeded = (e) => {
+                                const db = e.target.result;
+                                db.createObjectStore('books', { keyPath: 'id' });
+                            };
+                        });
+                    },
+                    async saveBook(bookRecord) {
+                        const db = await this.init();
+                        return new Promise((resolve, reject) => {
+                            const transaction = db.transaction(['books'], 'readwrite');
+                            const store = transaction.objectStore('books');
+                            const request = store.put(bookRecord);
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = () => reject(request.error);
+                        });
+                    },
+                    async getBook(id) {
+                         const db = await this.init();
+                        return new Promise((resolve, reject) => {
+                            const transaction = db.transaction(['books'], 'readonly');
+                            const store = transaction.objectStore('books');
+                            const request = store.get(id);
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = () => reject(request.error);
+                        });
+                    },
+                    async getAllBooks() {
+                         const db = await this.init();
+                        return new Promise((resolve, reject) => {
+                            const transaction = db.transaction(['books'], 'readonly');
+                            const store = transaction.objectStore('books');
+                            const request = store.getAll();
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = () => reject(request.error);
+                        });
+                    }
+                },
+
+                async handleFileUpload(file) {
+                    Epubly.ui.showLoader('Fájl olvasása...');
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        const arrayBuffer = event.target.result;
+                        
+                        // Use epub.js to get metadata before saving
+                        try {
+                            const tempBook = ePub(arrayBuffer);
+                            const metadata = await tempBook.loaded.metadata;
+                            const bookId = `${metadata.title}-${Date.now()}`;
+                            const bookRecord = {
+                                id: bookId,
+                                data: arrayBuffer,
+                                metadata: {
+                                    title: metadata.title,
+                                    creator: metadata.creator,
+                                }
+                            };
+                            await this.db.saveBook(bookRecord);
+                            console.log(`Book "${metadata.title}" saved to IndexedDB.`);
+                            Epubly.reader.loadBook(arrayBuffer, bookId);
+                            Epubly.ui.hideModal('import-modal');
+
+                        } catch(err) {
+                             console.error("Error parsing EPUB for metadata:", err);
+                             alert("Hiba a könyv metaadatainak olvasása közben.");
+                             Epubly.ui.hideLoader();
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                },
+
+                saveLastOpenedBook(bookId) {
+                    if (!bookId) return;
+                    localStorage.setItem('epubly-lastBookId', bookId);
+                },
+
+                getLastOpenedBook() {
+                    return localStorage.getItem('epubly-lastBookId');
+                }
+            },
+
+            // --- UI & EVENT HANDLING --- //
+
+            ui: {
+                init() {
+                    // Populate DOM cache
+                    const ids = ['topbar', 'sidebar-left', 'sidebar-right', 'main-content', 'viewer', 'prev', 'next', 'loader', 'toc-list', 'zen-mode-btn', 'import-modal', 'settings-modal', 'epub-file', 'import-from-url-btn', 'epub-url', 'font-size-slider', 'margin-slider', 'import-book-sidebar-btn'];
+                    ids.forEach(id => Epubly.dom[id.replace(/-(\w)/g, (m, g) => g.toUpperCase())] = document.getElementById(id));
+                    
+                    Epubly.dom.navLinks = document.querySelectorAll('.nav-link');
+                    Epubly.dom.modalCloseBtns = document.querySelectorAll('.modal-close-btn');
+
+                    this.attachEventListeners();
+                },
+
+                attachEventListeners() {
+                    // Reader Navigation
+                    Epubly.dom.prev.addEventListener('click', () => Epubly.reader.prevPage());
+                    Epubly.dom.next.addEventListener('click', () => Epubly.reader.nextPage());
+                    document.addEventListener('keydown', (e) => {
+                        if (e.key === 'ArrowLeft') Epubly.reader.prevPage();
+                        if (e.key === 'ArrowRight') Epubly.reader.nextPage();
+                    });
+
+                    // Top Bar
+                    Epubly.dom.zenModeBtn.addEventListener('click', this.toggleZenMode);
+                    Epubly.dom.navLinks.forEach(link => {
+                        link.addEventListener('click', e => {
+                            e.preventDefault();
+                            this.handleNavClick(e.currentTarget);
+                        });
+                    });
+
+                    // Modals
+                    Epubly.dom.modalCloseBtns.forEach(btn => {
+                        btn.addEventListener('click', () => this.hideModal(btn.dataset.target));
+                    });
+                    
+                    Epubly.dom.importFromUrlBtn.addEventListener('click', () => {
+                        const url = Epubly.dom.epubUrl.value;
+                        if (url) {
+                            Epubly.reader.loadBook(url, url);
+                            this.hideModal('import-modal');
+                        }
+                    });
+
+                    Epubly.dom.epubFile.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if(file) {
+                           Epubly.storage.handleFileUpload(file);
+                        }
+                    });
+
+                    Epubly.dom.importBookSidebarBtn.addEventListener('click', () => this.showModal('import-modal'));
+                },
+
+                toggleZenMode() {
+                    Epubly.state.isZenMode = !Epubly.state.isZenMode;
+                    document.body.classList.toggle('zen-mode', Epubly.state.isZenMode);
+                },
+                
+                handleNavClick(target) {
+                    const targetId = target.dataset.target;
+                    
+                    Epubly.dom.navLinks.forEach(l => l.classList.remove('active'));
+                    target.classList.add('active');
+
+                    switch(targetId) {
+                        case 'reader':
+                            this.showSidebarPanel('toc');
+                            Epubly.dom.sidebarRight.classList.remove('visible');
+                            break;
+                        case 'library':
+                            this.showSidebarPanel('library-sidebar');
+                            Epubly.library.render();
+                             Epubly.dom.sidebarRight.classList.remove('visible');
+                            break;
+                        case 'notes':
+                            this.showSidebarPanel('toc'); // default to toc
+                            Epubly.dom.sidebarRight.classList.toggle('visible');
+                             console.log("Notes panel toggled (placeholder)");
+                            break;
+                        case 'settings':
+                            this.showModal('settings-modal');
+                            break;
+                    }
+                },
+
+                showSidebarPanel(panelId) {
+                    const panels = document.querySelectorAll('#sidebar-left .sidebar-panel');
+                    panels.forEach(p => p.classList.remove('active'));
+                    document.getElementById(`panel-${panelId}`).classList.add('active');
+                },
+
+                showModal(modalId) {
+                    document.getElementById(modalId).classList.add('visible');
+                },
+                hideModal(modalId) {
+                    document.getElementById(modalId).classList.remove('visible');
+                },
+                
+                showLoader(message = "Betöltés...") {
+                    Epubly.dom.loader.classList.remove('hidden');
+                    Epubly.dom.loader.querySelector('p').textContent = message;
+                },
+                
+                hideLoader() {
+                    Epubly.dom.loader.classList.add('hidden');
+                }
+            },
+
+            // --- INITIALIZATION --- //
+
+            init() {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.ui.init();
+                    this.storage.db.init().then(() => {
+                        this.reader.init();
+                        this.settings.init();
+                        console.log("Epubly Initialized. Version: 0.1.0");
+                    });
+                });
+            }
+        };
+
+        Epubly.init();
+    </script>
+</body>
+</html>
