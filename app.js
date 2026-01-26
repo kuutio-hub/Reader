@@ -27,20 +27,16 @@ const Epubly = {
         isLoadingPrev: false,
         highlights: {},
         activeSidebar: null,
-        globalTheme: 'dark', // handled by css body class
+        globalTheme: 'dark',
         history: [] // Navigation stack: [{chapterIndex, scrollPosition}, ...]
     },
 
     // --- NAVIGATION MANAGER ---
     navigation: {
         pushState() {
-            // Save current state before jumping
             const viewer = document.getElementById('viewer');
-            // Find current visible chapter
             let currentIdx = 0;
             if(Epubly.state.renderedChapters.size > 0) {
-                // Heuristic: take the first rendered chapter that is mostly visible
-                // For simplicity, we just take the one marked by observer or scrolling
                 const chapters = document.querySelectorAll('.chapter-container');
                 for(let c of chapters) {
                     const rect = c.getBoundingClientRect();
@@ -63,9 +59,6 @@ const Epubly = {
             const state = Epubly.state.history.pop();
             Epubly.ui.updateBackButton();
             
-            // Jump to state
-            // If chapter is already rendered, just scroll
-            // If not, we might need to clear and jump (simplest approach for jump back)
             document.getElementById('viewer-content').innerHTML = '';
             Epubly.state.renderedChapters.clear();
             Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
@@ -74,14 +67,12 @@ const Epubly = {
         },
 
         handleLinkClick(e) {
-            // Intercept link clicks inside content
             const link = e.target.closest('a');
             if (!link) return;
 
             const href = link.getAttribute('href');
             if (!href) return;
 
-            // Check if it's an external link
             if (href.startsWith('http')) {
                 e.preventDefault();
                 window.open(href, '_blank');
@@ -91,21 +82,12 @@ const Epubly = {
             e.preventDefault();
             this.pushState();
 
-            // Handle internal navigation
             const [path, hash] = href.split('#');
             
             if (!path || path === '') {
-                // Just a hash jump within current view or loaded chapters
                 this.scrollToHash(hash);
             } else {
-                // Jump to another file
-                // We need to resolve the path relative to current chapter
-                // Use a simple lookup in spine based on href
-                // NOTE: This assumes flattened paths for simplicity or exact matches from manifest
-                // Real EPUB path resolution is complex, we try exact match first
-                
                 let targetIndex = -1;
-                // Try exact match
                 targetIndex = Epubly.state.spine.findIndex(s => s.href === path || s.href.endsWith(path));
                 
                 if (targetIndex !== -1) {
@@ -141,12 +123,11 @@ const Epubly = {
             Epubly.state.currentBookId = bookId;
             Epubly.state.activeBookSessionStart = Date.now();
             Epubly.state.isLoadingNext = false;
-            Epubly.state.history = []; // Reset history
+            Epubly.state.history = []; 
             Epubly.ui.updateBackButton();
 
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
-            // Load Highlights
             Epubly.highlights.load(bookId);
             Epubly.highlights.renderList(); 
 
@@ -205,7 +186,6 @@ const Epubly = {
                 document.getElementById('viewer-content').innerHTML = '';
                 Epubly.ui.showReaderView();
                 
-                // Initial Render
                 await this.renderChapter(startIdx, 'append');
                 
                 this.initObservers();
@@ -235,14 +215,12 @@ const Epubly = {
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlContent, "text/html");
 
-            // Cleanup styles
             doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
             doc.querySelectorAll('*').forEach(el => {
                 el.removeAttribute('style');
                 el.removeAttribute('class');
             });
 
-            // Process Images
             const images = doc.querySelectorAll("img, image");
             const processImage = async (img) => {
                 const src = img.getAttribute("src") || img.getAttribute("href") || img.getAttribute("xlink:href");
@@ -256,7 +234,7 @@ const Epubly = {
                     img.setAttribute("src", url);
                     img.style.cursor = "pointer";
                     img.onclick = (e) => {
-                        e.stopPropagation(); // prevent interfering with other clicks
+                        e.stopPropagation(); 
                         if(confirm("Szeretnéd elmenteni ezt a képet a jegyzetek közé?")) {
                             Epubly.highlights.addImage(index, src); 
                         }
@@ -276,7 +254,6 @@ const Epubly = {
                 chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
             }
 
-            // Attach Link Interceptor
             chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
 
             const viewer = document.getElementById('viewer-content');
@@ -320,7 +297,6 @@ const Epubly = {
                         if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
                         
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
-                        Epubly.ui.updateProgress(idx, Epubly.state.spine.length);
                         Epubly.toc.highlight(idx);
                     }
                 });
@@ -343,13 +319,26 @@ const Epubly = {
         async handleScroll(e) {
             const viewer = e.target;
             
-            const scrolled = viewer.scrollTop;
-            const maxScroll = viewer.scrollHeight - viewer.clientHeight;
-            if(maxScroll > 0) {
-                const percent = (scrolled / maxScroll) * 100;
+            // --- Overall Progress Update ---
+            const scrollTop = viewer.scrollTop;
+            const scrollHeight = viewer.scrollHeight;
+            const clientHeight = viewer.clientHeight;
+
+            if (scrollHeight > clientHeight) {
+                const progress = scrollTop / (scrollHeight - clientHeight);
+                const percent = Math.min(100, Math.round(progress * 100));
+                
+                const ind = document.getElementById('progress-indicator');
+                if (ind) ind.textContent = `${percent}%`;
                 document.getElementById('reading-progress-fill').style.width = percent + "%";
+            } else {
+                const ind = document.getElementById('progress-indicator');
+                if (ind) ind.textContent = `0%`;
+                document.getElementById('reading-progress-fill').style.width = "0%";
             }
 
+
+            // --- Infinite Scroll ---
             if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
                 if(Epubly.state.isLoadingNext) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
@@ -473,7 +462,12 @@ const Epubly = {
             const box = document.getElementById('lightbox');
             const img = document.getElementById('lightbox-img');
             const close = document.querySelector('.lightbox-close');
-            // Delegated click handler is now in engine render
+            document.getElementById('viewer-content').addEventListener('click', (e) => {
+                if(e.target.tagName === 'IMG') {
+                    img.src = e.target.src;
+                    box.classList.add('visible');
+                }
+            });
             const hide = () => box.classList.remove('visible');
             close.onclick = hide;
             box.onclick = (e) => { if(e.target === box) hide(); };
@@ -599,7 +593,7 @@ const Epubly = {
                     <span class="highlight-meta">Fejezet: ${h.chapterIndex + 1}</span>
                 `;
                 li.onclick = () => {
-                    Epubly.navigation.pushState(); // Save before jump from list
+                    Epubly.navigation.pushState(); 
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(h.chapterIndex, 'clear');
@@ -643,26 +637,6 @@ const Epubly = {
             
             document.body.className = ''; 
             document.body.classList.add(`theme-${settings.theme}`);
-            if(settings.background !== 'none') {
-                document.body.classList.add(`bg-${settings.background}`);
-            }
-
-            const styleId = 'epubly-dynamic-styles';
-            let styleTag = document.getElementById(styleId);
-            if (!styleTag) {
-                styleTag = document.createElement('style');
-                styleTag.id = styleId;
-                document.head.appendChild(styleTag);
-            }
-            
-            styleTag.textContent = `
-                .chapter-container, .chapter-container * {
-                    color: inherit !important;
-                    background-color: transparent !important;
-                }
-                img { max-width: 100% !important; height: auto !important; object-fit: contain; }
-                .highlighted-text { color: inherit !important; }
-            `;
         }
     },
 
@@ -684,11 +658,10 @@ const Epubly = {
                 a.className = "toc-link";
                 
                 a.onclick = () => {
-                    Epubly.navigation.pushState(); // Save state before TOC jump
+                    Epubly.navigation.pushState(); 
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(item.index, 'clear');
-                    // E.ui.toggleSidebar('sidebar-toc'); 
                 };
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -731,27 +704,19 @@ const Epubly = {
             }
             bindToggleGroup('align-toggle-group', 'textAlign');
             bindToggleGroup('theme-toggle-group', 'theme');
-            bindToggleGroup('bg-toggle-group', 'background');
             
             const fontSelect = document.getElementById('font-family-select');
             if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
-            
-            document.getElementById('btn-delete-all').onclick = () => {
-                if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
-                    localStorage.clear();
-                    Epubly.storage.db.clearBooks().then(() => location.reload());
-                }
-            };
         },
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '10',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: '#F2F2F7',
-                theme: 'dark', background: 'none'
+                theme: 'dark'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
-            if(!saved.fontColor) saved.fontColor = defaults.fontColor;
+            if(localStorage.getItem('epubly-theme')) saved.theme = localStorage.getItem('epubly-theme');
             return { ...defaults, ...saved };
         },
         save(settings) { localStorage.setItem('epubly-settings', JSON.stringify(settings)); },
@@ -774,13 +739,15 @@ const Epubly = {
             };
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
-            updateToggle('bg-toggle-group', s.background);
             
             Epubly.reader.applySettings(s);
         },
         handleUpdate(key, value) {
             const s = this.get();
             s[key] = value;
+            if (key === 'theme') {
+                localStorage.setItem('epubly-theme', value);
+            }
             this.save(s);
             this.load(); 
         }
@@ -966,12 +933,33 @@ const Epubly = {
             
             document.querySelectorAll('.sidebar-tab').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('#toc-list, #highlights-list').forEach(l => l.classList.remove('active'));
+                    const container = e.target.closest('.sidebar-tabs').parentElement;
+                    container.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+                    container.querySelectorAll('.sidebar-content > *, .wiki-content').forEach(l => l.classList.remove('active'));
                     e.target.classList.add('active');
                     document.getElementById(e.target.dataset.tab).classList.add('active');
                 });
             });
+            
+            // Wiki Modal Tabs
+            const wikiModal = document.getElementById('wiki-modal');
+            if (wikiModal) {
+                const tabs = wikiModal.querySelectorAll('.sidebar-tab[data-tab]');
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const targetId = tab.dataset.tab;
+                        const targetContent = document.getElementById(targetId);
+
+                        tabs.forEach(t => t.classList.remove('active'));
+                        wikiModal.querySelectorAll('.wiki-content').forEach(c => c.classList.remove('active'));
+
+                        tab.classList.add('active');
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                        }
+                    });
+                });
+            }
 
             document.getElementById('app-logo-btn').addEventListener('click', () => {
                 Epubly.reader.updateSessionStats();
@@ -997,7 +985,6 @@ const Epubly = {
                 });
             });
 
-            // Text Selection & Highlights
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
@@ -1035,32 +1022,48 @@ const Epubly = {
                 });
             });
 
-            // Back Button
             document.getElementById('btn-nav-back').addEventListener('click', () => {
                 Epubly.navigation.popState();
             });
 
-            // Theme Toggle Logic
+            // --- Theme Toggle Logic ---
             const themeBtn = document.getElementById('btn-theme-toggle');
-            const storedTheme = localStorage.getItem('epubly-theme') || 'dark';
-            if (storedTheme === 'light') this.setTheme('light');
+            const sunIcon = document.getElementById('theme-icon-sun');
+            const moonIcon = document.getElementById('theme-icon-moon');
             
-            themeBtn.addEventListener('click', () => {
-                const current = document.body.classList.contains('theme-light') ? 'light' : 'dark';
-                this.setTheme(current === 'light' ? 'dark' : 'light');
-            });
-
-            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
-        },
-        
-        setTheme(theme) {
-            if (theme === 'light') {
+            const updateThemeIcons = (theme) => {
+                if (theme === 'light') {
+                    sunIcon.style.display = 'none';
+                    moonIcon.style.display = 'block';
+                } else { // dark, sepia, matrix
+                    sunIcon.style.display = 'block';
+                    moonIcon.style.display = 'none';
+                }
+            };
+            
+            const initialSettings = Epubly.settings.get();
+            updateThemeIcons(initialSettings.theme);
+            if(initialSettings.theme === 'light') {
                 document.body.classList.add('theme-light');
             } else {
                 document.body.classList.remove('theme-light');
             }
-            localStorage.setItem('epubly-theme', theme);
-            Epubly.reader.applySettings(Epubly.settings.get());
+
+            themeBtn.addEventListener('click', () => {
+                const currentTheme = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+                const newTheme = (currentTheme === 'light') ? 'dark' : 'light';
+                Epubly.settings.handleUpdate('theme', newTheme);
+                updateThemeIcons(newTheme);
+            });
+            
+            document.getElementById('btn-delete-all').onclick = () => {
+                if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
+                    localStorage.clear();
+                    Epubly.storage.db.clearBooks().then(() => location.reload());
+                }
+            };
+
+            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
         },
 
         toggleSidebar(id) {
@@ -1096,15 +1099,7 @@ const Epubly = {
                 btn.style.display = 'none';
             }
         },
-
-        updateProgress(current, total) {
-            const ind = document.getElementById('progress-indicator');
-            if(ind && total > 0) {
-                const pct = Math.round(((current + 1) / total) * 100);
-                ind.textContent = `${pct}%`;
-                document.getElementById('reading-progress-fill').style.width = pct + "%";
-            }
-        },
+        
         showReaderView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
@@ -1128,7 +1123,6 @@ const Epubly = {
             document.getElementById('library-view').classList.add('active');
             this.updateHeaderInfo("Könyvtár", "", "");
             document.getElementById('reading-progress-fill').style.width = "0%";
-            // Hide back button in library
             document.getElementById('btn-nav-back').style.display = 'none';
             
             const actions = document.getElementById('top-actions-container');
