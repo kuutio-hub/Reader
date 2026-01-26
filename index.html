@@ -21,7 +21,8 @@
     <!-- GLOBAL LOADER -->
     <div id="loader">
         <div class="spinner"></div>
-        <p id="loader-msg">Epubly.hu indítása...</p>
+        <p id="loader-msg">Rendszer indítása...</p>
+        <p id="loader-status" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;"></p>
         <div id="loader-error" style="display:none; color: var(--danger); margin-top: 10px; max-width: 300px; text-align: center;"></div>
         <button id="retry-btn" class="btn btn-secondary" style="display:none; margin-top:20px;" onclick="location.reload()">Újratöltés</button>
     </div>
@@ -211,11 +212,7 @@
         Epubly.hu v<span id="version-display"></span> &copy; <span id="year-display"></span>
     </footer>
 
-    <!-- DEPENDENCIES (Local) -->
-    <script src="js/libs/jszip.min.js"></script>
-    <script src="js/libs/epub.min.js"></script>
-
-    <!-- APP LOGIC -->
+    <!-- APP LOGIC & LOADER -->
     <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -553,8 +553,6 @@ const Epubly = {
             
             this.library.render();
             
-            // Check for last open book but don't auto-open to Library view is default as per request
-            // Or auto-open if desired. Let's stick to Library view default to avoid confusion.
             this.ui.hideLoader();
             console.log(`Epubly v${version} Initialized.`);
         } catch (error) {
@@ -568,23 +566,63 @@ const Epubly = {
 
 window.Epubly = Epubly;
 
-// Robust initialization loop
-let attempts = 0;
-function attemptInit() {
-    if (window.ePub && window.JSZip) {
-        Epubly.init();
-    } else {
-        attempts++;
-        if (attempts > 50) { // 2.5 seconds timeout
-            const msg = "Hiba: Az ePub.js vagy JSZip könyvtár nem töltődött be. Ellenőrizd, hogy a 'js/libs/' mappában lévő fájlok nem üresek-e!";
-            console.error(msg);
-            document.getElementById('loader-msg').textContent = "Inicializálási hiba";
+/**
+ * SMART DEPENDENCY LOADER
+ * Attempts to load local files first. If they are missing or empty (mock files),
+ * it detects the failure and falls back to CDN.
+ */
+const DependencyLoader = {
+    loadScript(src) {
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.head.appendChild(script);
+        });
+    },
+
+    updateStatus(msg) {
+        const el = document.getElementById('loader-status');
+        if(el) el.textContent = msg;
+        console.log(`Loader: ${msg}`);
+    },
+
+    async boot() {
+        // 1. Try Local Files
+        this.updateStatus('Helyi fájlok keresése...');
+        
+        // Load JSZip (Required for ePub)
+        await this.loadScript('js/libs/jszip.min.js');
+        
+        // Check if JSZip is valid
+        if (typeof window.JSZip === 'undefined') {
+            this.updateStatus('Helyi JSZip nem található. Váltás CDN-re...');
+            await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js');
+        }
+
+        // Load ePub.js
+        await this.loadScript('js/libs/epub.min.js');
+
+        // Check if ePub is valid
+        if (typeof window.ePub === 'undefined') {
+             this.updateStatus('Helyi ePub motor nem található. Váltás CDN-re...');
+             await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js');
+        }
+
+        // Final Check
+        if (window.JSZip && window.ePub) {
+            this.updateStatus('Motor kész. Indítás...');
+            Epubly.init();
+        } else {
+            const msg = "Kritikus hiba: Nem sikerült betölteni a könyvtárakat (Helyi és CDN is sikertelen). Ellenőrizd az internetkapcsolatot!";
+            document.getElementById('loader-msg').textContent = "Hiba";
             document.getElementById('loader-error').textContent = msg;
             document.getElementById('loader-error').style.display = 'block';
             document.getElementById('retry-btn').style.display = 'block';
-        } else {
-            setTimeout(attemptInit, 50);
         }
     }
-}
-attemptInit();
+};
+
+// Start the smart loader
+DependencyLoader.boot();
