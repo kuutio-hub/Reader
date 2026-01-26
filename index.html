@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epubly - Prémium EPUB Olvasó</title>
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     
     <style>
         :root {
@@ -23,13 +25,10 @@
             --radius-s: 8px;
             --radius-m: 14px;
             --radius-l: 22px;
-            --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
-            --shadow-s: 0 2px 6px rgba(0,0,0,0.5);
             --shadow-m: 0 6px 18px rgba(0,0,0,0.55);
-            --shadow-l: 0 12px 32px rgba(0,0,0,0.6);
-            --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px;
+            --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
             --transition: 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', sans-serif;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,18 +53,34 @@
         
         /* Library View */
         #library-view { overflow-y: auto; padding: var(--space-6); }
-        .library-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); max-width: 1200px; margin-left: auto; margin-right: auto; }
         #library-grid { 
             display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-6); 
             max-width: 1200px; margin: 0 auto;
         }
         
         /* Reader View Layout */
-        #reader-view.active { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; }
-        #reader-sidebar-left { width: 300px; background: var(--bg-elevated); border-right: 1px solid var(--border); display: none; flex-direction: column; }
+        #reader-view.active { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; position: relative; }
+        #reader-sidebar-left { width: 300px; background: var(--bg-elevated); border-right: 1px solid var(--border); display: none; flex-direction: column; z-index: 200; position: absolute; height: 100%; top: 0; left: 0; }
         #reader-sidebar-left.visible { display: flex; }
-        #reader-main { position: relative; overflow: hidden; }
-        #viewer { width: 100%; height: 100%; }
+        
+        #reader-main { position: relative; overflow: hidden; height: 100%; width: 100%; }
+        
+        /* The container for epub.js */
+        #viewer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        
+        /* Click zones for navigation */
+        .nav-zone { position: absolute; top: 0; height: 100%; width: 15%; z-index: 50; cursor: pointer; display: none; }
+        .nav-zone:hover { background: rgba(255,255,255,0.02); }
+        .nav-zone.left { left: 0; }
+        .nav-zone.right { right: 0; }
+        /* Show nav zones only when pagination is active via JS class */
+        #reader-view.paginated .nav-zone { display: block; }
+
+        /* Background Pattern Overlay */
+        #pattern-overlay {
+            position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
+            mix-blend-mode: overlay;
+        }
 
         /* --- COMPONENTS --- */
         .btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius-s); border: none; cursor: pointer; font-weight: 500; transition: var(--transition); display: inline-flex; align-items: center; gap: 6px; }
@@ -92,17 +107,24 @@
         .modal.visible { opacity: 1; pointer-events: auto; }
         .modal-content { background: var(--surface); width: 90%; max-width: 600px; border-radius: var(--radius-l); padding: var(--space-6); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
         
-        /* Book Details Modal Specifics */
+        /* Book Details Modal */
         .book-detail-layout { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-5); }
         .book-detail-cover { width: 100%; aspect-ratio: 2/3; background: var(--surface-alt); border-radius: var(--radius-m); overflow: hidden; }
         .book-detail-cover img { width: 100%; height: 100%; object-fit: cover; }
         .book-desc { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; max-height: 200px; overflow-y: auto; margin: var(--space-4) 0; padding-right: var(--space-2); }
         
-        /* TOC List */
-        #toc-list { list-style: none; padding: var(--space-4); }
-        #toc-list li a { display: block; padding: 8px; color: var(--text-muted); text-decoration: none; border-radius: var(--radius-s); transition: var(--transition); }
-        #toc-list li a:hover { background: var(--surface-alt); color: var(--text); }
-        #toc-list li a.active { color: var(--brand); font-weight: 500; }
+        /* Settings Form Elements */
+        .settings-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+        .settings-section:last-child { border-bottom: none; }
+        .settings-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+        .settings-row label { color: var(--text-muted); flex: 1; }
+        .settings-control { flex: 1; }
+        select, input[type="range"] { width: 100%; padding: 8px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
+        input[type="color"] { width: 40px; height: 30px; border: none; padding: 0; background: none; }
+        
+        .toggle-group { display: flex; background: var(--bg-elevated); padding: 2px; border-radius: 6px; border: 1px solid var(--border); }
+        .toggle-btn { flex: 1; padding: 6px; font-size: 0.8rem; background: none; border: none; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+        .toggle-btn.active { background: var(--surface-alt); color: var(--brand); font-weight: 600; }
 
         /* Loader */
         #loader { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; }
@@ -113,11 +135,9 @@
         /* Footer */
         #app-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-elevated); padding: 4px; text-align: center; font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid var(--border); z-index: 1500; }
 
-        /* Mobile Adjustments */
         @media (max-width: 600px) {
             .book-detail-layout { grid-template-columns: 1fr; }
             .book-detail-cover { width: 140px; margin: 0 auto; }
-            #reader-sidebar-left { position: absolute; inset: 0; width: 100%; z-index: 50; }
         }
     </style>
 </head>
@@ -142,61 +162,55 @@
 
     <!-- LIBRARY VIEW -->
     <section id="library-view" class="view-section active">
-        <div class="library-header">
+        <div style="max-width: 1200px; margin: 0 auto; margin-bottom: 24px; display:flex; justify-content:space-between; align-items:center;">
             <h2>Könyvespolc</h2>
             <div style="display: flex; gap: 10px;">
-                <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Importálás
-                </button>
+                <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             </div>
         </div>
-        <div id="library-grid">
-            <!-- Books injected here -->
-        </div>
+        <div id="library-grid"></div>
     </section>
 
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
+        <!-- Sidebar -->
         <aside id="reader-sidebar-left">
             <div style="padding: 16px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                 <h3>Tartalom</h3>
                 <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.remove('visible')">&times;</button>
             </div>
-            <div style="flex:1; overflow-y:auto;">
-                <ul id="toc-list"></ul>
-            </div>
-            <div style="padding:16px; border-top:1px solid var(--border);">
-                 <input type="text" id="in-book-search" placeholder="Keresés..." style="width:100%; padding:8px; background:var(--bg); border:1px solid var(--border); color:white; border-radius:4px;">
+            <div style="flex:1; overflow-y:auto; padding: 10px;">
+                <ul id="toc-list" style="list-style:none;"></ul>
             </div>
         </aside>
+
+        <!-- Main Content -->
         <div id="reader-main">
+            <div id="pattern-overlay"></div>
             <div id="viewer"></div>
-            <!-- Invisible click areas for navigation -->
-            <div style="position:absolute; top:0; left:0; width:15%; height:100%; z-index:10; cursor:pointer;" onclick="Epubly.reader.prevPage()"></div>
-            <div style="position:absolute; top:0; right:0; width:15%; height:100%; z-index:10; cursor:pointer;" onclick="Epubly.reader.nextPage()"></div>
+            <!-- Click zones (Nav arrows via click) -->
+            <div class="nav-zone left" onclick="Epubly.reader.prevPage()" title="Előző oldal"></div>
+            <div class="nav-zone right" onclick="Epubly.reader.nextPage()" title="Következő oldal"></div>
         </div>
     </section>
 
-    <!-- BOOK DETAILS MODAL -->
+    <!-- MODALS -->
+
+    <!-- Book Details -->
     <div id="book-details-modal" class="modal">
         <div class="modal-content">
             <div class="book-detail-layout">
-                <div class="book-detail-cover">
-                    <img id="detail-cover-img" src="" alt="Book Cover">
-                </div>
+                <div class="book-detail-cover"><img id="detail-cover-img" src=""></div>
                 <div style="display:flex; flex-direction:column;">
-                    <button class="icon-btn" style="align-self: flex-end; margin-top:-10px; margin-right:-10px;" onclick="Epubly.ui.hideModal('book-details-modal')">&times;</button>
-                    <h2 id="detail-title" style="margin-bottom:4px; line-height:1.2;">Cím</h2>
+                    <button class="icon-btn" style="align-self: flex-end;" onclick="Epubly.ui.hideModal('book-details-modal')">&times;</button>
+                    <h2 id="detail-title" style="margin-bottom:4px;">Cím</h2>
                     <p id="detail-author" style="color:var(--brand); margin-bottom:12px;">Szerző</p>
-                    <div id="detail-desc" class="book-desc">
-                        <!-- Description injected here -->
-                    </div>
+                    <div id="detail-desc" class="book-desc"></div>
                     <div style="margin-top:auto; display:flex; gap:12px; padding-top:16px;">
-                        <button id="btn-read-book" class="btn btn-primary" style="flex:1; justify-content:center;">Olvasás</button>
+                        <button id="btn-read-book" class="btn btn-primary" style="flex:1;">Olvasás</button>
                         <button id="btn-delete-book" class="btn btn-danger">Törlés</button>
                     </div>
                 </div>
@@ -204,22 +218,21 @@
         </div>
     </div>
 
-    <!-- IMPORT MODAL -->
+    <!-- Import -->
     <div id="import-modal" class="modal">
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
                 <h2>Könyv importálása</h2>
                 <button class="icon-btn" onclick="Epubly.ui.hideModal('import-modal')">&times;</button>
             </div>
-            <div style="padding: 24px; border: 2px dashed var(--border); border-radius: var(--radius-m); text-align:center;">
+            <div style="padding: 24px; border: 2px dashed var(--border); text-align:center;">
                 <input type="file" id="epub-file" accept=".epub" style="display:none" onchange="Epubly.storage.handleFileUpload(this.files[0])">
                 <button class="btn btn-secondary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása (.epub)</button>
-                <p style="margin-top:12px; color:var(--text-muted); font-size:0.9rem;">A könyvek a böngésződben tárolódnak.</p>
             </div>
         </div>
     </div>
 
-    <!-- SETTINGS MODAL -->
+    <!-- Settings -->
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
@@ -227,23 +240,86 @@
                 <button class="icon-btn" onclick="Epubly.ui.hideModal('settings-modal')">&times;</button>
             </div>
             
-            <div style="margin-bottom:20px;">
-                <label style="display:block; color:var(--text-muted); margin-bottom:8px;">Téma</label>
-                <div style="display:flex; gap:8px;">
-                    <button class="btn btn-secondary" style="flex:1;" onclick="Epubly.settings.applyTheme('oled')">OLED</button>
-                    <button class="btn btn-secondary" style="flex:1;" onclick="Epubly.settings.applyTheme('sepia')">Szépia</button>
-                    <button class="btn btn-secondary" style="flex:1;" onclick="Epubly.settings.applyTheme('light')">Világos</button>
+            <div style="max-height: 70vh; overflow-y: auto; padding-right: 8px;">
+                
+                <!-- Layout Settings -->
+                <div class="settings-section">
+                    <h3 style="margin-bottom:12px; color:var(--brand);">Elrendezés</h3>
+                    <div class="settings-row">
+                        <label>Olvasási mód</label>
+                        <div class="toggle-group" id="layout-toggle-group">
+                            <button class="toggle-btn" data-val="scrolled" onclick="Epubly.settings.update('layout', 'scrolled')">Görgetés</button>
+                            <button class="toggle-btn" data-val="paginated" onclick="Epubly.settings.update('layout', 'paginated')">Lapozás</button>
+                            <button class="toggle-btn" data-val="spread" onclick="Epubly.settings.update('layout', 'spread')">2 Oldal</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typography Settings -->
+                <div class="settings-section">
+                    <h3 style="margin-bottom:12px; color:var(--brand);">Tipográfia</h3>
+                    <div class="settings-row">
+                        <label>Betűtípus</label>
+                        <select id="font-family-select" onchange="Epubly.settings.update('fontFamily', this.value)">
+                            <option value="'Inter', sans-serif">Inter (Sans)</option>
+                            <option value="'Merriweather', serif">Merriweather (Serif)</option>
+                            <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                            <option value="'Roboto', sans-serif">Roboto</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Igazítás</label>
+                         <div class="toggle-group" id="align-toggle-group">
+                            <button class="toggle-btn" data-val="left" onclick="Epubly.settings.update('textAlign', 'left')">Balra</button>
+                            <button class="toggle-btn" data-val="justify" onclick="Epubly.settings.update('textAlign', 'justify')">Sorkizárt</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Betűméret</label>
+                        <input type="range" id="font-size-range" min="80" max="250" step="10" oninput="Epubly.settings.update('fontSize', this.value)">
+                    </div>
+                     <div class="settings-row">
+                        <label>Sorköz</label>
+                        <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1" oninput="Epubly.settings.update('lineHeight', this.value)">
+                    </div>
+                    <div class="settings-row">
+                        <label>Betűköz</label>
+                        <input type="range" id="letter-spacing-range" min="-1" max="3" step="0.5" oninput="Epubly.settings.update('letterSpacing', this.value)">
+                    </div>
+                </div>
+
+                <!-- Appearance Settings -->
+                <div class="settings-section">
+                    <h3 style="margin-bottom:12px; color:var(--brand);">Megjelenés</h3>
+                    <div class="settings-row">
+                        <label>Előre beállított</label>
+                        <div class="toggle-group" id="theme-toggle-group">
+                            <button class="toggle-btn" data-val="oled" onclick="Epubly.settings.applyTheme('oled')">OLED</button>
+                            <button class="toggle-btn" data-val="sepia" onclick="Epubly.settings.applyTheme('sepia')">Szépia</button>
+                            <button class="toggle-btn" data-val="light" onclick="Epubly.settings.applyTheme('light')">Világos</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Színek (Egyéni)</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="color" id="bg-color-picker" oninput="Epubly.settings.updateColors(this.value, null)">
+                            <input type="color" id="text-color-picker" oninput="Epubly.settings.updateColors(null, this.value)">
+                        </div>
+                    </div>
+                     <div class="settings-row">
+                        <label>Háttér Minta</label>
+                        <select id="pattern-select" onchange="Epubly.settings.update('pattern', this.value)">
+                            <option value="none">Nincs</option>
+                            <option value="paper">Papír textúra</option>
+                            <option value="lines">Vonalas</option>
+                            <option value="noise">Zaj</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div style="margin-bottom:20px;">
-                <label style="display:block; color:var(--text-muted); margin-bottom:8px;">Betűméret</label>
-                <input type="range" id="font-size-range" min="80" max="200" step="10" style="width:100%" oninput="Epubly.settings.update('fontSize', this.value)">
-            </div>
-
-            <div style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px;">
+            <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
                 <button class="btn btn-danger" style="width:100%; justify-content:center;" onclick="Epubly.storage.clearCache()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     Gyorsítótár és könyvek törlése
                 </button>
             </div>
@@ -254,34 +330,38 @@
         Epubly v<span id="version-display"></span> &copy; <span id="year-display"></span>
     </footer>
 
-    <!-- DEPENDENCIES -->
+    <!-- DEPENDENCIES (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js"></script>
 
     <!-- APP LOGIC -->
     <script>
-        const APP_VERSION = '0.5.0-beta';
+        const APP_VERSION = '0.6.0-beta';
 
         const Epubly = {
             state: {
-                view: 'library', // 'library' or 'reader'
+                view: 'library',
                 book: null,
                 rendition: null,
                 currentBookId: null,
             },
 
             init() {
-                // UI Init
                 document.getElementById('version-display').textContent = APP_VERSION;
                 document.getElementById('year-display').textContent = new Date().getFullYear();
                 
-                // DB Init
+                // Ensure ePub is loaded
+                if (typeof window.ePub === 'undefined') {
+                    alert('Hiba: Az ePub.js könyvtár nem töltődött be. Ellenőrizd az internetkapcsolatot.');
+                    return;
+                }
+
                 this.storage.db.init().then(() => {
                     this.library.render();
-                    this.settings.load();
+                    this.settings.loadUI(); // Load saved settings into UI
                     this.ui.hideLoader();
                 }).catch(err => {
-                    alert('Hiba az adatbázis inicializálása közben: ' + err);
+                    alert('Adatbázis hiba: ' + err);
                     this.ui.hideLoader();
                 });
             },
@@ -298,19 +378,16 @@
                     Epubly.state.view = viewName;
                     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
                     
-                    const headerTitle = document.getElementById('header-title');
                     const actions = document.getElementById('top-actions-container');
 
                     if (viewName === 'library') {
                         document.getElementById('library-view').classList.add('active');
-                        headerTitle.textContent = 'Könyvtár';
-                        actions.innerHTML = ''; // Actions handled in library sub-header
-                        Epubly.library.render(); // Refresh grid
+                        actions.innerHTML = ''; 
+                        Epubly.library.render();
                     } else if (viewName === 'reader') {
                         document.getElementById('reader-view').classList.add('active');
-                        // headerTitle is set by book title usually
                         actions.innerHTML = `
-                            <button class="btn btn-secondary" onclick="Epubly.reader.close()">Vissza a polchoz</button>
+                            <button class="btn btn-secondary" onclick="Epubly.reader.close()">Vissza</button>
                             <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.toggle('visible')">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                             </button>
@@ -320,16 +397,13 @@
                         `;
                     }
                 },
-
                 showModal(id) { document.getElementById(id).classList.add('visible'); },
                 hideModal(id) { document.getElementById(id).classList.remove('visible'); },
-
                 showBookDetails(book) {
                     document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
                     document.getElementById('detail-title').textContent = book.metadata.title;
                     document.getElementById('detail-author').textContent = book.metadata.creator;
                     document.getElementById('detail-desc').innerHTML = book.metadata.description || 'Nincs elérhető leírás.';
-                    
                     document.getElementById('btn-read-book').onclick = () => {
                         this.hideModal('book-details-modal');
                         Epubly.reader.open(book);
@@ -342,7 +416,6 @@
                              });
                          }
                     };
-
                     this.showModal('book-details-modal');
                 }
             },
@@ -353,25 +426,14 @@
                     grid.innerHTML = '<p style="color:var(--text-muted);">Betöltés...</p>';
                     const books = await Epubly.storage.db.getAllBooks();
                     grid.innerHTML = '';
-
                     if (books.length === 0) {
-                        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-muted); border:1px dashed var(--border); border-radius:12px;">
-                            <p>A könyvtárad üres.</p>
-                            <p>Tölts fel egy könyvet az "Importálás" gombbal.</p>
-                        </div>`;
+                        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-muted); border:1px dashed var(--border); border-radius:12px;"><p>A könyvtárad üres.</p></div>`;
                         return;
                     }
-
                     books.forEach(book => {
                         const div = document.createElement('div');
                         div.className = 'book-card';
-                        div.innerHTML = `
-                            <div class="book-cover">
-                                <img src="${book.metadata.coverUrl || ''}" onerror="this.style.display='none'">
-                            </div>
-                            <div class="book-title">${book.metadata.title}</div>
-                            <div class="book-author">${book.metadata.creator}</div>
-                        `;
+                        div.innerHTML = `<div class="book-cover"><img src="${book.metadata.coverUrl || ''}"></div><div class="book-title">${book.metadata.title}</div><div class="book-author">${book.metadata.creator}</div>`;
                         div.onclick = () => Epubly.ui.showBookDetails(book);
                         grid.appendChild(div);
                     });
@@ -380,52 +442,46 @@
 
             reader: {
                 async open(book) {
-                    Epubly.ui.showLoader('Könyv megnyitása...');
+                    Epubly.ui.showLoader('Renderelés...');
                     try {
                         Epubly.ui.switchView('reader');
-                        document.getElementById('header-title').textContent = book.metadata.title;
-
                         if (Epubly.state.book) { Epubly.state.book.destroy(); }
 
-                        const settings = Epubly.settings.get();
+                        const s = Epubly.settings.get();
                         Epubly.state.book = new window.ePub(book.data);
-                        Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
-                            width: "100%", height: "100%",
-                            flow: "paginated",
-                            spread: "auto"
-                        });
+                        
+                        // Layout Logic
+                        let renderOpts = { width: "100%", height: "100%" };
+                        if (s.layout === 'scrolled') {
+                            renderOpts.flow = "scrolled-doc";
+                            renderOpts.manager = "continuous";
+                        } else if (s.layout === 'spread') {
+                            renderOpts.spread = "always"; // Force 2 pages
+                        } else {
+                            renderOpts.spread = "none"; // 1 page flip
+                        }
+
+                        Epubly.state.rendition = Epubly.state.book.renderTo("viewer", renderOpts);
 
                         const savedLoc = localStorage.getItem('epubly-loc-' + book.id);
                         await Epubly.state.rendition.display(savedLoc || undefined);
 
                         Epubly.state.currentBookId = book.id;
                         Epubly.state.book.ready.then(() => {
-                            // Generate TOC
-                            const tocList = document.getElementById('toc-list');
-                            tocList.innerHTML = '';
-                            Epubly.state.book.navigation.toc.forEach(chapter => {
-                                const li = document.createElement('li');
-                                const a = document.createElement('a');
-                                a.textContent = chapter.label.trim();
-                                a.href = "#";
-                                a.onclick = (e) => {
-                                    e.preventDefault();
-                                    Epubly.state.rendition.display(chapter.href);
-                                    document.getElementById('reader-sidebar-left').classList.remove('visible');
-                                };
-                                li.appendChild(a);
-                                tocList.appendChild(li);
-                            });
-                            this.applySettings();
+                            this.generateToc();
+                            this.applySettings(); // Apply fonts, colors
                         });
 
                         Epubly.state.rendition.on("relocated", location => {
                             localStorage.setItem('epubly-loc-' + book.id, location.start.cfi);
                         });
 
+                        // Navigation zones
+                        document.getElementById('reader-view').className = `view-section active ${s.layout === 'scrolled' ? 'scrolled' : 'paginated'}`;
+
                     } catch(e) {
                         console.error(e);
-                        alert("Hiba a könyv megnyitásakor.");
+                        alert("Renderelési hiba.");
                         Epubly.ui.switchView('library');
                     } finally {
                         Epubly.ui.hideLoader();
@@ -433,27 +489,144 @@
                 },
                 close() {
                     Epubly.ui.switchView('library');
-                    if (Epubly.state.book) {
-                        Epubly.state.book.destroy();
-                        Epubly.state.book = null;
-                    }
+                    if (Epubly.state.book) { Epubly.state.book.destroy(); Epubly.state.book = null; }
                 },
                 nextPage() { Epubly.state.rendition?.next(); },
                 prevPage() { Epubly.state.rendition?.prev(); },
+                generateToc() {
+                    const list = document.getElementById('toc-list');
+                    list.innerHTML = '';
+                    Epubly.state.book.navigation.toc.forEach(c => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a href="#" style="color:var(--text-muted); text-decoration:none; display:block; padding:6px;">${c.label.trim()}</a>`;
+                        li.onclick = () => { Epubly.state.rendition.display(c.href); document.getElementById('reader-sidebar-left').classList.remove('visible'); };
+                        list.appendChild(li);
+                    });
+                },
                 applySettings() {
                     if (!Epubly.state.rendition) return;
                     const s = Epubly.settings.get();
-                    const themes = Epubly.state.rendition.themes;
-                    themes.fontSize(s.fontSize + '%');
+                    const r = Epubly.state.rendition;
                     
-                    const colors = {
-                        oled: { text: '#EDEDED', bg: '#000000' },
-                        sepia: { text: '#5b4636', bg: '#fbf0d9' },
-                        light: { text: '#111111', bg: '#ffffff' }
+                    r.themes.fontSize(s.fontSize + '%');
+                    r.themes.register("custom", { 
+                        "body": { 
+                            "font-family": s.fontFamily,
+                            "line-height": s.lineHeight,
+                            "letter-spacing": s.letterSpacing + "px",
+                            "text-align": s.textAlign,
+                            "color": s.textColor,
+                            "background-color": "transparent" // Handle bg in container
+                        },
+                        "p": { "font-family": s.fontFamily, "text-align": s.textAlign }
+                    });
+                    r.themes.select("custom");
+
+                    // Apply Global Reader Styles (Backgrounds/Patterns)
+                    const readerMain = document.getElementById('reader-main');
+                    readerMain.style.backgroundColor = s.bgColor;
+                    
+                    // Pattern handling
+                    const overlay = document.getElementById('pattern-overlay');
+                    if (s.pattern === 'paper') {
+                        overlay.style.backgroundImage = 'radial-gradient(#000 1px, transparent 0)';
+                        overlay.style.backgroundSize = '20px 20px';
+                        overlay.style.opacity = '0.1';
+                    } else if (s.pattern === 'lines') {
+                        overlay.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 19px, #000 20px)';
+                        overlay.style.backgroundSize = '100% 20px';
+                        overlay.style.opacity = '0.05';
+                    } else if (s.pattern === 'noise') {
+                         // Simple noise simulation using CSS gradients or solid
+                         overlay.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22 opacity=%221%22/%3E%3C/svg%3E")';
+                         overlay.style.opacity = '0.15';
+                    } else {
+                        overlay.style.backgroundImage = 'none';
+                    }
+                }
+            },
+
+            settings: {
+                defaults: {
+                    layout: 'paginated', // scrolled, paginated, spread
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 100,
+                    lineHeight: 1.6,
+                    letterSpacing: 0,
+                    textAlign: 'left',
+                    theme: 'oled', // preset
+                    textColor: '#EDEDED',
+                    bgColor: '#000000',
+                    pattern: 'none'
+                },
+                get() {
+                    return { ...this.defaults, ...JSON.parse(localStorage.getItem('epubly-settings') || '{}') };
+                },
+                update(key, val) {
+                    const s = this.get();
+                    s[key] = val;
+                    localStorage.setItem('epubly-settings', JSON.stringify(s));
+                    
+                    // If layout changes, we need to reload the book
+                    if (key === 'layout') {
+                        if (Epubly.state.book) {
+                            // Find current book record to reload it
+                            const id = Epubly.state.currentBookId;
+                            Epubly.storage.db.getBook(id).then(book => {
+                                Epubly.reader.open(book);
+                            });
+                        }
+                    } else {
+                        Epubly.reader.applySettings();
+                    }
+                    this.loadUI(); // Refresh UI active states
+                },
+                updateColors(bg, text) {
+                    const s = this.get();
+                    if(bg) s.bgColor = bg;
+                    if(text) s.textColor = text;
+                    s.theme = 'custom';
+                    localStorage.setItem('epubly-settings', JSON.stringify(s));
+                    Epubly.reader.applySettings();
+                    this.loadUI();
+                },
+                applyTheme(t) {
+                    const presets = {
+                        oled: { bg: '#000000', text: '#EDEDED' },
+                        sepia: { bg: '#F4ECD8', text: '#5B4636' },
+                        light: { bg: '#FFFFFF', text: '#111111' }
                     };
-                    const c = colors[s.theme] || colors.oled;
-                    themes.register("custom", { "body": { "color": c.text, "background-color": c.bg } });
-                    themes.select("custom");
+                    const p = presets[t];
+                    const s = this.get();
+                    s.theme = t;
+                    s.bgColor = p.bg;
+                    s.textColor = p.text;
+                    localStorage.setItem('epubly-settings', JSON.stringify(s));
+                    Epubly.reader.applySettings();
+                    this.loadUI();
+                },
+                loadUI() {
+                    const s = this.get();
+                    // Layout btns
+                    document.querySelectorAll('#layout-toggle-group .toggle-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.val === s.layout);
+                    });
+                    // Align btns
+                    document.querySelectorAll('#align-toggle-group .toggle-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.val === s.textAlign);
+                    });
+                    // Theme btns
+                    document.querySelectorAll('#theme-toggle-group .toggle-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.val === s.theme);
+                    });
+                    
+                    document.getElementById('font-family-select').value = s.fontFamily;
+                    document.getElementById('font-size-range').value = s.fontSize;
+                    document.getElementById('line-height-range').value = s.lineHeight;
+                    document.getElementById('letter-spacing-range').value = s.letterSpacing;
+                    document.getElementById('bg-color-picker').value = s.bgColor;
+                    document.getElementById('text-color-picker').value = s.textColor;
+                    document.getElementById('pattern-select').value = s.pattern;
                 }
             },
 
@@ -486,6 +659,12 @@
                             tx.objectStore('books').getAll().onsuccess = e => res(e.target.result);
                         });
                     },
+                    async getBook(id) {
+                         const tx = this._db.transaction(['books'], 'readonly');
+                         return new Promise(res => {
+                             tx.objectStore('books').get(id).onsuccess = e => res(e.target.result);
+                         });
+                    },
                     async deleteBook(id) {
                         const tx = this._db.transaction(['books'], 'readwrite');
                         return new Promise(res => {
@@ -495,21 +674,18 @@
                 },
                 async handleFileUpload(file) {
                     if(!file) return;
-                    Epubly.ui.showLoader('Könyv feldolgozása...');
+                    Epubly.ui.showLoader('Feldolgozás...');
                     try {
                         const buffer = await file.arrayBuffer();
                         const book = new window.ePub(buffer);
                         const meta = await book.loaded.metadata;
                         const coverUrl = await book.coverUrl();
-                        
-                        // Extract cover image as Blob URL
                         let finalCover = null;
                         if(coverUrl) {
                             const r = await fetch(coverUrl);
                             const b = await r.blob();
                             finalCover = URL.createObjectURL(b);
                         }
-
                         const record = {
                             id: Date.now().toString(),
                             data: buffer,
@@ -520,47 +696,35 @@
                                 coverUrl: finalCover
                             }
                         };
-                        
                         await this.db.saveBook(record);
                         Epubly.ui.hideModal('import-modal');
                         Epubly.library.render();
                     } catch(e) {
-                        alert('Hiba az importálás során: ' + e);
+                        alert('Hiba: ' + e);
                     } finally {
                         Epubly.ui.hideLoader();
                     }
                 },
                 clearCache() {
-                    if(confirm('Ez töröl minden könyvet és beállítást. Folytatod?')) {
+                    if(confirm('Minden adat törlődik. Folytatod?')) {
                         indexedDB.deleteDatabase('EpublyV1');
                         localStorage.clear();
                         location.reload();
                     }
                 }
-            },
-
-            settings: {
-                get() {
-                    return JSON.parse(localStorage.getItem('epubly-settings')) || { theme: 'oled', fontSize: 100 };
-                },
-                update(key, val) {
-                    const s = this.get();
-                    s[key] = val;
-                    localStorage.setItem('epubly-settings', JSON.stringify(s));
-                    Epubly.reader.applySettings();
-                },
-                applyTheme(t) {
-                    this.update('theme', t);
-                },
-                load() {
-                    const s = this.get();
-                    document.getElementById('font-size-range').value = s.fontSize;
-                }
             }
         };
 
+        // Navigation Keys
+        document.addEventListener('keydown', e => {
+            if(Epubly.state.view === 'reader') {
+                if(e.key === 'ArrowLeft') Epubly.reader.prevPage();
+                if(e.key === 'ArrowRight') Epubly.reader.nextPage();
+            }
+        });
+
         // Boot
-        window.addEventListener('load', () => setTimeout(Epubly.init.bind(Epubly), 100));
+        window.addEventListener('load', () => setTimeout(() => Epubly.init(), 100));
     </script>
 </body>
 </html>

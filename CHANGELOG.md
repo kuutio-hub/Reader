@@ -1,22 +1,19 @@
 # Változási napló
 
+## [0.6.0-beta] - 2024-05-24
+
+### Kritikus Javítások
+- **ePub Constructor Hiba:** Javítva a `TypeError: window.ePub is not a constructor` hiba, amely a "Single File" környezetben jelentkezett. A script betöltése és inicializálása mostantól szigorúbban ellenőrzött.
+
+### Új Funkciók (Beállítások)
+- **Tipográfia:** Választható betűtípusok (Inter, Merriweather, Roboto Mono), sorkizárt igazítás opció, sorköz és betűköz állítás.
+- **Téma és Minták:** Egyedi színválasztók mellett mostantól háttér textúrák (papír, vonalas, zaj) is bekapcsolhatók.
+- **Kétoldalas Nézet:** Új "2 Oldal" opció a lapozáshoz, amely kényszeríti a könyv dupla oldalas megjelenítését (főleg asztali nézetben hasznos).
+- **Egyoldalas Nézet:** Választható görgetés vagy lapozás az egyoldalas nézethez.
+
+### UX Javítások
+- **Navigáció:** Megnövelt, láthatatlan érzékeny területek (jobb/bal 15%) a könnyebb lapozáshoz.
+- **Billentyűzet:** Nyíl gombokkal való lapozás támogatása.
+
 ## [0.5.0-beta] - 2024-05-24
-
-### Átépítés (Refactor)
-
-- **Single File Architecture:** A teljes alkalmazás (`js`, `css`, `html`) egyetlen `index.html` fájlba lett integrálva. Ez megszünteti a GitHub Pages-en jelentkező elérési út (`pathing`) és betöltési hibákat.
-- **Könyvtár-központú Nézet:** Az alkalmazás mostantól a Könyvtár nézettel indul, nem próbál meg automatikusan megnyitni egy nem létező könyvet.
-
-### Hozzáadva (Added)
-
-- **Könyv Részletek Modális Ablak:** A borítóra kattintva egy részletes információs ablak nyílik meg (Cím, Szerző, Leírás, Gombok), nem indul el azonnal az olvasás.
-- **Gyorsítótár Ürítése:** A beállítások menüben elérhető a "Gyorsítótár és könyvek törlése" gomb, ami mindent alaphelyzetbe állít.
-- **Leírás (Blurb) Támogatás:** Importáláskor az alkalmazás elmenti és megjeleníti a könyv leírását (ha az EPUB tartalmazza).
-
-### Javítva (Fixed)
-
-- **Verziószám Láthatósága:** A verziószám (`0.5.0-beta`) egy `fixed` pozíciójú láblécbe került, így mindig látható.
-- **Navigáció:** A menük és gombok logikája egyszerűsödött. A TOC (tartalomjegyzék) csak olvasás közben érhető el, a bal oldali sávból.
-
-## [0.4.0] - 2024-05-24
-*Legacy verziók archiválva.*
+*Single File Architecture bevezetése.*
