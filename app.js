@@ -342,14 +342,17 @@ const Epubly = {
             async init() {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
-                    const request = indexedDB.open('EpublyDB', 2);
+                    // BUMP VERSION TO 3 TO FORCE UPGRADE AND FIX SCHEMA
+                    const request = indexedDB.open('EpublyDB', 3);
                     request.onerror = e => reject("IndexedDB error");
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
-                        if (!db.objectStoreNames.contains('books')) {
-                            db.createObjectStore('books', { keyPath: 'id' });
+                        // Wipe old store to ensure correct keyPath
+                        if (db.objectStoreNames.contains('books')) {
+                            db.deleteObjectStore('books');
                         }
+                        db.createObjectStore('books', { keyPath: 'id' });
                     };
                 });
             },
