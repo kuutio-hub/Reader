@@ -50,6 +50,7 @@ const Epubly = {
 
                 // Restore location
                 const location = Epubly.storage.getLocation(bookId);
+                // If location is null, display() renders start
                 await Epubly.state.rendition.display(location || undefined);
 
                 // Setup session tracking
@@ -57,9 +58,12 @@ const Epubly = {
                 Epubly.state.activeBookSessionStart = Date.now();
                 Epubly.storage.saveLastOpenedBook(bookId);
                 
-                // Load TOC
-                const navigation = await Epubly.state.book.loaded.navigation;
-                Epubly.toc.generate(navigation.toc);
+                // Load TOC (safely)
+                try {
+                    const navigation = await Epubly.state.book.loaded.navigation;
+                    Epubly.toc.generate(navigation.toc);
+                } catch(e) { console.warn("TOC load failed", e); }
+
                 this.applySettings(settings);
 
                 // Events
@@ -75,7 +79,9 @@ const Epubly = {
 
             } catch (error) {
                 console.error("Error loading EPUB:", error);
-                throw new Error("Hiba a könyv megnyitása közben: " + error.message);
+                Epubly.ui.hideLoader();
+                alert("Hiba a könyv megnyitása közben: " + error.message);
+                Epubly.ui.showLibraryView();
             }
         },
         updateSessionStats(location) {
@@ -83,12 +89,12 @@ const Epubly = {
             
             const now = Date.now();
             const duration = now - Epubly.state.activeBookSessionStart;
-            // Update start time to now to avoid double counting
+            // Update start time to now to avoid double counting if called multiple times
             Epubly.state.activeBookSessionStart = now;
 
             // Calculate percentage if location provided
             let percentage = null;
-            if(location && location.start) {
+            if(location && location.start && typeof location.start.percentage === 'number') {
                 percentage = location.start.percentage;
             }
 
@@ -153,9 +159,10 @@ const Epubly = {
                 return;
             }
             const fragment = document.createDocumentFragment();
-            tocItems.forEach(item => {
+            
+            const createLink = (item) => {
                 const a = document.createElement('a');
-                a.textContent = item.label.trim();
+                a.textContent = item.label ? item.label.trim() : "Névtelen fejezet";
                 a.href = item.href;
                 a.style.display = "block";
                 a.style.padding = "8px";
@@ -179,9 +186,18 @@ const Epubly = {
                         document.getElementById('reader-sidebar-left').classList.remove('visible');
                     }
                 });
+                return a;
+            };
+
+            tocItems.forEach(item => {
                 const li = document.createElement('li');
-                li.appendChild(a);
+                li.appendChild(createLink(item));
                 fragment.appendChild(li);
+                
+                // Simple support for 1 level deep nesting if needed, or flat list
+                if(item.subitems && item.subitems.length > 0) {
+                     // recursively adding subitems could go here
+                }
             });
             tocList.appendChild(fragment);
         },
@@ -190,7 +206,10 @@ const Epubly = {
             if(!tocList) return;
             const links = tocList.querySelectorAll('a');
             links.forEach(link => {
-                const isActive = link.getAttribute('href').split('#')[0] === currentHref.split('#')[0];
+                const linkHref = link.getAttribute('href');
+                // Basic loose matching
+                const isActive = currentHref.indexOf(linkHref) > -1 || linkHref.indexOf(currentHref) > -1;
+                
                 link.classList.toggle('active', isActive);
                 if(isActive) {
                     link.style.color = "var(--brand)";
@@ -213,7 +232,7 @@ const Epubly = {
                 grid.innerHTML = '';
 
                 if (!books || books.length === 0) {
-                    grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center;">A könyvtárad üres.</p>`;
+                    grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center; margin-top: 40px;">A könyvtárad üres.<br>Kattints az "Importálás" gombra!</p>`;
                     return;
                 }
 
@@ -223,19 +242,22 @@ const Epubly = {
                     // Cover fallback
                     const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%23222"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
                     
+                    const safeTitle = book.metadata.title || "Ismeretlen cím";
+                    const safeCreator = book.metadata.creator || "Ismeretlen szerző";
+
                     card.innerHTML = `
                         <div class="book-cover">
-                            <img src="${coverSrc}" alt="${book.metadata.title}" loading="lazy">
+                            <img src="${coverSrc}" alt="${safeTitle}" loading="lazy">
                         </div>
-                        <div class="book-title">${book.metadata.title}</div>
-                        <div class="book-author">${book.metadata.creator}</div>
+                        <div class="book-title" title="${safeTitle}">${safeTitle}</div>
+                        <div class="book-author" title="${safeCreator}">${safeCreator}</div>
                     `;
                     card.onclick = () => Epubly.ui.showBookInfoModal(book);
                     grid.appendChild(card);
                 });
             } catch (e) {
                 console.error("Library render error:", e);
-                grid.innerHTML = `<p style="color: var(--danger);">Hiba a könyvtár betöltésekor.</p>`;
+                grid.innerHTML = `<p style="color: var(--danger);">Hiba a könyvtár betöltésekor. (${e.message})</p>`;
             }
         }
     },
@@ -243,19 +265,7 @@ const Epubly = {
     settings: {
         init() {
             this.load();
-            // Bind inputs from UI
-            const bind = (id, key, needsReload = false) => {
-                const el = document.getElementById(id);
-                if(el) el.addEventListener(el.tagName === 'INPUT' || el.tagName === 'SELECT' ? 'change' : 'click', (e) => {
-                    let val = e.target.value;
-                    // Handle buttons in toggle groups
-                    if(e.target.classList.contains('toggle-btn')) {
-                        val = e.target.dataset.val;
-                    }
-                    this.handleUpdate(key, val, false, needsReload);
-                });
-            };
-
+            
             const bindInput = (id, key) => {
                 const el = document.getElementById(id);
                 if(el) el.addEventListener('input', (e) => this.handleUpdate(key, e.target.value));
@@ -374,9 +384,9 @@ const Epubly = {
             async init() {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
-                    // VERSION 4
+                    // Keep version 4 to maintain data
                     const request = indexedDB.open('EpublyDB', 4);
-                    request.onerror = e => reject("IndexedDB error");
+                    request.onerror = e => reject("IndexedDB error: " + e.target.error);
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
@@ -453,38 +463,63 @@ const Epubly = {
                 return null;
             }
         },
+        // *** COMPLETELY REWRITTEN IMPORT FUNCTION ***
         async importBook(arrayBuffer, bookId, isDefault = false) {
             let tempBook = null;
             try {
                 if (!window.ePub) throw new Error("Az ePub.js könyvtár nincs betöltve.");
                 
+                // Initialize book with the buffer
                 tempBook = window.ePub(arrayBuffer);
+                
+                // Wait for the book to be ready (parsing spine, container, etc)
                 await tempBook.ready;
 
-                // Robust metadata extraction using package.metadata
-                // fallback to loaded.metadata only if needed, but safe access is key
-                let metadata = {};
+                // Robust Metadata Extraction
+                // Depending on epub.js version, metadata can be in different places or is a promise.
+                let rawMetadata = {};
                 try {
-                    metadata = tempBook.package ? tempBook.package.metadata : {};
-                } catch(e) { console.warn("Meta extract fail", e); }
+                    // Try the standard way first (modern epub.js)
+                    rawMetadata = await tempBook.loaded.metadata; 
+                } catch (metaError) {
+                    console.warn("Metadata promise failed, trying fallback...", metaError);
+                    // Fallback to internal properties if promise fails
+                    if(tempBook.package && tempBook.package.metadata) {
+                        rawMetadata = tempBook.package.metadata;
+                    }
+                }
 
-                let coverBase64 = null;
+                // Normalize metadata to ensure no 'undefined' errors
+                // If rawMetadata is null/undefined, use empty object
+                const safeMeta = rawMetadata || {};
+
+                const finalMetadata = {
+                    title: safeMeta.title || 'Névtelen Könyv',
+                    creator: safeMeta.creator || 'Ismeretlen Szerző',
+                    publisher: safeMeta.publisher || '',
+                    pubdate: safeMeta.pubdate || '',
+                    description: safeMeta.description || 'Nincs leírás.',
+                    coverUrl: null
+                };
+
+                // Cover Extraction
                 try {
                     const coverUrl = await tempBook.coverUrl();
-                    coverBase64 = await this.getCoverBase64(coverUrl);
-                } catch (coverErr) { console.warn("No cover found"); }
+                    if(coverUrl) {
+                        finalMetadata.coverUrl = await this.getCoverBase64(coverUrl);
+                    }
+                } catch (coverErr) {
+                    console.warn("No cover found or extraction failed:", coverErr);
+                }
 
+                // ID Generation
                 const finalId = isDefault ? bookId : `${Date.now()}`;
+                
+                // Construct Record
                 const bookRecord = {
-                    id: finalId, data: arrayBuffer,
-                    metadata: {
-                        title: metadata.title || 'Ismeretlen cím', 
-                        creator: metadata.creator || 'Ismeretlen szerző',
-                        publisher: metadata.publisher, 
-                        pubdate: metadata.pubdate, 
-                        coverUrl: coverBase64, 
-                        description: metadata.description
-                    },
+                    id: finalId, 
+                    data: arrayBuffer,
+                    metadata: finalMetadata,
                     stats: {
                         totalTime: 0,
                         progress: 0,
@@ -492,12 +527,15 @@ const Epubly = {
                     }
                 };
                 
+                // Persist
                 await this.db.saveBook(bookRecord);
                 return bookRecord;
+
             } catch (err) {
-                console.error("Import Error:", err);
+                console.error("Critical Import Error:", err);
                 throw new Error("Sikertelen importálás: " + (err.message || "Ismeretlen hiba"));
             } finally {
+                // Always clean up resources
                 if (tempBook) {
                     try { tempBook.destroy(); } catch(e) {}
                 }
@@ -511,10 +549,11 @@ const Epubly = {
                 const arrayBuffer = await file.arrayBuffer();
                 await this.importBook(arrayBuffer);
                 
+                // Allow DB to settle
                 setTimeout(async () => {
                     await Epubly.library.render();
                     Epubly.ui.hideLoader();
-                }, 100);
+                }, 200);
             } catch (error) {
                 alert(error.message);
                 Epubly.ui.hideLoader();
@@ -524,14 +563,18 @@ const Epubly = {
             try {
                 const book = await this.db.getBook(bookId);
                 if(book) {
+                    // Ensure stats object exists
                     if(!book.stats) book.stats = { totalTime: 0, progress: 0, lastRead: Date.now() };
                     
-                    if(durationDelta > 0 && durationDelta < 86400000) { // Sanity check < 24h
+                    // Sanity check delta (e.g., max 24 hours to prevent glitches)
+                    if(durationDelta > 0 && durationDelta < 86400000) { 
                         book.stats.totalTime += durationDelta;
                     }
-                    if(percentage !== null && percentage !== undefined) {
+                    
+                    if(percentage !== null && percentage !== undefined && !isNaN(percentage)) {
                         book.stats.progress = percentage;
                     }
+                    
                     book.stats.lastRead = Date.now();
                     await this.db.saveBook(book);
                 }
@@ -561,11 +604,12 @@ const Epubly = {
                 document.getElementById('reader-sidebar-left').classList.remove('visible');
             });
 
-            // Brand Logo Navigation
+            // Brand Logo Navigation - Returns to Library
             document.getElementById('brand-logo').addEventListener('click', () => {
-                // If reading, close book first
-                if(Epubly.state.book) {
-                    Epubly.reader.loadBook(null); // Unload current
+                // If currently reading, update stats before closing
+                if(Epubly.state.book && Epubly.state.currentBookId) {
+                    Epubly.reader.updateSessionStats();
+                    Epubly.reader.loadBook(null); // Unload/Destroy current
                 }
                 Epubly.ui.showLibraryView();
             });
@@ -575,6 +619,7 @@ const Epubly = {
             const dropZone = document.getElementById('import-drop-zone');
             
             if(fileInput && dropZone) {
+                // Standard file input change
                 fileInput.addEventListener('change', (e) => {
                     if(e.target.files.length > 0) {
                         Epubly.storage.handleFileUpload(e.target.files[0]);
@@ -582,25 +627,30 @@ const Epubly = {
                     }
                 });
 
-                // Drag & Drop
+                // Drag & Drop Events
                 dropZone.addEventListener('dragover', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     dropZone.classList.add('hover');
                 });
                 
                 dropZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     dropZone.classList.remove('hover');
                 });
 
                 dropZone.addEventListener('drop', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     dropZone.classList.remove('hover');
+                    
                     if (e.dataTransfer.files.length > 0) {
                         const file = e.dataTransfer.files[0];
                         if (file.name.toLowerCase().endsWith('.epub')) {
                             Epubly.storage.handleFileUpload(file);
                         } else {
-                            alert("Csak .epub fájlokat importálhatsz!");
+                            alert("Csak .epub kiterjesztésű fájlokat importálhatsz!");
                         }
                     }
                 });
@@ -613,7 +663,7 @@ const Epubly = {
                 });
             });
 
-            // Keys
+            // Keyboard Navigation
             document.addEventListener('keydown', e => {
                 if(Epubly.state.currentBookId && document.getElementById('reader-view').classList.contains('active')) {
                      if (e.key === 'ArrowLeft') Epubly.reader.prevPage();
@@ -635,10 +685,10 @@ const Epubly = {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
             
-            // Update Header actions for Reader
+            // Reader Header Actions
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
-                <button class="btn btn-secondary" onclick="Epubly.reader.loadBook(null); Epubly.ui.showLibraryView()">Vissza</button>
+                <button class="btn btn-secondary" onclick="Epubly.reader.updateSessionStats(); Epubly.reader.loadBook(null); Epubly.ui.showLibraryView()">Vissza</button>
                 <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.add('visible')" title="Tartalomjegyzék">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
@@ -647,14 +697,14 @@ const Epubly = {
                 </button>
             `;
             const headerTitle = document.getElementById('header-title');
-            headerTitle.textContent = Epubly.state.book ? Epubly.state.book.metadata.title : 'Olvasó';
+            headerTitle.textContent = Epubly.state.book && Epubly.state.book.package ? Epubly.state.book.package.metadata.title : 'Olvasó';
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('library-view').classList.add('active');
             document.getElementById('header-title').textContent = 'Könyvtár';
             
-            // Dynamic Header Buttons for Library
+            // Library Header Actions
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
@@ -693,7 +743,7 @@ const Epubly = {
             };
 
             document.getElementById('btn-delete-book').onclick = async () => {
-                if(confirm('Törlöd?')) {
+                if(confirm('Biztosan törölni szeretnéd ezt a könyvet?')) {
                     await Epubly.storage.db.deleteBook(book.id);
                     this.hideModal('book-details-modal');
                     Epubly.library.render();
