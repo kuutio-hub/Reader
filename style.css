@@ -55,7 +55,7 @@ body {
 #loader {
     position: fixed; inset: 0; background: var(--bg); z-index: 2000;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease, visibility 0.5s;
+    transition: opacity 0.3s ease, visibility 0.3s;
 }
 #loader.hidden {
     opacity: 0;
@@ -65,12 +65,12 @@ body {
 .spinner {
     width: 40px; height: 40px; border: 4px solid var(--surface-alt);
     border-top-color: var(--brand); border-radius: 50%;
-    animation: spin 1s linear infinite; margin-bottom: 16px;
+    animation: spin 0.8s linear infinite; margin-bottom: 16px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* --- VIEWS --- */
-.view-section { display: none; width: 100%; height: calc(100% - 60px - 30px); overflow: hidden; position: relative; }
+.view-section { display: none; width: 100%; height: calc(100% - 60px); overflow: hidden; position: relative; }
 .view-section.active { display: block; }
 
 /* Library View */
@@ -82,24 +82,54 @@ body {
 
 /* Reader View Layout */
 /* IMPORTANT: Explicit heights are crucial for epub.js */
-#reader-view.active { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; height: calc(100vh - 90px); }
+#reader-view.active { display: grid; grid-template-columns: auto 1fr auto; height: 100%; }
 
 #reader-sidebar-left { width: 300px; background: var(--bg-elevated); border-right: 1px solid var(--border); display: none; flex-direction: column; z-index: 200; position: absolute; height: 100%; top: 0; left: 0; }
 #reader-sidebar-left.visible { display: flex; }
 
-#reader-main { position: relative; overflow: hidden; height: 100%; width: 100%; display: flex; flex-direction: column; }
+#reader-main { 
+    position: relative; 
+    overflow: hidden; 
+    height: 100%; 
+    width: 100%; 
+    display: flex; 
+    flex-direction: column; 
+    /* This ensures content is centered but scrollable */
+}
 
 /* The container for epub.js - MUST HAVE SIZE */
-#viewer { flex: 1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-/* Force iframe inside viewer to fill */
-#viewer iframe { width: 100% !important; height: 100% !important; border: none; }
+#viewer { 
+    flex: 1; 
+    width: 100%; 
+    height: 100%; 
+    /* For continuous scrolling, the viewer itself handles overflow */
+    overflow-y: auto; 
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
 
-/* Click zones for navigation */
+/* Force iframe inside viewer to behave nicely */
+#viewer iframe { 
+    display: block; 
+    margin: 0 auto; 
+}
+
+/* Scrolled mode adjustments */
+#viewer.scrolled {
+    padding: 0;
+}
+#viewer.scrolled .epub-container {
+    padding: 20px 0; /* Add some breathing room top/bottom */
+}
+
+/* Click zones for navigation (Paginated only) */
 .nav-zone { position: absolute; top: 0; height: 100%; width: 15%; z-index: 50; cursor: pointer; display: none; }
 .nav-zone:hover { background: rgba(255,255,255,0.02); }
 .nav-zone.left { left: 0; }
 .nav-zone.right { right: 0; }
-#reader-view.paginated .nav-zone { display: block; }
+/* Only show click zones if NOT scrolled */
+#viewer:not(.scrolled) ~ .nav-zone { display: block; }
 
 /* Background Pattern Overlay */
 #pattern-overlay {

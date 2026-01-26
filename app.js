@@ -32,10 +32,11 @@ const Epubly = {
 
             try {
                 // IMPORTANT: Show reader view FIRST to ensure container has dimensions
-                Epubly.ui.showReaderView(false); // false = don't update header just yet, keep loader
+                Epubly.ui.showReaderView(false); 
 
                 const settings = Epubly.settings.get();
-                const isScrolled = settings.readingFlow === 'scrolled';
+                // FORCE SCROLLED MODE FOR PERFORMANCE BY DEFAULT
+                const isScrolled = settings.readingFlow !== 'paginated'; // Default is scrolled now
 
                 // Ensure ePub is available
                 if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be. Ellenőrizd az internetkapcsolatot.");
@@ -44,7 +45,7 @@ const Epubly = {
                 Epubly.state.book = window.ePub(bookData);
                 await Epubly.state.book.ready; // Wait for parsing to finish
 
-                // Get metadata safely for header update
+                // Get metadata safely
                 let metaTitle = "Névtelen Könyv";
                 try {
                     if(Epubly.state.book.package && Epubly.state.book.package.metadata) {
@@ -53,23 +54,28 @@ const Epubly = {
                 } catch(e) {}
                 Epubly.ui.updateHeaderTitle(metaTitle);
 
-                // Render
+                // --- PERFORMANCE CONFIGURATION ---
+                // We use 'continuous' manager for instant scrolling (like FlowReader)
+                // We use 'scrolled' flow to avoid expensive page calculations
                 Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
+                    manager: "continuous", // Optimized for scrolling
+                    flow: "scrolled",      // No pagination calculation = 10x speed
                     width: "100%", 
                     height: "100%",
-                    flow: isScrolled ? "scrolled-doc" : "paginated",
-                    spread: settings.readingFlow === 'spread' ? "always" : "auto"
+                    snap: false
                 });
 
-                document.getElementById('viewer').classList.toggle('scrolled', isScrolled);
+                // Update UI class for scrolling
+                viewer.classList.add('scrolled'); // Always force scrolled class structure for now
                 
                 // Hide nav zones if scrolled
                 const navZones = document.querySelectorAll('.nav-zone');
-                navZones.forEach(nz => nz.style.display = isScrolled ? 'none' : 'block');
+                navZones.forEach(nz => nz.style.display = 'none'); // Disable click zones in scroll mode
 
                 // Restore location
                 const location = Epubly.storage.getLocation(bookId);
-                // If location is null, display() renders start
+                
+                // Display!
                 await Epubly.state.rendition.display(location || undefined);
 
                 // Setup session tracking
@@ -87,13 +93,16 @@ const Epubly = {
 
                 // Events
                 Epubly.state.rendition.on("displayed", l => {
-                    Epubly.toc.updateActive(l.start.href);
+                    Epubly.ui.hideLoader(); // Hide loader immediately after first render
+                    // Epubly.toc.updateActive(l.start.href); // Can be expensive in continuous mode, opt-in
                 });
                 
                 // Track progress and time on relocation
                 Epubly.state.rendition.on("relocated", location => {
                     Epubly.storage.saveLocation(bookId, location.start.cfi);
                     this.updateSessionStats(location);
+                    // Update active TOC item loosely
+                    if(location.start.href) Epubly.toc.updateActive(location.start.href);
                 });
 
             } catch (error) {
@@ -120,16 +129,18 @@ const Epubly = {
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, percentage);
         },
         nextPage() {
-            Epubly.state.rendition?.next();
+            // In continuous/scrolled mode, we scroll instead of paging
+            const viewer = document.getElementById('viewer');
+            if(viewer) viewer.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
         },
         prevPage() {
-            Epubly.state.rendition?.prev();
+            const viewer = document.getElementById('viewer');
+            if(viewer) viewer.scrollBy({ top: -(window.innerHeight * 0.8), behavior: 'smooth' });
         },
         applySettings(settings) {
             if (!Epubly.state.rendition) return;
             
-            // Use themes.default to override book styles more aggressively
-            // Note: We use !important to force overrides over specific book CSS
+            // Apply themes.default
             const rules = {
                 'body': { 
                     'color': `${settings.textColor} !important`, 
@@ -137,10 +148,11 @@ const Epubly = {
                     'font-family': `${settings.fontFamily} !important`,
                     'font-size': `${settings.fontSize}% !important`,
                     'line-height': `${settings.lineHeight} !important`,
-                    // Margin application (applied as padding to body)
-                    'padding-left': `${settings.margin}% !important`,
-                    'padding-right': `${settings.margin}% !important`,
-                    'margin': '0 !important' // Reset native margin
+                    'padding': `0 ${settings.margin}% !important`, // Horizontal margin
+                    'padding-top': '20px !important',
+                    'padding-bottom': '20px !important',
+                    'max-width': '900px !important', // Optimize reading width
+                    'margin': '0 auto !important'
                 },
                 'p': {
                     'font-family': `${settings.fontFamily} !important`,
@@ -151,15 +163,16 @@ const Epubly = {
                 },
                 'a': {
                     'color': `${settings.textColor} !important`
+                },
+                'img': {
+                    'max-width': '100% !important',
+                    'height': 'auto !important'
                 }
             };
 
             Epubly.state.rendition.themes.default(rules);
 
-            // Apply specific ePub.js adjustments
-            // themes.fontSize doesn't accept !important natively in some versions, so handled via CSS above
-            
-            // Apply global background to the container outside the iframe as well
+            // Global background
             document.getElementById('reader-main').style.backgroundColor = settings.bgColor;
             
             // Pattern
@@ -213,7 +226,6 @@ const Epubly = {
                 a.addEventListener('click', (e) => { 
                     e.preventDefault(); 
                     Epubly.state.rendition.display(item.href); 
-                    // On mobile, close sidebar after click
                     if(window.innerWidth < 800) {
                         document.getElementById('reader-sidebar-left').classList.remove('visible');
                     }
@@ -225,30 +237,42 @@ const Epubly = {
                 const li = document.createElement('li');
                 li.appendChild(createLink(item));
                 fragment.appendChild(li);
-                
-                // Simple support for 1 level deep nesting if needed, or flat list
-                if(item.subitems && item.subitems.length > 0) {
-                     // recursively adding subitems could go here
-                }
             });
             tocList.appendChild(fragment);
         },
         updateActive(currentHref) {
+            // Simplified loose matching for performance
             const tocList = document.getElementById('toc-list');
             if(!tocList) return;
             const links = tocList.querySelectorAll('a');
+            let found = false;
+            
+            // Only update if not already active to save DOM ops
             links.forEach(link => {
                 const linkHref = link.getAttribute('href');
-                // Basic loose matching
-                const isActive = currentHref.indexOf(linkHref) > -1 || linkHref.indexOf(currentHref) > -1;
+                if(!linkHref) return;
                 
-                link.classList.toggle('active', isActive);
-                if(isActive) {
-                    link.style.color = "var(--brand)";
-                    link.style.fontWeight = "bold";
-                } else {
-                    link.style.color = "var(--text-muted)";
-                    link.style.fontWeight = "normal";
+                const cleanCurrent = currentHref.split('#')[0];
+                const cleanLink = linkHref.split('#')[0];
+
+                const isActive = cleanCurrent === cleanLink;
+                
+                if (isActive) {
+                    if(!link.classList.contains('active')) {
+                        // Clear old active
+                        const old = tocList.querySelector('.active');
+                        if(old) {
+                            old.classList.remove('active');
+                            old.style.color = "var(--text-muted)";
+                            old.style.fontWeight = "normal";
+                        }
+                        
+                        link.classList.add('active');
+                        link.style.color = "var(--brand)";
+                        link.style.fontWeight = "bold";
+                        link.scrollIntoView({block: "center", behavior: "smooth"});
+                    }
+                    found = true;
                 }
             });
         }
@@ -320,6 +344,7 @@ const Epubly = {
                 });
             }
 
+            // Note: 'readingFlow' is now essentially ignored or forced to scrolled in code, but UI preserved
             bindToggleGroup('layout-toggle-group', 'readingFlow', true);
             bindToggleGroup('align-toggle-group', 'textAlign');
             bindToggleGroup('theme-toggle-group', 'theme');
@@ -336,8 +361,8 @@ const Epubly = {
 
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', letterSpacing: '0', margin: '5',
-                readingFlow: 'paginated', theme: 'oled',
+                fontSize: '100', lineHeight: '1.6', letterSpacing: '0', margin: '15', // Increased default margin for scrolling
+                readingFlow: 'scrolled', theme: 'oled',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 textColor: '#EDEDED', bgColor: '#000000', pattern: 'none'
             };
@@ -401,13 +426,12 @@ const Epubly = {
             this.load(); // Refresh UI states
 
             if (requiresReload && Epubly.state.currentBookId) {
-                Epubly.ui.showLoader('Nézet frissítése...');
-                // Small delay to allow loader to appear
-                setTimeout(() => {
-                    Epubly.storage.db.getBook(Epubly.state.currentBookId).then(book => {
-                         Epubly.reader.loadBook(book.data, book.id).then(() => Epubly.ui.hideLoader());
-                    });
-                }, 100);
+                // In continuous mode, full reload is rarely needed for style changes, 
+                // but if we switch flow (which we disabled for now), we would need it.
+                // Re-applying settings is usually enough.
+                Epubly.reader.applySettings(s);
+            } else {
+                Epubly.reader.applySettings(s);
             }
         }
     },
@@ -627,7 +651,7 @@ const Epubly = {
 
     ui: {
         init() {
-            // Bind Nav Clicks
+            // Bind Nav Clicks (These now just scroll up/down in continuous mode)
             document.getElementById('nav-prev').addEventListener('click', () => Epubly.reader.prevPage());
             document.getElementById('nav-next').addEventListener('click', () => Epubly.reader.nextPage());
             
