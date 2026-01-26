@@ -172,28 +172,36 @@ const Epubly = {
         async render() {
             const grid = document.getElementById('library-grid');
             if(!grid) return;
-            grid.innerHTML = '<div class="spinner"></div>';
-            const books = await Epubly.storage.db.getAllBooks();
-            grid.innerHTML = '';
+            
+            try {
+                const books = await Epubly.storage.db.getAllBooks();
+                grid.innerHTML = '';
 
-            if (books.length === 0) {
-                grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center;">A könyvtárad üres.</p>`;
-                return;
+                if (!books || books.length === 0) {
+                    grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center;">A könyvtárad üres.</p>`;
+                    return;
+                }
+
+                books.forEach(book => {
+                    const card = document.createElement('div');
+                    card.className = 'book-card';
+                    // Cover fallback
+                    const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%23222"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
+                    
+                    card.innerHTML = `
+                        <div class="book-cover">
+                            <img src="${coverSrc}" alt="${book.metadata.title}" loading="lazy">
+                        </div>
+                        <div class="book-title">${book.metadata.title}</div>
+                        <div class="book-author">${book.metadata.creator}</div>
+                    `;
+                    card.onclick = () => Epubly.ui.showBookInfoModal(book);
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                console.error("Library render error:", e);
+                grid.innerHTML = `<p style="color: var(--danger);">Hiba a könyvtár betöltésekor.</p>`;
             }
-
-            books.forEach(book => {
-                const card = document.createElement('div');
-                card.className = 'book-card';
-                card.innerHTML = `
-                    <div class="book-cover">
-                        <img src="${book.metadata.coverUrl || ''}" alt="Borító" onerror="this.style.display='none'">
-                    </div>
-                    <div class="book-title">${book.metadata.title}</div>
-                    <div class="book-author">${book.metadata.creator}</div>
-                `;
-                card.onclick = () => Epubly.ui.showBookInfoModal(book);
-                grid.appendChild(card);
-            });
         }
     },
 
@@ -393,44 +401,72 @@ const Epubly = {
                 });
             }
         },
-        async importBook(arrayBuffer, bookId, isDefault = false) {
+        // Helper to convert blob/url to base64 for persistence
+        async getCoverBase64(coverUrl) {
+            if(!coverUrl) return null;
             try {
-                const tempBook = new window.ePub(arrayBuffer);
+                const response = await fetch(coverUrl);
+                const blob = await response.blob();
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+            } catch(e) {
+                console.warn("Cover fetch failed", e);
+                return null;
+            }
+        },
+        async importBook(arrayBuffer, bookId, isDefault = false) {
+            let tempBook = null;
+            try {
+                tempBook = new window.ePub(arrayBuffer);
                 const metadata = await tempBook.loaded.metadata;
-                const coverUrl = await tempBook.coverUrl();
-                let coverBlobUrl = null;
-                if (coverUrl) {
-                    const response = await fetch(coverUrl);
-                    const blob = await response.blob();
-                    coverBlobUrl = URL.createObjectURL(blob);
+                
+                // Safe cover extraction
+                let coverBase64 = null;
+                try {
+                    const coverUrl = await tempBook.coverUrl();
+                    coverBase64 = await this.getCoverBase64(coverUrl);
+                } catch (coverErr) {
+                    console.warn("Could not extract cover:", coverErr);
                 }
 
                 const finalId = isDefault ? bookId : `${Date.now()}`;
                 const bookRecord = {
                     id: finalId, data: arrayBuffer,
                     metadata: {
-                        title: metadata.title || 'Ismeretlen cím', creator: metadata.creator || 'Ismeretlen szerző',
-                        publisher: metadata.publisher, pubdate: metadata.pubdate, coverUrl: coverBlobUrl, description: metadata.description
+                        title: metadata.title || 'Ismeretlen cím', 
+                        creator: metadata.creator || 'Ismeretlen szerző',
+                        publisher: metadata.publisher, 
+                        pubdate: metadata.pubdate, 
+                        coverUrl: coverBase64, 
+                        description: metadata.description
                     }
                 };
+                
                 await this.db.saveBook(bookRecord);
-                tempBook.destroy();
                 return bookRecord;
             } catch (err) {
                 console.error("Error parsing EPUB:", err);
-                throw new Error("Hiba a könyv olvasása közben.");
+                throw new Error("A könyv fájl sérült vagy nem támogatott formátum.");
+            } finally {
+                if (tempBook) tempBook.destroy();
             }
         },
         async handleFileUpload(file) {
-            Epubly.ui.showLoader('Fájl feldolgozása...');
+            Epubly.ui.showLoader('Feldolgozás...');
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const bookRecord = await this.importBook(arrayBuffer);
+                await this.importBook(arrayBuffer);
                 Epubly.ui.hideModal('import-modal');
-                await Epubly.library.render();
+                // Force a slight delay to ensure DB transaction is complete before reading back
+                setTimeout(async () => {
+                    await Epubly.library.render();
+                    Epubly.ui.hideLoader();
+                }, 100);
             } catch (error) {
                 alert(error.message);
-            } finally {
                 Epubly.ui.hideLoader();
             }
         },
@@ -485,7 +521,7 @@ const Epubly = {
         showLoader(msg) { 
             const l = document.getElementById('loader');
             l.classList.remove('hidden');
-            document.getElementById('loader-msg').textContent = msg;
+            if(msg) document.getElementById('loader-msg').textContent = msg;
             document.getElementById('loader-error').style.display = 'none';
             document.getElementById('retry-btn').style.display = 'none';
         },
@@ -502,7 +538,7 @@ const Epubly = {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
             const headerTitle = document.getElementById('header-title');
@@ -551,9 +587,13 @@ const Epubly = {
             this.settings.init();
             await this.storage.db.init();
             
-            this.library.render();
+            await this.library.render();
             
-            this.ui.hideLoader();
+            // Small delay to ensure UI updates
+            setTimeout(() => {
+                this.ui.hideLoader();
+            }, 100);
+            
             console.log(`Epubly v${version} Initialized.`);
         } catch (error) {
             console.error("Fatal init error:", error);
@@ -568,7 +608,6 @@ window.Epubly = Epubly;
 
 /**
  * BOOTSTRAP LOADER
- * Checks if libraries loaded via HTML tags. If not, attempts to load from CDN.
  */
 const DependencyLoader = {
     loadScript(src) {
@@ -588,16 +627,17 @@ const DependencyLoader = {
     },
 
     async boot() {
-        // 1. Check if libraries are already present (loaded from local files via <script> tags)
+        // Simple message
+        document.getElementById('loader-msg').textContent = "Inicializálás...";
+        this.updateStatus(""); 
+
+        // 1. Check if libraries are already present
         if (window.JSZip && window.ePub) {
-            console.log("Libraries loaded from local source.");
             Epubly.init();
             return;
         }
 
-        // 2. If not found, try CDN as fallback
-        this.updateStatus('Helyi fájlok nem találhatók. Letöltés...');
-        
+        // 2. If not found, try CDN
         if (typeof window.JSZip === 'undefined') {
             await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js');
         }
@@ -608,10 +648,9 @@ const DependencyLoader = {
 
         // 3. Final Check
         if (window.JSZip && window.ePub) {
-            this.updateStatus('Motor kész. Indítás...');
             Epubly.init();
         } else {
-            const msg = "Kritikus hiba: Nem sikerült betölteni a könyvtárakat. Ellenőrizd a 'js/libs/' mappát vagy az internetkapcsolatot!";
+            const msg = "Nem sikerült betölteni a komponenseket.";
             document.getElementById('loader-msg').textContent = "Hiba";
             document.getElementById('loader-error').textContent = msg;
             document.getElementById('loader-error').style.display = 'block';
