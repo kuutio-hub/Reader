@@ -45,6 +45,12 @@
                 <span class="logo-text">Epubly.hu</span>
             </div>
             
+            <!-- BACK BUTTON -->
+            <div id="btn-nav-back" title="Vissza az előző helyre">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span>Vissza</span>
+            </div>
+            
             <div class="view-separator"></div>
             
             <div class="view-info-container" id="header-info-area">
@@ -59,6 +65,21 @@
             <!-- Buttons injected by JS -->
         </div>
         
+        <!-- Theme Toggle -->
+        <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 4px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+        </button>
+
         <!-- Wiki / Help Button -->
         <button class="icon-btn" onclick="Epubly.ui.showModal('wiki-modal')" title="Segítség & Támogatás" style="margin-left: 4px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -227,7 +248,7 @@
                     <li><b>Importálás:</b> Húzd be az .epub fájlt a könyvtár nézetbe, vagy használd a gombot.</li>
                     <li><b>Olvasás:</b> A fejezetek automatikusan betöltődnek lefelé és felfelé görgetve.</li>
                     <li><b>Kiemelés:</b> Jelölj ki szöveget az egérrel, majd válassz színt. Képekre kattintva könyvjelzőzheted őket.</li>
-                    <li><b>Beállítások:</b> A jobb felső sarokban található ikonnal testreszabhatod a betűket, színeket és a hátteret.</li>
+                    <li><b>Navigáció:</b> Használd a "Vissza" gombot a lábjegyzetekről való visszaugráshoz.</li>
                 </ul>
 
                 <h2>Támogatás (Donate)</h2>
@@ -237,34 +258,37 @@
                     <h3 style="color:var(--brand);">MOHU REpont Támogatás</h3>
                     <p style="font-size:0.9rem; margin-bottom:15px;">Váltsd vissza a palackokat a támogatásomra! Nyomtasd ki ezt a kártyát, és használd az automatáknál.</p>
                     
-                    <!-- MOHU CARD GENERATOR -->
-                    <div class="mohu-card">
-                        <div class="mohu-header">
-                            <span>MOHU</span>
-                            <span>REPONT</span>
-                        </div>
-                        <div class="mohu-qr">
-                            <!-- Placeholder SVG QR Code -->
-                            <svg viewBox="0 0 100 100" width="70" height="70" fill="black">
-                                <rect x="10" y="10" width="30" height="30"/>
-                                <rect x="60" y="10" width="30" height="30"/>
-                                <rect x="10" y="60" width="30" height="30"/>
-                                <rect x="50" y="50" width="10" height="10"/>
-                                <rect x="70" y="60" width="10" height="10"/>
-                                <rect x="55" y="75" width="15" height="15"/>
-                                <rect x="15" y="15" width="20" height="20" fill="white"/>
-                                <rect x="65" y="15" width="20" height="20" fill="white"/>
-                                <rect x="15" y="65" width="20" height="20" fill="white"/>
-                                <rect x="20" y="20" width="10" height="10"/>
-                                <rect x="70" y="20" width="10" height="10"/>
-                                <rect x="20" y="70" width="10" height="10"/>
-                            </svg>
-                        </div>
-                        <div class="mohu-details">
-                            <div>Beneficiary ID: EPUB-DEV-01</div>
-                            <div class="mohu-name">Epubly.hu Támogatás</div>
+                    <!-- MOHU CARD GENERATOR CONTAINER -->
+                    <div class="mohu-print-area">
+                        <div class="mohu-card">
+                            <div class="mohu-header">
+                                <span>MOHU</span>
+                                <span>REPONT</span>
+                            </div>
+                            <div class="mohu-qr">
+                                <!-- Placeholder SVG QR Code -->
+                                <svg viewBox="0 0 100 100" width="70" height="70" fill="black">
+                                    <rect x="10" y="10" width="30" height="30"/>
+                                    <rect x="60" y="10" width="30" height="30"/>
+                                    <rect x="10" y="60" width="30" height="30"/>
+                                    <rect x="50" y="50" width="10" height="10"/>
+                                    <rect x="70" y="60" width="10" height="10"/>
+                                    <rect x="55" y="75" width="15" height="15"/>
+                                    <rect x="15" y="15" width="20" height="20" fill="white"/>
+                                    <rect x="65" y="15" width="20" height="20" fill="white"/>
+                                    <rect x="15" y="65" width="20" height="20" fill="white"/>
+                                    <rect x="20" y="20" width="10" height="10"/>
+                                    <rect x="70" y="20" width="10" height="10"/>
+                                    <rect x="20" y="70" width="10" height="10"/>
+                                </svg>
+                            </div>
+                            <div class="mohu-details">
+                                <div>Beneficiary ID: EPUB-DEV-01</div>
+                                <div class="mohu-name">Epubly.hu Támogatás</div>
+                            </div>
                         </div>
                     </div>
+                    <!-- END CONTAINER -->
                     
                     <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
                 </div>

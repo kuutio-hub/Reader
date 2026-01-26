@@ -1,6 +1,6 @@
 
 :root {
-    /* BASE VARIABLES - Will be overridden by themes */
+    /* BASE VARIABLES */
     --brand: #D4AF37;
     --brand-dim: rgba(212, 175, 55, 0.15);
     
@@ -55,7 +55,7 @@ body.theme-matrix {
     --text: #00FF41;
     --text-muted: #008F11;
     --border: #003B00;
-    --brand: #D4AF37; /* Gold contrast keeps navigation visible */
+    --brand: #D4AF37; 
 }
 
 /* --- BACKGROUND PATTERNS --- */
@@ -84,6 +84,41 @@ body {
     background-color: var(--bg); color: var(--text); font-size: 16px; line-height: 1.5;
     overflow: hidden; height: 100%; width: 100%; display: flex; flex-direction: column;
     transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* --- PRINT STYLES --- */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #wiki-modal, #wiki-modal .modal-content, .wiki-content, .wiki-content * {
+        visibility: visible; 
+        background: white !important;
+        color: black !important;
+        position: static !important;
+        box-shadow: none !important;
+        border: none !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+    /* Hide everything in wiki content EXCEPT the card stuff */
+    .wiki-content > *:not(.mohu-print-area) {
+        display: none !important;
+    }
+    .mohu-print-area, .mohu-print-area * {
+        visibility: visible !important;
+        display: block !important;
+    }
+    .mohu-card {
+        position: absolute;
+        left: 50%;
+        top: 30%;
+        transform: translate(-50%, -50%);
+        border: 1px solid #000 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+    .btn { display: none !important; }
 }
 
 /* --- LOADER --- */
@@ -145,6 +180,19 @@ body {
 .logo-btn:hover { background: var(--surface-alt); }
 .logo-icon { width: 22px; height: 22px; }
 .logo-text { font-weight: 800; font-size: 1.1rem; color: var(--brand); letter-spacing: -0.5px; }
+
+#btn-nav-back {
+    display: none; /* Hidden by default */
+    align-items: center; gap: 6px; 
+    font-size: 0.85rem; font-weight: 600; 
+    color: var(--brand); 
+    background: var(--surface-alt);
+    padding: 6px 12px; border-radius: 20px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    animation: fadeIn 0.3s ease;
+}
+#btn-nav-back:hover { background: var(--brand-dim); border-color: var(--brand); }
 
 .view-separator { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
 
@@ -265,7 +313,7 @@ body {
 .chapter-container h1, .chapter-container h2, .chapter-container h3 { 
     margin-top: 1.5em; margin-bottom: 0.8em; color: var(--brand); 
 }
-.chapter-container a { color: var(--brand); text-decoration: none; border-bottom: 1px dotted var(--brand); }
+.chapter-container a { color: var(--brand); text-decoration: none; border-bottom: 1px dotted var(--brand); cursor: pointer; }
 
 /* --- COMPONENTS --- */
 .btn { 

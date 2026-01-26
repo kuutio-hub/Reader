@@ -21,13 +21,112 @@ const Epubly = {
         rootPath: '', 
         activeBookSessionStart: null,
         metadata: {},
-        renderedChapters: new Set(), // Now tracks all rendered indices
+        renderedChapters: new Set(),
         observer: null,
         isLoadingNext: false,
         isLoadingPrev: false,
         highlights: {},
         activeSidebar: null,
-        globalTheme: 'dark' // handled by css body class
+        globalTheme: 'dark', // handled by css body class
+        history: [] // Navigation stack: [{chapterIndex, scrollPosition}, ...]
+    },
+
+    // --- NAVIGATION MANAGER ---
+    navigation: {
+        pushState() {
+            // Save current state before jumping
+            const viewer = document.getElementById('viewer');
+            // Find current visible chapter
+            let currentIdx = 0;
+            if(Epubly.state.renderedChapters.size > 0) {
+                // Heuristic: take the first rendered chapter that is mostly visible
+                // For simplicity, we just take the one marked by observer or scrolling
+                const chapters = document.querySelectorAll('.chapter-container');
+                for(let c of chapters) {
+                    const rect = c.getBoundingClientRect();
+                    if(rect.top >= 0 && rect.top < window.innerHeight) {
+                        currentIdx = parseInt(c.dataset.index);
+                        break;
+                    }
+                }
+            }
+            
+            Epubly.state.history.push({
+                chapterIndex: currentIdx,
+                scrollTop: viewer.scrollTop
+            });
+            Epubly.ui.updateBackButton();
+        },
+        
+        popState() {
+            if(Epubly.state.history.length === 0) return;
+            const state = Epubly.state.history.pop();
+            Epubly.ui.updateBackButton();
+            
+            // Jump to state
+            // If chapter is already rendered, just scroll
+            // If not, we might need to clear and jump (simplest approach for jump back)
+            document.getElementById('viewer-content').innerHTML = '';
+            Epubly.state.renderedChapters.clear();
+            Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
+                document.getElementById('viewer').scrollTop = state.scrollTop;
+            });
+        },
+
+        handleLinkClick(e) {
+            // Intercept link clicks inside content
+            const link = e.target.closest('a');
+            if (!link) return;
+
+            const href = link.getAttribute('href');
+            if (!href) return;
+
+            // Check if it's an external link
+            if (href.startsWith('http')) {
+                e.preventDefault();
+                window.open(href, '_blank');
+                return;
+            }
+
+            e.preventDefault();
+            this.pushState();
+
+            // Handle internal navigation
+            const [path, hash] = href.split('#');
+            
+            if (!path || path === '') {
+                // Just a hash jump within current view or loaded chapters
+                this.scrollToHash(hash);
+            } else {
+                // Jump to another file
+                // We need to resolve the path relative to current chapter
+                // Use a simple lookup in spine based on href
+                // NOTE: This assumes flattened paths for simplicity or exact matches from manifest
+                // Real EPUB path resolution is complex, we try exact match first
+                
+                let targetIndex = -1;
+                // Try exact match
+                targetIndex = Epubly.state.spine.findIndex(s => s.href === path || s.href.endsWith(path));
+                
+                if (targetIndex !== -1) {
+                    document.getElementById('viewer-content').innerHTML = '';
+                    Epubly.state.renderedChapters.clear();
+                    Epubly.engine.renderChapter(targetIndex, 'clear').then(() => {
+                        if (hash) this.scrollToHash(hash);
+                    });
+                } else {
+                    console.warn("Could not find target for:", href);
+                }
+            }
+        },
+
+        scrollToHash(hash) {
+            if (!hash) return;
+            const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
     },
 
     // --- ENGINE ---
@@ -42,11 +141,14 @@ const Epubly = {
             Epubly.state.currentBookId = bookId;
             Epubly.state.activeBookSessionStart = Date.now();
             Epubly.state.isLoadingNext = false;
+            Epubly.state.history = []; // Reset history
+            Epubly.ui.updateBackButton();
+
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
             // Load Highlights
             Epubly.highlights.load(bookId);
-            Epubly.highlights.renderList(); // Populate sidebar list
+            Epubly.highlights.renderList(); 
 
             try {
                 if (!window.JSZip) throw new Error("JSZip hiányzik!");
@@ -152,11 +254,11 @@ const Epubly = {
                     const blob = await imgFile.async("blob");
                     const url = URL.createObjectURL(blob);
                     img.setAttribute("src", url);
-                    // Add click handler for image bookmarking
                     img.style.cursor = "pointer";
-                    img.onclick = () => {
+                    img.onclick = (e) => {
+                        e.stopPropagation(); // prevent interfering with other clicks
                         if(confirm("Szeretnéd elmenteni ezt a képet a jegyzetek közé?")) {
-                            Epubly.highlights.addImage(index, src); // Save ref
+                            Epubly.highlights.addImage(index, src); 
                         }
                     };
                     if(img.tagName.toLowerCase() === 'image') img.setAttribute("href", url);
@@ -174,13 +276,14 @@ const Epubly = {
                 chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
             }
 
+            // Attach Link Interceptor
+            chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
+
             const viewer = document.getElementById('viewer-content');
             
             if (method === 'prepend') {
-                // Insert at top
                 viewer.insertBefore(chapterContainer, viewer.firstChild);
             } else {
-                // Append at bottom (default) or clear if jump
                 if (method === 'clear') viewer.innerHTML = '';
                 viewer.appendChild(chapterContainer);
             }
@@ -240,11 +343,13 @@ const Epubly = {
         async handleScroll(e) {
             const viewer = e.target;
             
-            // Update Progress Bar based on TOTAL book position approximation
-            // Using current chapter index vs total chapters is more reliable for long books
-            const currentC = document.querySelector('.chapter-container'); // roughly check logic later
-            
-            // --- SCROLL DOWN (Next Chapter) ---
+            const scrolled = viewer.scrollTop;
+            const maxScroll = viewer.scrollHeight - viewer.clientHeight;
+            if(maxScroll > 0) {
+                const percent = (scrolled / maxScroll) * 100;
+                document.getElementById('reading-progress-fill').style.width = percent + "%";
+            }
+
             if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
                 if(Epubly.state.isLoadingNext) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
@@ -258,7 +363,6 @@ const Epubly = {
                 }
             }
 
-            // --- SCROLL UP (Previous Chapter - Prepend) ---
             if (viewer.scrollTop < 50) {
                 if(Epubly.state.isLoadingPrev) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
@@ -267,15 +371,10 @@ const Epubly = {
                 if (firstIdx > 0) {
                     Epubly.state.isLoadingPrev = true;
                     document.getElementById('top-loader').style.display = 'block';
-                    
                     const oldScrollHeight = viewer.scrollHeight;
-                    
                     await this.renderChapter(firstIdx - 1, 'prepend');
-                    
-                    // Restore scroll position to prevent jumping
                     const newScrollHeight = viewer.scrollHeight;
                     viewer.scrollTop = newScrollHeight - oldScrollHeight + viewer.scrollTop;
-                    
                     document.getElementById('top-loader').style.display = 'none';
                     Epubly.state.isLoadingPrev = false;
                 }
@@ -374,14 +473,7 @@ const Epubly = {
             const box = document.getElementById('lightbox');
             const img = document.getElementById('lightbox-img');
             const close = document.querySelector('.lightbox-close');
-            document.getElementById('viewer-content').addEventListener('click', (e) => {
-                if(e.target.tagName === 'IMG') {
-                    // Only lightbox if not bookmarked recently (simple click vs double)
-                    // For now, let's keep it simple: Click opens lightbox. Bookmark via long press or context menu would be ideal, but for now specific bookmark logic is inside renderChapter.
-                    img.src = e.target.src;
-                    box.classList.add('visible');
-                }
-            });
+            // Delegated click handler is now in engine render
             const hide = () => box.classList.remove('visible');
             close.onclick = hide;
             box.onclick = (e) => { if(e.target === box) hide(); };
@@ -424,9 +516,7 @@ const Epubly = {
                 const range = selection.getRangeAt(0);
                 const span = document.createElement('span');
                 span.className = 'highlighted-text';
-                span.style.backgroundColor = `var(--highlight-${color}, rgba(255, 255, 0, 0.3))`;
                 
-                // Color mapping for style injection
                 let bgMap = {
                     'yellow': 'rgba(255, 235, 59, 0.4)',
                     'green': 'rgba(76, 175, 80, 0.4)',
@@ -456,7 +546,7 @@ const Epubly = {
             Epubly.state.highlights[bookId].push({
                 type: 'image',
                 chapterIndex: chapterIndex,
-                src: src, // Note: this is relative, might break if zip reloaded. Ideally store Base64 but that's heavy.
+                src: src, 
                 date: Date.now()
             });
             this.save();
@@ -476,7 +566,6 @@ const Epubly = {
 
             items.forEach(h => {
                 if(h.type === 'text' && h.chapterIndex === chapterIndex) {
-                    // Simple text replacement (fragile but works for static content)
                     if(container.innerHTML.includes(h.text) && !container.innerHTML.includes(`<span class="highlighted-text"`)) {
                          container.innerHTML = container.innerHTML.replace(
                              h.text, 
@@ -510,10 +599,11 @@ const Epubly = {
                     <span class="highlight-meta">Fejezet: ${h.chapterIndex + 1}</span>
                 `;
                 li.onclick = () => {
+                    Epubly.navigation.pushState(); // Save before jump from list
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(h.chapterIndex, 'clear');
-                    Epubly.ui.toggleSidebar('sidebar-toc'); // Close sidebar
+                    Epubly.ui.toggleSidebar('sidebar-toc'); 
                 };
                 list.appendChild(li);
             });
@@ -528,7 +618,6 @@ const Epubly = {
             const duration = now - Epubly.state.activeBookSessionStart;
             Epubly.state.activeBookSessionStart = now;
             
-            // Logic for progress is now handled by rendered chapters and scroll position in a simpler way for storage
             let maxRendered = 0;
             if(Epubly.state.renderedChapters.size > 0) {
                 maxRendered = Math.max(...Epubly.state.renderedChapters);
@@ -540,7 +629,6 @@ const Epubly = {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
-            // Basic Props
             viewer.style.fontFamily = settings.fontFamily;
             viewer.style.fontSize = settings.fontSize + "%";
             viewer.style.lineHeight = settings.lineHeight;
@@ -553,14 +641,12 @@ const Epubly = {
             viewer.style.paddingLeft = pad;
             viewer.style.paddingRight = pad;
             
-            // Theme & Background classes on Body
-            document.body.className = ''; // clear
+            document.body.className = ''; 
             document.body.classList.add(`theme-${settings.theme}`);
             if(settings.background !== 'none') {
                 document.body.classList.add(`bg-${settings.background}`);
             }
 
-            // Dynamic Styles for Image constraints
             const styleId = 'epubly-dynamic-styles';
             let styleTag = document.getElementById(styleId);
             if (!styleTag) {
@@ -598,10 +684,11 @@ const Epubly = {
                 a.className = "toc-link";
                 
                 a.onclick = () => {
+                    Epubly.navigation.pushState(); // Save state before TOC jump
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(item.index, 'clear');
-                    // We don't toggle sidebar automatically here to allow user to browse more
+                    // E.ui.toggleSidebar('sidebar-toc'); 
                 };
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -649,7 +736,6 @@ const Epubly = {
             const fontSelect = document.getElementById('font-family-select');
             if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
             
-            // Delete Data
             document.getElementById('btn-delete-all').onclick = () => {
                 if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
                     localStorage.clear();
@@ -665,7 +751,6 @@ const Epubly = {
                 theme: 'dark', background: 'none'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
-            // Ensure fontColor isn't undefined if old settings exist
             if(!saved.fontColor) saved.fontColor = defaults.fontColor;
             return { ...defaults, ...saved };
         },
@@ -697,7 +782,7 @@ const Epubly = {
             const s = this.get();
             s[key] = value;
             this.save(s);
-            this.load(); // Refreshes UI state classes too
+            this.load(); 
         }
     },
 
@@ -879,7 +964,6 @@ const Epubly = {
                 });
             });
             
-            // Tab switching for Sidebar
             document.querySelectorAll('.sidebar-tab').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
@@ -923,14 +1007,13 @@ const Epubly = {
                     menu.style.opacity = '1';
                     menu.style.pointerEvents = 'auto';
                     menu.style.top = (rect.bottom + window.scrollY + 10) + 'px';
-                    menu.style.left = (Math.max(10, rect.left + window.scrollX)) + 'px'; // Prevent left overflow
+                    menu.style.left = (Math.max(10, rect.left + window.scrollX)) + 'px'; 
                 } else {
                     menu.style.opacity = '0';
                     menu.style.pointerEvents = 'none';
                 }
             });
             
-            // Highlight color buttons
             document.querySelectorAll('.hl-color-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const color = e.target.dataset.color;
@@ -952,10 +1035,34 @@ const Epubly = {
                 });
             });
 
-            // Footer Year
+            // Back Button
+            document.getElementById('btn-nav-back').addEventListener('click', () => {
+                Epubly.navigation.popState();
+            });
+
+            // Theme Toggle Logic
+            const themeBtn = document.getElementById('btn-theme-toggle');
+            const storedTheme = localStorage.getItem('epubly-theme') || 'dark';
+            if (storedTheme === 'light') this.setTheme('light');
+            
+            themeBtn.addEventListener('click', () => {
+                const current = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+                this.setTheme(current === 'light' ? 'dark' : 'light');
+            });
+
             document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
         },
         
+        setTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.add('theme-light');
+            } else {
+                document.body.classList.remove('theme-light');
+            }
+            localStorage.setItem('epubly-theme', theme);
+            Epubly.reader.applySettings(Epubly.settings.get());
+        },
+
         toggleSidebar(id) {
             const sidebar = document.getElementById(id);
             if(!sidebar) return;
@@ -980,6 +1087,16 @@ const Epubly = {
             const sep = document.querySelector('.info-sep');
             if (sep) sep.style.display = author ? 'inline' : 'none';
         },
+        
+        updateBackButton() {
+            const btn = document.getElementById('btn-nav-back');
+            if(Epubly.state.history.length > 0) {
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        },
+
         updateProgress(current, total) {
             const ind = document.getElementById('progress-indicator');
             if(ind && total > 0) {
@@ -1011,6 +1128,8 @@ const Epubly = {
             document.getElementById('library-view').classList.add('active');
             this.updateHeaderInfo("Könyvtár", "", "");
             document.getElementById('reading-progress-fill').style.width = "0%";
+            // Hide back button in library
+            document.getElementById('btn-nav-back').style.display = 'none';
             
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
