@@ -4,8 +4,8 @@
     --brand: #D4AF37;
     --brand-dim: rgba(212, 175, 55, 0.15);
     
-    --bg: #000000;
-    --bg-glass: rgba(18, 18, 18, 0.95);
+    --bg: #121212;
+    --bg-glass: rgba(18, 18, 18, 0.85);
     --surface: #1c1c1e;
     --surface-alt: #2c2c2e;
     
@@ -30,32 +30,36 @@
 /* --- THEMES --- */
 body.theme-light {
     --bg: #FFFFFF;
-    --bg-glass: rgba(255, 255, 255, 0.95);
+    --bg-glass: rgba(248, 248, 248, 0.85);
     --surface: #F2F2F7;
     --surface-alt: #E5E5EA;
     --text: #1C1C1E;
     --text-muted: #636366;
     --border: rgba(0, 0, 0, 0.12);
+    --brand: #007AFF;
+    --brand-dim: rgba(0, 122, 255, 0.1);
 }
 body.theme-sepia {
     --bg: #F4ECD8;
-    --bg-glass: rgba(244, 236, 216, 0.95);
+    --bg-glass: rgba(244, 236, 216, 0.85);
     --surface: #E8DCC0;
     --surface-alt: #DBCBA8;
     --text: #5B4636;
     --text-muted: #8A7666;
     --border: rgba(91, 70, 54, 0.15);
     --brand: #A05A2C;
+    --brand-dim: rgba(160, 90, 44, 0.1);
 }
-body.theme-matrix {
+body.theme-terminal {
     --bg: #000000;
-    --bg-glass: rgba(0, 20, 0, 0.95);
-    --surface: #001a00;
-    --surface-alt: #002b00;
+    --bg-glass: rgba(0, 20, 0, 0.85);
+    --surface: #0D1117;
+    --surface-alt: #161B22;
     --text: #00FF41;
     --text-muted: #008F11;
-    --border: #003B00;
-    --brand: #D4AF37; 
+    --border: #30363D;
+    --brand: #58A6FF;
+    --brand-dim: rgba(88, 166, 255, 0.1);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,19 +72,32 @@ body {
 
 /* --- PRINT STYLES --- */
 @media print {
-    body * { visibility: hidden; }
+    @page {
+        size: A4;
+        margin: 2cm;
+    }
+    body * { display: none !important; visibility: hidden !important; }
     .mohu-print-area, .mohu-print-area * {
-        visibility: visible !important;
         display: block !important;
+        visibility: visible !important;
     }
     .mohu-card {
-        position: absolute; left: 50%; top: 30%;
-        transform: translate(-50%, -50%);
-        border: 1px solid #000 !important;
+        --card-bg: #FFFFFF !important;
+        --card-text: #000000 !important;
+        --card-qr-bg: #FFFFFF !important;
+        --card-qr-fg: #000000 !important;
+        
+        position: absolute; left: 0; top: 0;
+        width: 8.56cm; height: 5.398cm;
+        border: 1px dashed #999 !important;
+        box-shadow: none !important;
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
     }
+    .mohu-card-bg-text { color: #eee !important; }
+    .btn { display: none !important; }
 }
+
 
 /* --- LOADER --- */
 #loader {
@@ -279,10 +296,12 @@ body {
     transition: var(--transition); display: inline-flex; align-items: center; justify-content: center; gap: 8px; 
 }
 .btn-primary { background-color: var(--brand); color: #000; border: none; }
-.btn-primary:hover { background-color: #ffe066; transform: translateY(-1px); }
+body.theme-light .btn-primary { color: #fff; }
+body.theme-terminal .btn-primary { color: #000; }
+.btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .btn-secondary { background-color: var(--surface); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { background-color: var(--surface-alt); }
-.btn-danger { background-color: rgba(255, 69, 58, 0.15); color: var(--danger); }
+.btn-danger { background-color: rgba(255, 69, 58, 0.15); color: var(--danger); border: 1px solid var(--danger); }
 .btn-danger:hover { background-color: var(--danger); color: white; }
 
 .icon-btn { 
@@ -310,7 +329,7 @@ body {
     transition: var(--transition);
     position: relative;
 }
-.book-card:hover .book-cover { box-shadow: 0 10px 30px rgba(212, 175, 55, 0.2); border-color: var(--brand); }
+.book-card:hover .book-cover { box-shadow: 0 10px 30px var(--brand-dim); border-color: var(--brand); }
 .book-cover img { width: 100%; height: 100%; object-fit: cover; }
 .book-title { font-weight: 700; font-size: 0.95rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .book-author { font-size: 0.85rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -397,24 +416,39 @@ input[type=range]:focus::-webkit-slider-runnable-track { background: var(--brand
 .hl-color-btn:hover { transform: scale(1.2); }
 
 /* MOHU Card */
+.mohu-print-area {
+    background:var(--surface-alt); padding:20px; border-radius:12px; margin:20px 0; text-align:center;
+}
 .mohu-card {
-    background: linear-gradient(135deg, #009b4c, #005a2b);
-    width: 300px; height: 180px; border-radius: 12px;
-    padding: 20px; color: white; display: flex; flex-direction: column;
-    justify-content: space-between; position: relative;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    border: 1px solid rgba(255,255,255,0.2);
-    font-family: 'Roboto Mono', monospace;
-    margin: 20px auto;
+    --card-bg: var(--surface);
+    --card-text: var(--text);
+    --card-qr-bg: #fff;
+    --card-qr-fg: #000;
+    background: var(--card-bg);
+    width: 320px; height: 200px; border-radius: 12px;
+    padding: 20px; color: white;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    border: 1px solid var(--border); font-family: 'Roboto Mono', monospace;
+    margin: 20px auto; overflow: hidden;
 }
-.mohu-header { font-size: 0.9rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; display: flex; justify-content: space-between; }
+.mohu-card-bg-text {
+    position: absolute; top: -10px; right: -20px;
+    font-size: 6rem; font-weight: 800; color: var(--text);
+    opacity: 0.05; user-select: none; transform: rotate(-15deg);
+}
+.mohu-card-logo { display: flex; align-items: center; gap: 8px; color: var(--card-text); font-weight: 600; z-index: 1; }
+.mohu-card-logo .logo-icon { width: 24px; height: 24px; }
 .mohu-qr { 
-    background: white; padding: 5px; width: 80px; height: 80px; 
+    background: var(--card-qr-bg); padding: 5px; width: 90px; height: 90px; 
     border-radius: 4px; display: flex; align-items: center; justify-content: center;
-    position: absolute; right: 20px; bottom: 20px;
+    position: absolute; right: 20px; bottom: 20px; z-index: 1;
 }
-.mohu-details { font-size: 0.8rem; opacity: 0.8; margin-top: auto; }
-.mohu-name { font-size: 1.1rem; font-weight: 600; margin-top: 5px; text-shadow: 0 2px 2px rgba(0,0,0,0.3); }
+.mohu-card-details {
+    color: var(--card-text); text-align: left; z-index: 1; margin-top: auto;
+}
+.mohu-card-id { font-size: 0.7rem; opacity: 0.7; }
+.mohu-card-name { font-size: 1rem; font-weight: 600; margin-top: 2px; }
 
 /* Wiki Section */
 .wiki-content { overflow-y: auto; color: var(--text); line-height: 1.8; padding: 20px 30px; }

@@ -1119,7 +1119,7 @@ const Epubly = {
                 sunIcon.style.display = 'none';
                 moonIcon.style.display = 'block';
                 document.body.classList.add('theme-light'); 
-            } else { // dark, matrix
+            } else { // dark, terminal
                 sunIcon.style.display = 'block';
                 moonIcon.style.display = 'none';
                 document.body.classList.remove('theme-light');
@@ -1205,7 +1205,14 @@ const Epubly = {
             document.getElementById('detail-stats-time').textContent = timeStr;
             document.getElementById('detail-stats-prog').textContent = `${progressVal}%`;
             
-            document.getElementById('btn-read-book').onclick = async () => {
+            const readBtn = document.getElementById('btn-read-book');
+            if (stats.progress > 0.01) {
+                readBtn.textContent = 'FOLYTATÁS';
+            } else {
+                readBtn.textContent = 'OLVASÁS';
+            }
+            
+            readBtn.onclick = async () => {
                 this.hideModal('book-details-modal');
                 Epubly.engine.loadBook(book.data, book.id);
             };
