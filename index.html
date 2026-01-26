@@ -253,12 +253,18 @@
                     <li><b>Elrendezés:</b> Igazítsd a szöveget balra vagy sorkizártra, és állítsd be a margók szélességét.</li>
                 </ul>
 
-                <h2>Hibaelhárítás</h2>
-                <p>Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen, vagy az alkalmazás lelassul), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
+                <h2>Hibaelhárítás & Adatkezelés</h2>
+                <p><b>Gyorsítótár törlése:</b> Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
                 <div style="margin-top:20px;">
                     <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
                         MINDEN ADAT VÉGLEGES TÖRLÉSE
                     </button>
+                </div>
+                <p style="margin-top: 20px;"><b>Adatok mentése és visszaállítása:</b> Mentsd le vagy töltsd vissza az összes könyvedet, beállításodat és jegyzetedet egyetlen fájlban. Ez hasznos eszköz költözéshez vagy a gyorsítótár törlése utáni visszaállításhoz.</p>
+                 <div class="data-management-actions">
+                    <button id="btn-export-data" class="btn btn-secondary">Adatok Exportálása</button>
+                    <label for="import-file" class="btn btn-secondary">Adatok Importálása</label>
+                    <input type="file" id="import-file" accept=".json" style="display:none;">
                 </div>
             </div>
 

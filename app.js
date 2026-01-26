@@ -255,6 +255,7 @@ const Epubly = {
         },
 
         resolvePath(base, relative) {
+            if (!base || !relative) return relative;
             const stack = base.split("/");
             stack.pop();
             relative.split("/").forEach(part => {
@@ -296,6 +297,7 @@ const Epubly = {
 
         async handleScroll() {
             const viewer = document.getElementById('viewer');
+            if (!viewer) return;
             if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
                 const lastIdx = Math.max(...Epubly.state.renderedChapters);
                 if (lastIdx < Epubly.state.spine.length - 1) {
@@ -393,15 +395,18 @@ const Epubly = {
         init() {
             const box = document.getElementById('lightbox');
             const img = document.getElementById('lightbox-img');
-            document.getElementById('viewer-content').addEventListener('click', e => {
-                if(e.target.tagName === 'IMG') {
-                    img.src = e.target.src;
-                    box.classList.add('visible');
-                }
-            });
-            const hide = () => box.classList.remove('visible');
-            box.querySelector('.lightbox-close').onclick = hide;
-            box.onclick = e => { if(e.target === box) hide(); };
+            const viewer = document.getElementById('viewer-content');
+            if(box && img && viewer) {
+                viewer.addEventListener('click', e => {
+                    if(e.target.tagName === 'IMG') {
+                        img.src = e.target.src;
+                        box.classList.add('visible');
+                    }
+                });
+                const hide = () => box.classList.remove('visible');
+                box.querySelector('.lightbox-close').onclick = hide;
+                box.onclick = e => { if(e.target === box) hide(); };
+            }
         }
     },
 
@@ -434,6 +439,7 @@ const Epubly = {
                 chapterIndex: idx,
                 text: range.toString(),
                 color: color,
+                comment: ''
             };
 
             if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
@@ -443,8 +449,21 @@ const Epubly = {
             
             this.applyToRange(range, highlightData);
             
-            document.getElementById('highlight-menu').style.opacity = '0';
+            const menu = document.getElementById('highlight-menu');
+            if (menu) {
+                menu.style.opacity = '0';
+                menu.style.pointerEvents = 'none';
+            }
             selection.removeAllRanges();
+        },
+        updateComment(id, commentText) {
+            const bookId = Epubly.state.currentBookId;
+            const highlight = Epubly.state.highlights[bookId].find(h => h.id === id);
+            if (highlight) {
+                highlight.comment = commentText;
+                this.save();
+                this.renderList(document.querySelector('.hl-filter-btn.active')?.dataset.color || 'all');
+            }
         },
         changeColor(id, newColor) {
             const bookId = Epubly.state.currentBookId;
@@ -452,10 +471,9 @@ const Epubly = {
             if (highlight) {
                 highlight.color = newColor;
                 this.save();
-                this.renderList();
-                // Re-apply highlights to visible chapters
+                this.renderList(document.querySelector('.hl-filter-btn.active')?.dataset.color || 'all');
                 document.querySelectorAll('.chapter-container').forEach(container => {
-                    container.innerHTML = container.innerHTML.replace(/<span class="highlighted-text[^>]*>([^<]*)<\/span>/g, '$1'); // naive unwrap
+                    container.innerHTML = container.innerHTML.replace(/<span class="highlighted-text[^>]*>([^<]*)<\/span>/g, '$1'); 
                     this.apply(parseInt(container.dataset.index), container);
                 });
             }
@@ -471,35 +489,22 @@ const Epubly = {
             const items = (Epubly.state.highlights[bookId] || []).filter(h => h.type === 'text' && h.chapterIndex === chapterIndex);
             if (items.length === 0) return;
 
-            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-            let node;
-            const textNodes = [];
-            while(node = walker.nextNode()) {
-                textNodes.push(node);
-            }
-
-            textNodes.forEach(textNode => {
-                items.forEach(h => {
-                    let startIndex = 0;
-                    while ((startIndex = textNode.nodeValue.indexOf(h.text, startIndex)) !== -1) {
-                        const parent = textNode.parentNode;
-                        if (parent && parent.classList.contains('highlighted-text')) {
-                            startIndex += h.text.length;
-                            continue; 
-                        }
-                        
+            items.forEach(h => {
+                const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                while(node = walker.nextNode()) {
+                    if (node.parentElement.classList.contains('highlighted-text')) continue;
+                    const index = node.nodeValue.indexOf(h.text);
+                    if (index !== -1) {
                         const range = document.createRange();
-                        range.setStart(textNode, startIndex);
-                        range.setEnd(textNode, startIndex + h.text.length);
-
+                        range.setStart(node, index);
+                        range.setEnd(node, index + h.text.length);
                         this.applyToRange(range, h);
-                        
-                        // After surrounding, the node is split. The walker won't find the rest.
-                        // This simple approach will only highlight the first occurrence in a text node.
-                        // A more complex implementation would be needed for multiple identical highlights in one paragraph.
-                        break; 
+                        // This simple approach may not find all occurrences if the text node is split.
+                        // For this app's purpose, highlighting the first match is sufficient.
+                        break;
                     }
-                });
+                }
             });
         },
         renderList(filterColor = 'all') {
@@ -521,29 +526,63 @@ const Epubly = {
             items.sort((a, b) => a.chapterIndex - b.chapterIndex).forEach(h => {
                 const item = document.createElement('div');
                 item.className = 'highlight-item';
-                item.style.borderLeftColor = `var(--hl-color-${h.color})`;
+                item.style.borderLeftColor = `var(--hl-color-${h.color}, #ccc)`;
+                
                 const content = h.type === 'image' ? `[Kép könyvjelző]` : `"${h.text.substring(0, 80)}..."`;
                 
                 item.innerHTML = `
                     <p class="highlight-text">${content}</p>
+                    ${h.comment ? `<div class="highlight-comment-display">${h.comment}</div>` : ''}
                     <div class="highlight-meta">
                         <span>Fejezet: ${h.chapterIndex + 1}</span>
-                        <div class="hl-recolor-palette">
-                            <span class="hl-color-dot hl-yellow" data-color="yellow"></span>
-                            <span class="hl-color-dot hl-green" data-color="green"></span>
-                            <span class="hl-color-dot hl-blue" data-color="blue"></span>
-                            <span class="hl-color-dot hl-red" data-color="red"></span>
+                        <div class="hl-meta-tools">
+                             <div class="hl-recolor-palette">
+                                <span class="hl-color-dot hl-yellow" data-color="yellow"></span>
+                                <span class="hl-color-dot hl-green" data-color="green"></span>
+                                <span class="hl-color-dot hl-blue" data-color="blue"></span>
+                                <span class="hl-color-dot hl-red" data-color="red"></span>
+                            </div>
+                            <button class="hl-comment-btn icon-btn" title="Megjegyzés">
+                                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg>
+                            </button>
                         </div>
                     </div>
+                    <div class="highlight-comment-container"></div>
                 `;
+
+                const commentContainer = item.querySelector('.highlight-comment-container');
+
+                item.querySelector('.hl-comment-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    if (commentContainer.innerHTML !== '') {
+                        commentContainer.innerHTML = '';
+                    } else {
+                        commentContainer.innerHTML = `
+                        <div class="highlight-comment-editor">
+                            <textarea>${h.comment || ''}</textarea>
+                            <button class="btn btn-primary">Mentés</button>
+                        </div>`;
+                        const textarea = commentContainer.querySelector('textarea');
+                        textarea.focus();
+                        commentContainer.querySelector('button').onclick = (ev) => {
+                            ev.stopPropagation();
+                            this.updateComment(h.id, textarea.value);
+                        };
+                    }
+                };
+
                 item.onclick = (e) => {
-                    if (e.target.classList.contains('hl-color-dot')) return;
+                    if (e.target.closest('.hl-meta-tools, .highlight-comment-container')) return;
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(h.chapterIndex, 'clear');
                 };
+
                 item.querySelectorAll('.hl-color-dot').forEach(dot => {
-                    dot.onclick = () => this.changeColor(h.id, dot.dataset.color);
+                    dot.onclick = (e) => {
+                        e.stopPropagation();
+                        this.changeColor(h.id, dot.dataset.color);
+                    }
                 });
                 list.appendChild(item);
             });
@@ -637,8 +676,12 @@ const Epubly = {
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark', terminalColor: '#00FF41'
             };
-            const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
-            return { ...defaults, ...saved };
+            try {
+                const saved = JSON.parse(localStorage.getItem('epubly-settings'));
+                return { ...defaults, ...saved };
+            } catch {
+                return defaults;
+            }
         },
         save(settings) { localStorage.setItem('epubly-settings', JSON.stringify(settings)); },
         load() {
@@ -661,7 +704,10 @@ const Epubly = {
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
             
-            document.getElementById('terminal-color-picker-container').style.display = s.theme === 'terminal' ? 'block' : 'none';
+            const terminalPicker = document.getElementById('terminal-color-picker-container');
+            if (terminalPicker) {
+                terminalPicker.style.display = s.theme === 'terminal' ? 'block' : 'none';
+            }
 
             Epubly.reader.applySettings(s);
         },
@@ -684,7 +730,11 @@ const Epubly = {
                 const request = indexedDB.open('EpublyDB', 4);
                 request.onerror = () => reject("IndexedDB error");
                 request.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
-                request.onupgradeneeded = e => e.target.result.createObjectStore('books', { keyPath: 'id' });
+                request.onupgradeneeded = e => {
+                    if (!e.target.result.objectStoreNames.contains('books')) {
+                        e.target.result.createObjectStore('books', { keyPath: 'id' });
+                    }
+                }
             });
         },
         async transaction(storeName, mode, callback) {
@@ -698,6 +748,13 @@ const Epubly = {
         async saveBook(bookRecord) {
             return this.transaction('books', 'readwrite', (store, res, rej) => {
                 const req = store.put(bookRecord);
+                req.onsuccess = () => res(req.result);
+                req.onerror = () => rej(req.error);
+            });
+        },
+        async getBook(id) {
+             return this.transaction('books', 'readonly', (store, res, rej) => {
+                const req = store.get(id);
                 req.onsuccess = () => res(req.result);
                 req.onerror = () => rej(req.error);
             });
@@ -749,16 +806,14 @@ const Epubly = {
             }
         },
         async updateBookStats(bookId, durationDelta, percentage) {
-            await this.transaction('books', 'readwrite', async (store) => {
-                const book = await new Promise(res => store.get(bookId).onsuccess = e => res(e.target.result));
-                if(book) {
-                    book.stats = book.stats || { totalTime: 0, progress: 0 };
-                    if(durationDelta > 0 && durationDelta < 86400000) book.stats.totalTime += durationDelta;
-                    book.stats.progress = Math.max(book.stats.progress, percentage);
-                    book.stats.lastRead = Date.now();
-                    store.put(book);
-                }
-            });
+            const book = await this.getBook(bookId);
+            if(book) {
+                book.stats = book.stats || { totalTime: 0, progress: 0, lastRead: Date.now() };
+                if(durationDelta > 0 && durationDelta < 86400000) book.stats.totalTime += durationDelta;
+                book.stats.progress = Math.max(book.stats.progress || 0, percentage);
+                book.stats.lastRead = Date.now();
+                await this.saveBook(book);
+            }
         },
         getLocation(bookId) { return localStorage.getItem(`epubly-loc-${bookId}`); },
         saveLocation(bookId, idx, scroll) { localStorage.setItem(`epubly-loc-${bookId}`, `${idx},${Math.round(scroll)}`); }
@@ -767,6 +822,7 @@ const Epubly = {
     library: {
         async render() {
             const grid = document.getElementById('library-grid');
+            if(!grid) return;
             grid.innerHTML = '';
             const books = await Epubly.storage.getAllBooks();
             if (!books || books.length === 0) {
@@ -784,6 +840,112 @@ const Epubly = {
                 card.onclick = () => Epubly.ui.showBookInfoModal(book);
                 grid.appendChild(card);
             });
+        }
+    },
+    
+    dataSync: {
+        _arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        },
+        _base64ToArrayBuffer(base64) {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes.buffer;
+        },
+        async exportData() {
+            Epubly.ui.showLoader();
+            try {
+                const books = await Epubly.storage.getAllBooks();
+                const booksForExport = books.map(book => ({
+                    ...book,
+                    data: this._arrayBufferToBase64(book.data)
+                }));
+                
+                const highlights = {};
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith('epubly-highlights-')) {
+                        highlights[key] = localStorage.getItem(key);
+                    }
+                }
+
+                const backup = {
+                    version: version,
+                    exportDate: new Date().toISOString(),
+                    books: booksForExport,
+                    settings: localStorage.getItem('epubly-settings'),
+                    highlights: highlights
+                };
+                
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `epubly-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error("Export failed:", e);
+                alert("Hiba az adatok exportálása közben.");
+            } finally {
+                Epubly.ui.hideLoader();
+            }
+        },
+        async importData(file) {
+             if (!confirm("Biztosan importálod az adatokat? Ez felülírja az összes jelenlegi könyvet, beállítást és jegyzetet!")) {
+                return;
+            }
+            Epubly.ui.showLoader();
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    
+                    // Clear existing data
+                    await Epubly.storage.clearBooks();
+                    localStorage.clear();
+                    
+                    // Import settings
+                    if (backup.settings) {
+                        localStorage.setItem('epubly-settings', backup.settings);
+                    }
+                    
+                    // Import highlights
+                    if (backup.highlights) {
+                        for (const key in backup.highlights) {
+                            localStorage.setItem(key, backup.highlights[key]);
+                        }
+                    }
+
+                    // Import books
+                    if (backup.books && backup.books.length > 0) {
+                        for (const book of backup.books) {
+                            await Epubly.storage.saveBook({
+                                ...book,
+                                data: this._base64ToArrayBuffer(book.data)
+                            });
+                        }
+                    }
+                    alert("Importálás sikeres! Az alkalmazás újraindul.");
+                    location.reload();
+                } catch (error) {
+                    console.error("Import failed:", error);
+                    alert("Hiba az importálás során. A fájl lehet, hogy sérült.");
+                    Epubly.ui.hideLoader();
+                }
+            };
+            reader.readAsText(file);
         }
     },
 
@@ -812,21 +974,35 @@ const Epubly = {
                     target.classList.add('active');
                     Epubly.highlights.renderList(target.dataset.color);
                 }
+                if (closest('#btn-export-data')) Epubly.dataSync.exportData();
             });
+
+            const importInput = document.getElementById('import-file');
+            if (importInput) {
+                importInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        Epubly.dataSync.importData(e.target.files[0]);
+                        e.target.value = ''; // Reset for next import
+                    }
+                });
+            }
 
             // Drag & Drop
             const dropZone = document.getElementById('import-drop-zone');
-            ['dragover', 'dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropZone.classList.toggle('dragover', ev === 'dragover');
-                if (ev === 'drop') Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
-            }));
+             if(dropZone) {
+                ['dragover', 'dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.toggle('dragover', ev === 'dragover');
+                    if (ev === 'drop') Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
+                }));
+            }
             
             // Selection Menu
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
+                if(!menu) return;
                 if(sel.isCollapsed || sel.toString().trim().length < 2) {
                     menu.style.opacity = '0'; menu.style.pointerEvents = 'none';
                 } else {
@@ -842,16 +1018,19 @@ const Epubly = {
             window.onbeforeprint = () => this.generateQRCode('d0a663f6-b055-40e8-b3d5-399236cb6b94');
             window.onafterprint = () => this.generateQRCode('https://epubly.hu');
             
-            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
+            const footer = document.getElementById('footer-year');
+            if(footer) footer.textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
             this.generateQRCode('https://epubly.hu');
         },
 
         handleTabClick(tab) {
             const container = tab.closest('.modal-content, .sidebar');
+            if(!container) return;
             container.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
             container.querySelectorAll('.sidebar-pane, .wiki-content').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
-            container.querySelector(`#${tab.dataset.tab}`)?.classList.add('active');
+            const targetPane = container.querySelector(`#${tab.dataset.tab}`);
+            if(targetPane) targetPane.classList.add('active');
         },
         
         toggleTheme() {
@@ -863,8 +1042,12 @@ const Epubly = {
         },
 
         updateThemeIcons(theme) {
-            document.getElementById('theme-icon-sun').style.display = (theme === 'light' || theme === 'sepia') ? 'none' : 'block';
-            document.getElementById('theme-icon-moon').style.display = (theme === 'light' || theme === 'sepia') ? 'block' : 'none';
+            const sun = document.getElementById('theme-icon-sun');
+            const moon = document.getElementById('theme-icon-moon');
+            if(sun && moon) {
+                sun.style.display = (theme === 'light' || theme === 'sepia') ? 'none' : 'block';
+                moon.style.display = (theme === 'light' || theme === 'sepia') ? 'block' : 'none';
+            }
         },
 
         toggleSidebar(id) {
@@ -872,53 +1055,60 @@ const Epubly = {
             if(sidebar) sidebar.classList.toggle('visible');
         },
 
-        showModal(id) { document.getElementById(id).classList.add('visible'); },
-        hideModal(id) { document.getElementById(id).classList.remove('visible'); },
+        showModal(id) { document.getElementById(id)?.classList.add('visible'); },
+        hideModal(id) { document.getElementById(id)?.classList.remove('visible'); },
         
-        showLoader() { document.getElementById('loader').classList.remove('hidden'); },
-        hideLoader() { document.getElementById('loader').classList.add('hidden'); },
+        showLoader() { document.getElementById('loader')?.classList.remove('hidden'); },
+        hideLoader() { document.getElementById('loader')?.classList.add('hidden'); },
         
         updateHeaderInfo(title, author, chapter) {
-            document.getElementById('header-author').textContent = author || "";
-            document.getElementById('header-title').textContent = title || "";
-            document.getElementById('header-chapter').textContent = chapter ? `(${chapter})` : "";
-            document.querySelector('.info-sep').style.display = author ? 'inline' : 'none';
+            const set = (id, text) => { const el = document.getElementById(id); if(el) el.textContent = text; };
+            set('header-author', author || "");
+            set('header-title', title || "");
+            set('header-chapter', chapter ? `(${chapter})` : "");
+            const sep = document.querySelector('.info-sep');
+            if(sep) sep.style.display = author ? 'inline' : 'none';
         },
         
         showFloatingBackButton(visible) {
-            document.getElementById('floating-back-btn-container').classList.toggle('visible', visible);
+            document.getElementById('floating-back-btn-container')?.classList.toggle('visible', visible);
         },
         
         showReaderView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-            document.getElementById('reader-view').classList.add('active');
+            document.getElementById('reader-view')?.classList.add('active');
             
             const actions = document.getElementById('top-actions-container');
-            actions.innerHTML = `
-                <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg></button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Navigáció"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor"/></svg></button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg></button>
-            `;
+            if(actions) {
+                actions.innerHTML = `
+                    <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg></button>
+                    <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Navigáció"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor"/></svg></button>
+                    <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg></button>
+                `;
+            }
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-            document.getElementById('library-view').classList.add('active');
+            document.getElementById('library-view')?.classList.add('active');
             this.updateHeaderInfo("Könyvtár", "", "");
             this.showFloatingBackButton(false);
-            document.getElementById('top-actions-container').innerHTML = `<button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>`;
+            const actions = document.getElementById('top-actions-container');
+            if(actions) actions.innerHTML = `<button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>`;
             this.library.render();
         },
         showBookInfoModal(book) {
-            const set = (id, val) => document.getElementById(id).textContent = val;
-            document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
+            const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+            const img = document.getElementById('detail-cover-img');
+            if(img) img.src = book.metadata.coverUrl || '';
             set('detail-title', book.metadata.title);
             set('detail-author', book.metadata.creator);
-            document.getElementById('detail-desc').innerHTML = book.metadata.description || "Leírás nem elérhető.";
+            const desc = document.getElementById('detail-desc');
+            if(desc) desc.innerHTML = book.metadata.description || "Leírás nem elérhető.";
             
             const stats = book.stats || { totalTime: 0, progress: 0 };
             const minutes = Math.floor(stats.totalTime / 60000);
             set('detail-stats-time', `${Math.floor(minutes/60)}ó ${minutes%60}p`);
-            set('detail-stats-prog', `${Math.round(stats.progress * 100)}%`);
+            set('detail-stats-prog', `${Math.round((stats.progress || 0) * 100)}%`);
             set('btn-read-book', stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS');
             
             document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id); };
@@ -927,64 +1117,40 @@ const Epubly = {
             this.showModal('book-details-modal');
         },
         generateQRCode(data) {
-            // Minimal QR Code generator for alphanumeric data
-            const M = [
-                [1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],
-                [1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],
-                [1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],
-                [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1],
-                [1,0,1,0,0,1,1,1,0,0,0,1,1,0,1,0,1,0,0,1,1],
-                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                [1,1,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,1,1,1,1],
-                [0,1,0,1,1,1,1,0,1,0,1,0,0,1,0,1,1,0,0,0,0],
-                [1,0,1,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1],
-                [1,1,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,1,1,0,0],
-                [0,0,0,1,0,1,0,0,1,1,1,0,1,1,0,0,0,1,0,1,0],
-                [1,0,0,1,1,0,1,1,1,0,1,0,1,0,0,1,1,0,1,0,0],
-                [0,1,1,0,1,0,1,0,1,0,1,0,1,1,0,0,1,0,0,1,1],
-                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                [1,0,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,0,1,0,1],
-                [0,1,0,1,0,0,0,1,0,0,0,1,1,0,1,0,0,1,1,1,0],
-                [1,0,0,1,0,1,0,0,1,0,1,0,0,0,1,1,0,1,1,0,1],
-                [1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],
-                [1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],
-                [1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],
-                [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1]
-            ];
+            const qrContainer = document.getElementById('mohu-qr-container');
+            if(!qrContainer) return;
+            const M = [[1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],[1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],[1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],[1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1],[1,0,1,0,0,1,1,1,0,0,0,1,1,0,1,0,1,0,0,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,1,1,1,1],[0,1,0,1,1,1,1,0,1,0,1,0,0,1,0,1,1,0,0,0,0],[1,0,1,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1],[1,1,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,1,1,0,0],[0,0,0,1,0,1,0,0,1,1,1,0,1,1,0,0,0,1,0,1,0],[1,0,0,1,1,0,1,1,1,0,1,0,1,0,0,1,1,0,1,0,0],[0,1,1,0,1,0,1,0,1,0,1,0,1,1,0,0,1,0,0,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,0,1,0,1],[0,1,0,1,0,0,0,1,0,0,0,1,1,0,1,0,0,1,1,1,0],[1,0,0,1,0,1,0,0,1,0,1,0,0,0,1,1,0,1,1,0,1],[1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],[1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],[1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],[1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1]];
             const L = data.length;
             const size = 21;
-            for(let y=0; y<9; y++) for(let x=0; x<9; x++) if(x<7&&y<7 || x<7&&y>size-8 || x>size-8&&y<7) M[y][x]=1;
+            for(let y=0; y<9; y++) for(let x=0; x<9; x++) if((x<7&&y<7)||(x<7&&y>size-8)||(x>size-8&&y<7)) M[y][x]=1;
             const str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-            let p = 0;
-            for (let i = 0; i < L; i += 2) {
-                let a = str.indexOf(data[i]);
-                let b = (i + 1 < L) ? str.indexOf(data[i+1]) : 0;
-                let v = a * 45 + b;
-                for (let j = 0; j < 11; j++, v = Math.floor(v / 2)) {
-                    M[9 + Math.floor(p/2)][9 + p%2] = v % 2;
-                    p++;
-                }
-            }
+            let p=0;
+            for (let i=0;i<L;i+=2) {let a=str.indexOf(data[i]);let b=(i+1<L)?str.indexOf(data[i+1]):0;let v=a*45+b;for(let j=0;j<11;j++,v=Math.floor(v/2)){M[9+Math.floor(p/2)][9+p%2]=v%2;p++;}}
             let path = '';
-            for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M[y][x]) path += `M${x},${y}h1v1h-1z`;
-            document.getElementById('mohu-qr-container').innerHTML = `<svg viewBox="-2 -2 25 25"><path fill="black" d="${path}"/></svg>`;
+            for (let y=0;y<size;y++) for(let x=0;x<size;x++) if(M[y][x]) path+=`M${x},${y}h1v1h-1z`;
+            qrContainer.innerHTML = `<svg viewBox="-2 -2 25 25"><path fill="black" d="${path}"/></svg>`;
         }
     },
     
     async init() {
         try {
-            this.ui.init();
-            this.settings.init();
-            this.lightbox.init();
-            await this.storage.getDb();
-            this.ui.showLibraryView();
-            this.ui.hideLoader();
-            console.log(`Epubly v${version} Initialized.`);
+            document.addEventListener('DOMContentLoaded', async () => {
+                this.ui.init();
+                this.settings.init();
+                this.lightbox.init();
+                await this.storage.getDb();
+                this.ui.showLibraryView();
+                this.ui.hideLoader();
+                console.log(`Epubly v${version} Initialized.`);
+            });
         } catch (error) {
             console.error("Fatal init error:", error);
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('loader-error').textContent = error.message;
-            document.getElementById('loader-error').style.display = 'block';
+            const loaderError = document.getElementById('loader-error');
+            if(loaderError) {
+                 document.getElementById('loader').classList.remove('hidden');
+                 loaderError.textContent = error.message;
+                 loaderError.style.display = 'block';
+            }
         }
     }
 };
