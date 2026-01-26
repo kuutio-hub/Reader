@@ -20,22 +20,35 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { color-scheme: dark; }
+html { color-scheme: dark; height: 100%; }
 body {
     background-color: var(--bg); color: var(--text); font-size: 16px; line-height: 1.6;
-    overflow: hidden; height: 100vh; display: flex; flex-direction: column;
+    overflow: hidden; height: 100%; width: 100%; display: flex; flex-direction: column;
 }
 
 /* --- HEADER --- */
 #topbar {
-    height: 60px; display: flex; justify-content: space-between; align-items: center;
+    height: 60px; min-height: 60px; display: flex; justify-content: space-between; align-items: center;
     padding: 0 var(--space-5); background: var(--bg-elevated); border-bottom: 1px solid var(--border);
     z-index: 100;
 }
-.logo-container { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
-.logo-container:hover .logo { filter: brightness(1.2); }
-.logo { font-weight: 700; font-size: 1.2rem; color: var(--brand); letter-spacing: -0.5px; transition: var(--transition); }
-.view-title { color: var(--text-muted); font-size: 0.9rem; border-left: 1px solid var(--border); padding-left: 12px; margin-left: 12px; }
+.header-left { display: flex; align-items: center; gap: 16px; }
+
+.logo-btn { 
+    display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; 
+    padding: 4px 8px; border-radius: var(--radius-s); transition: var(--transition);
+}
+.logo-btn:hover { background: var(--surface-alt); }
+.logo-icon { width: 28px; height: 28px; }
+.logo-text { font-weight: 700; font-size: 1.1rem; color: var(--brand); letter-spacing: -0.5px; }
+
+.view-separator { width: 1px; height: 24px; background: var(--border); }
+
+.view-title-label { 
+    color: var(--text-muted); font-size: 0.9rem; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;
+}
+
 .top-actions { display: flex; gap: var(--space-3); align-items: center; }
 
 /* --- LOADER --- */
@@ -57,26 +70,29 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* --- VIEWS --- */
-.view-section { display: none; width: 100%; height: calc(100vh - 60px - 30px); overflow: hidden; }
+.view-section { display: none; width: 100%; height: calc(100% - 60px - 30px); overflow: hidden; position: relative; }
 .view-section.active { display: block; }
 
 /* Library View */
 #library-view { overflow-y: auto; padding: var(--space-6); }
-.view-header-container { max-width: 1200px; margin: 0 auto; margin-bottom: 24px; display:flex; justify-content:space-between; align-items:center; }
 #library-grid { 
     display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-6); 
-    max-width: 1200px; margin: 0 auto;
+    max-width: 1200px; margin: 0 auto; padding-bottom: 60px;
 }
 
 /* Reader View Layout */
-#reader-view.active { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; position: relative; }
+/* IMPORTANT: Explicit heights are crucial for epub.js */
+#reader-view.active { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; height: calc(100vh - 90px); }
+
 #reader-sidebar-left { width: 300px; background: var(--bg-elevated); border-right: 1px solid var(--border); display: none; flex-direction: column; z-index: 200; position: absolute; height: 100%; top: 0; left: 0; }
 #reader-sidebar-left.visible { display: flex; }
 
-#reader-main { position: relative; overflow: hidden; height: 100%; width: 100%; }
+#reader-main { position: relative; overflow: hidden; height: 100%; width: 100%; display: flex; flex-direction: column; }
 
-/* The container for epub.js */
-#viewer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+/* The container for epub.js - MUST HAVE SIZE */
+#viewer { flex: 1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+/* Force iframe inside viewer to fill */
+#viewer iframe { width: 100% !important; height: 100% !important; border: none; }
 
 /* Click zones for navigation */
 .nav-zone { position: absolute; top: 0; height: 100%; width: 15%; z-index: 50; cursor: pointer; display: none; }
@@ -114,7 +130,7 @@ body {
 /* Modals */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity var(--transition); }
 .modal.visible { opacity: 1; pointer-events: auto; }
-.modal-content { background: var(--surface); width: 90%; max-width: 600px; border-radius: var(--radius-l); padding: var(--space-6); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
+.modal-content { background: var(--surface); width: 90%; max-width: 600px; border-radius: var(--radius-l); padding: var(--space-6); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; position: relative; }
 
 /* Book Details Modal */
 .book-detail-layout { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-5); }
@@ -146,7 +162,7 @@ input[type="color"] { width: 40px; height: 30px; border: none; padding: 0; backg
 .toggle-btn.active { background: var(--surface); color: var(--brand); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
 /* Footer */
-#app-footer { height: 30px; border-top: 1px solid var(--border); display: flex; justify-content: center; align-items: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-elevated); }
+#app-footer { height: 30px; min-height: 30px; border-top: 1px solid var(--border); display: flex; justify-content: center; align-items: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-elevated); }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -161,4 +177,5 @@ input[type="color"] { width: 40px; height: 30px; border: none; padding: 0; backg
     #reader-sidebar-left.visible { transform: translateX(0); display: flex; }
     .book-detail-layout { grid-template-columns: 1fr; }
     .book-detail-cover { width: 140px; margin: 0 auto; }
+    .view-title-label { max-width: 150px; }
 }

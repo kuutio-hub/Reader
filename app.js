@@ -18,7 +18,7 @@ const Epubly = {
                 try { Epubly.state.book.destroy(); } catch(e) {}
             }
             
-            // Clean DOM - Critical for "Blank Screen" fix
+            // Clean DOM
             const viewer = document.getElementById('viewer');
             viewer.innerHTML = '';
             
@@ -31,16 +31,29 @@ const Epubly = {
             if(!bookData) return; // Just unloading
 
             try {
+                // IMPORTANT: Show reader view FIRST to ensure container has dimensions
+                Epubly.ui.showReaderView(false); // false = don't update header just yet, keep loader
+
                 const settings = Epubly.settings.get();
                 const isScrolled = settings.readingFlow === 'scrolled';
 
                 // Ensure ePub is available
                 if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be. Ellenőrizd az internetkapcsolatot.");
 
+                // Initialize book
                 Epubly.state.book = window.ePub(bookData);
                 await Epubly.state.book.ready; // Wait for parsing to finish
 
-                // Render with explicit dimensions
+                // Get metadata safely for header update
+                let metaTitle = "Névtelen Könyv";
+                try {
+                    if(Epubly.state.book.package && Epubly.state.book.package.metadata) {
+                        metaTitle = Epubly.state.book.package.metadata.title;
+                    }
+                } catch(e) {}
+                Epubly.ui.updateHeaderTitle(metaTitle);
+
+                // Render
                 Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
                     width: "100%", 
                     height: "100%",
@@ -497,7 +510,6 @@ const Epubly = {
                 await tempBook.ready;
 
                 // Robust Metadata Extraction
-                // Depending on epub.js version, metadata can be in different places or is a promise.
                 let rawMetadata = {};
                 try {
                     // Try the standard way first (modern epub.js)
@@ -511,7 +523,6 @@ const Epubly = {
                 }
 
                 // Normalize metadata to ensure no 'undefined' errors
-                // If rawMetadata is null/undefined, use empty object
                 const safeMeta = rawMetadata || {};
 
                 const finalMetadata = {
@@ -626,7 +637,7 @@ const Epubly = {
             });
 
             // Brand Logo Navigation - Returns to Library
-            document.getElementById('brand-logo').addEventListener('click', () => {
+            document.getElementById('app-logo-btn').addEventListener('click', () => {
                 // If currently reading, update stats before closing
                 if(Epubly.state.book && Epubly.state.currentBookId) {
                     Epubly.reader.updateSessionStats();
@@ -684,6 +695,15 @@ const Epubly = {
                 });
             });
 
+            // Modal Click Outside to Close
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if(e.target === modal) {
+                        modal.classList.remove('visible');
+                    }
+                });
+            });
+
             // Keyboard Navigation
             document.addEventListener('keydown', e => {
                 if(Epubly.state.currentBookId && document.getElementById('reader-view').classList.contains('active')) {
@@ -702,7 +722,12 @@ const Epubly = {
             document.getElementById('retry-btn').style.display = 'none';
         },
         hideLoader() { document.getElementById('loader').classList.add('hidden'); },
-        showReaderView() {
+        
+        updateHeaderTitle(title) {
+            document.getElementById('header-title-text').textContent = title;
+        },
+
+        showReaderView(updateTitle = true) {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
             
@@ -714,23 +739,26 @@ const Epubly = {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
-            const headerTitle = document.getElementById('header-title');
-            headerTitle.textContent = Epubly.state.book && Epubly.state.book.package ? Epubly.state.book.package.metadata.title : 'Olvasó';
+            if(updateTitle) {
+                const metaTitle = Epubly.state.book && Epubly.state.book.package ? Epubly.state.book.package.metadata.title : 'Olvasó';
+                this.updateHeaderTitle(metaTitle);
+            }
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('library-view').classList.add('active');
-            document.getElementById('header-title').textContent = 'Könyvtár';
+            
+            this.updateHeaderTitle('Könyvtár');
             
             // Library Header Actions
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
 
@@ -759,8 +787,11 @@ const Epubly = {
                 this.showLoader('Könyv megnyitása...');
                 try {
                     await Epubly.reader.loadBook(book.data, book.id);
-                    this.showReaderView();
-                } catch(e) { alert(e.message); } finally { this.hideLoader(); }
+                    // showReaderView is called inside loadBook to ensure timing
+                } catch(e) { 
+                    alert(e.message); 
+                    this.hideLoader();
+                } 
             };
 
             document.getElementById('btn-delete-book').onclick = async () => {

@@ -33,14 +33,21 @@
 
     <!-- HEADER -->
     <header id="topbar">
-        <div class="logo-container" id="brand-logo" title="Vissza a könyvtárba">
-            <!-- Brand Logo -->
-            <svg width="28" height="28" viewBox="0 0 100 100" class="brand-icon">
-                <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
-            </svg>
-            <span class="logo">Epubly.hu</span>
-            <span class="view-title" id="header-title">Könyvtár</span>
+        <div class="header-left">
+            <!-- Clickable Logo -->
+            <div class="logo-btn" id="app-logo-btn" title="Vissza a könyvtárba">
+                <svg width="28" height="28" viewBox="0 0 100 100" class="logo-icon">
+                    <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
+                </svg>
+                <span class="logo-text">Epubly.hu</span>
+            </div>
+            
+            <div class="view-separator"></div>
+            
+            <!-- Static Title (Not clickable) -->
+            <span class="view-title-label" id="header-title-text">Könyvtár</span>
         </div>
+
         <div class="top-actions" id="top-actions-container">
             <!-- Injected by JS based on view -->
         </div>
