@@ -122,8 +122,9 @@ body {
 
 /* Progress Bar */
 #reading-progress-bar {
-    position: absolute; bottom: -1px; left: 0;
+    position: fixed; top: 54px; left: 0;
     width: 100%; height: 3px; background: transparent; pointer-events: none;
+    z-index: 99;
 }
 #reading-progress-fill {
     height: 100%; width: 0%; background: var(--brand);
@@ -222,7 +223,7 @@ body {
 .highlight-meta { font-size: 0.75rem; color: var(--text-muted); }
 
 /* --- VIEWS --- */
-.view-section { display: none; width: 100%; height: calc(100% - 54px); overflow: hidden; position: relative; }
+.view-section { display: none; width: 100%; height: calc(100% - 54px - 30px); overflow: hidden; position: relative; }
 .view-section.active { display: block; }
 
 #library-view { overflow-y: auto; padding: 30px 20px; }
@@ -333,7 +334,7 @@ body {
     border: 2px dashed var(--border); border-radius: var(--radius-m);
     padding: 40px; text-align: center; transition: 0.2s ease;
 }
-.drop-zone:hover {
+.drop-zone.dragover, .drop-zone:hover {
     background: var(--surface-alt); border-color: var(--brand);
 }
 
@@ -351,6 +352,8 @@ body {
     box-shadow: 0 8px 25px rgba(0,0,0,0.3); border: 1px solid var(--border);
     margin-bottom: 5px;
 }
+.detail-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: auto; }
+.detail-actions-extra { width: 100%; margin-top: 20px; }
 .book-detail-cover img { width: 100%; height: 100%; object-fit: cover; }
 .detail-meta h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 5px; line-height: 1.2; }
 .detail-meta p { font-size: 1rem; color: var(--brand); font-weight: 600; }

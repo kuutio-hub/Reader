@@ -194,12 +194,14 @@ const Epubly = {
                 this.parseTOC(opfDoc);
                 
                 Epubly.ui.hideLoader();
-
+                
+                return Promise.resolve();
             } catch (e) {
                 console.error("Engine Error:", e);
                 alert("Hiba: " + e.message);
                 Epubly.ui.hideLoader();
                 Epubly.ui.showLibraryView();
+                return Promise.reject(e);
             }
         },
 
@@ -318,12 +320,11 @@ const Epubly = {
 
         async handleScroll(e) {
             const viewer = e.target;
-            
-            // --- Overall Progress Update ---
             const scrollTop = viewer.scrollTop;
             const scrollHeight = viewer.scrollHeight;
             const clientHeight = viewer.clientHeight;
 
+            // --- Overall Progress Update ---
             if (scrollHeight > clientHeight) {
                 const progress = scrollTop / (scrollHeight - clientHeight);
                 const percent = Math.min(100, Math.round(progress * 100));
@@ -331,10 +332,6 @@ const Epubly = {
                 const ind = document.getElementById('progress-indicator');
                 if (ind) ind.textContent = `${percent}%`;
                 document.getElementById('reading-progress-fill').style.width = percent + "%";
-            } else {
-                const ind = document.getElementById('progress-indicator');
-                if (ind) ind.textContent = `0%`;
-                document.getElementById('reading-progress-fill').style.width = "0%";
             }
 
 
@@ -490,7 +487,7 @@ const Epubly = {
         add(color = 'yellow') {
             const selection = window.getSelection();
             if(!selection.rangeCount) return;
-            const text = selection.toString();
+            const text = selection.toString().trim();
             if(!text || text.length < 1) return;
 
             let node = selection.anchorNode;
@@ -549,23 +546,56 @@ const Epubly = {
         apply(chapterIndex, container) {
             const bookId = Epubly.state.currentBookId;
             const items = Epubly.state.highlights[bookId];
-            if(!items) return;
-            
-            let bgMap = {
+            if (!items) return;
+        
+            const bgMap = {
                 'yellow': 'rgba(255, 235, 59, 0.4)',
                 'green': 'rgba(76, 175, 80, 0.4)',
                 'blue': 'rgba(33, 150, 243, 0.4)',
                 'red': 'rgba(244, 67, 54, 0.4)'
             };
-
+        
             items.forEach(h => {
-                if(h.type === 'text' && h.chapterIndex === chapterIndex) {
-                    if(container.innerHTML.includes(h.text) && !container.innerHTML.includes(`<span class="highlighted-text"`)) {
-                         container.innerHTML = container.innerHTML.replace(
-                             h.text, 
-                             `<span class="highlighted-text" style="background-color:${bgMap[h.color]}">${h.text}</span>`
-                         );
-                    }
+                if (h.type === 'text' && h.chapterIndex === chapterIndex) {
+                    const search = h.text;
+        
+                    (function walkAndReplace(node) {
+                        if (node.nodeType === 3) { // TEXT_NODE
+                            const index = node.data.indexOf(search);
+                            if (index > -1) {
+                                const parent = node.parentNode;
+                                if (parent && parent.classList.contains('highlighted-text')) return;
+        
+                                const newSpan = document.createElement('span');
+                                newSpan.className = 'highlighted-text';
+                                newSpan.style.backgroundColor = bgMap[h.color];
+        
+                                const range = document.createRange();
+                                range.setStart(node, index);
+                                range.setEnd(node, index + search.length);
+        
+                                try {
+                                    range.surroundContents(newSpan);
+                                    // After surrounding, the structure is changed.
+                                    // To highlight multiple occurrences, we need to continue searching.
+                                    // The new node is `newSpan.nextSibling`.
+                                    if(newSpan.nextSibling) {
+                                      walkAndReplace(newSpan.nextSibling);
+                                    }
+                                } catch (e) {
+                                    // This can fail if the selection is not 'well-formed'.
+                                    console.warn(e);
+                                }
+                            }
+                        } else if (node.nodeType === 1) { // ELEMENT_NODE
+                            if (node.classList.contains('highlighted-text')) return;
+                            
+                            const children = Array.from(node.childNodes);
+                            for (let i = 0; i < children.length; i++) {
+                                walkAndReplace(children[i]);
+                            }
+                        }
+                    })(container);
                 }
             });
         },
@@ -712,11 +742,19 @@ const Epubly = {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '10',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
-                fontWeight: '400', letterSpacing: '0', fontColor: '#F2F2F7',
+                fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
             if(localStorage.getItem('epubly-theme')) saved.theme = localStorage.getItem('epubly-theme');
+            
+            // Adjust font color for contrast
+            if (saved.theme === 'light' || saved.theme === 'sepia') {
+                defaults.fontColor = '#1C1C1E'; 
+            } else {
+                defaults.fontColor = '#F2F2F7';
+            }
+
             return { ...defaults, ...saved };
         },
         save(settings) { localStorage.setItem('epubly-settings', JSON.stringify(settings)); },
@@ -747,6 +785,12 @@ const Epubly = {
             s[key] = value;
             if (key === 'theme') {
                 localStorage.setItem('epubly-theme', value);
+                // Force font color update based on theme
+                if (value === 'light' || value === 'sepia') {
+                    s.fontColor = '#1C1C1E';
+                } else {
+                    s.fontColor = '#F2F2F7';
+                }
             }
             this.save(s);
             this.load(); 
@@ -965,6 +1009,8 @@ const Epubly = {
                 Epubly.reader.updateSessionStats();
                 Epubly.ui.showLibraryView();
             });
+
+            // File Import
             const fileInput = document.getElementById('epub-file');
             if(fileInput) {
                 fileInput.addEventListener('change', (e) => {
@@ -974,6 +1020,22 @@ const Epubly = {
                     }
                 });
             }
+            const dropZone = document.getElementById('import-drop-zone');
+            if (dropZone) {
+                dropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+                dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('dragover');
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
+                        e.dataTransfer.clearData();
+                    }
+                });
+            }
+
+            // Modals
             document.querySelectorAll('.modal-close').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.target.closest('.modal').classList.remove('visible');
@@ -985,10 +1047,11 @@ const Epubly = {
                 });
             });
 
+            // Highlights
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
-                if(!sel.isCollapsed && sel.toString().length > 1) {
+                if(!sel.isCollapsed && sel.toString().trim().length > 1) {
                     const range = sel.getRangeAt(0);
                     const rect = range.getBoundingClientRect();
                     menu.style.opacity = '1';
@@ -1008,11 +1071,13 @@ const Epubly = {
                 });
             });
 
+            // Search
             document.getElementById('btn-do-search').onclick = () => {
                 const val = document.getElementById('search-input').value;
                 Epubly.search.run(val);
             };
             
+            // Generic click-outside-to-close for sidebars
             document.addEventListener('click', (e) => {
                 const sidebars = document.querySelectorAll('.sidebar.visible');
                 sidebars.forEach(sidebar => {
@@ -1022,40 +1087,21 @@ const Epubly = {
                 });
             });
 
+            // Back Button
             document.getElementById('btn-nav-back').addEventListener('click', () => {
                 Epubly.navigation.popState();
             });
 
             // --- Theme Toggle Logic ---
-            const themeBtn = document.getElementById('btn-theme-toggle');
-            const sunIcon = document.getElementById('theme-icon-sun');
-            const moonIcon = document.getElementById('theme-icon-moon');
-            
-            const updateThemeIcons = (theme) => {
-                if (theme === 'light') {
-                    sunIcon.style.display = 'none';
-                    moonIcon.style.display = 'block';
-                } else { // dark, sepia, matrix
-                    sunIcon.style.display = 'block';
-                    moonIcon.style.display = 'none';
-                }
-            };
-            
-            const initialSettings = Epubly.settings.get();
-            updateThemeIcons(initialSettings.theme);
-            if(initialSettings.theme === 'light') {
-                document.body.classList.add('theme-light');
-            } else {
-                document.body.classList.remove('theme-light');
-            }
-
-            themeBtn.addEventListener('click', () => {
-                const currentTheme = document.body.classList.contains('theme-light') ? 'light' : 'dark';
-                const newTheme = (currentTheme === 'light') ? 'dark' : 'light';
+            this.updateThemeIcons(Epubly.settings.get().theme);
+            document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+                const currentSettings = Epubly.settings.get();
+                const newTheme = (currentSettings.theme === 'light' || currentSettings.theme === 'sepia') ? 'dark' : 'light';
                 Epubly.settings.handleUpdate('theme', newTheme);
-                updateThemeIcons(newTheme);
+                this.updateThemeIcons(newTheme);
             });
             
+            // Data Deletion
             document.getElementById('btn-delete-all').onclick = () => {
                 if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
                     localStorage.clear();
@@ -1064,6 +1110,20 @@ const Epubly = {
             };
 
             document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
+        },
+        
+        updateThemeIcons(theme) {
+            const sunIcon = document.getElementById('theme-icon-sun');
+            const moonIcon = document.getElementById('theme-icon-moon');
+            if (theme === 'light' || theme === 'sepia') {
+                sunIcon.style.display = 'none';
+                moonIcon.style.display = 'block';
+                document.body.classList.add('theme-light'); 
+            } else { // dark, matrix
+                sunIcon.style.display = 'block';
+                moonIcon.style.display = 'none';
+                document.body.classList.remove('theme-light');
+            }
         },
 
         toggleSidebar(id) {
@@ -1144,9 +1204,15 @@ const Epubly = {
             const progressVal = Math.round((stats.progress || 0) * 100);
             document.getElementById('detail-stats-time').textContent = timeStr;
             document.getElementById('detail-stats-prog').textContent = `${progressVal}%`;
+            
             document.getElementById('btn-read-book').onclick = async () => {
                 this.hideModal('book-details-modal');
                 Epubly.engine.loadBook(book.data, book.id);
+            };
+            document.getElementById('btn-show-toc').onclick = async () => {
+                this.hideModal('book-details-modal');
+                await Epubly.engine.loadBook(book.data, book.id);
+                setTimeout(() => Epubly.ui.toggleSidebar('sidebar-toc'), 0);
             };
             document.getElementById('btn-delete-book').onclick = async () => {
                 if(confirm('Biztosan törölni szeretnéd ezt a könyvet?')) {
