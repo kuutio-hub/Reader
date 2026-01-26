@@ -1,39 +1,39 @@
 # Változási napló
 
-## [0.10.9-beta] - 2024-07-27
+## [0.12.0-beta] - 2024-07-28
 
 ### Jelentős Javítások és Új Funkciók
-- **Témakezelés és Stílus:**
-  - Teljes, konzisztens színpaletták lettek bevezetve minden témához (Világos, Sötét, Szépia, Mátrix), amelyek a gombokra és menükre is kiterjednek.
-  - A "Mátrix" téma mostantól az olvasófelület teljes szövegtörzsére is érvényesül.
-  - A felhasználók mostantól egyedileg felülbírálhatják a betű- és háttérszínt, a beállítások elmentődnek.
-- **Tipográfia:**
-  - Bővült a választható betűtípusok listája (pl. Georgia, Open Sans, Times New Roman).
-  - Új csúszka a betűk vastagságának (font-weight) állításához.
-- **Navigáció és Állapotkezelés:**
-  - A "Vissza" gomb mostantól pontosan arra a sorra ugrik vissza, ahonnan egy belső linkre kattintottunk. Csak ilyen esetekben jelenik meg.
-  - Az alkalmazás megjegyzi az utolsó olvasási pozíciót (fejezet és görgetési helyzet), és kilépés után onnan folytatja a könyvet.
-- **Haladáskövetés:**
-  - A fejlécben lévő százalékos kijelző és a folyamatjelző sáv mostantól a teljes könyvön belüli pontos pozíciót tükrözi, kiküszöbölve a fejezetváltáskor tapasztalt pontatlanságokat.
-  - A fejezetcím kijelzése a fejlécben reszponzívabb lett.
-- **Képkezelés:**
-  - A könyvben lévő képekre kattintva azok nagyítható, teljes képernyős nézetben (lightbox) jelennek meg.
-  - A képek méretezése független lett a szöveg margóinak állításától, így mindig konzisztens méretűek.
+- **Kiemelő Rendszer Teljes Újraírása:**
+  - A kiemelések mostantól valósághű, áttetsző "szövegkiemelő" hatást keltenek, a kiemelt szöveg színe pedig a jobb olvashatóság érdekében dinamikusan változik.
+  - A "Jegyzetek" oldalsávon mostantól lehet szűrni a kiemelésekre szín szerint.
+  - Minden jegyzet mellett megjelent egy színpaletta, amellyel a kiemelések egy kattintással átkategorizálhatók (átszínezhetők).
+- **Professzionális és Biztonságos Támogatói Kártya:**
+  - A MOHU kártya egyetlen, elegáns, bankkártya-szerű dizájnt kapott, amely független az alkalmazás témájától.
+  - **Adatvédelem:** A személyes azonosítót tartalmazó QR kód mostantól csak a nyomtatási nézetben generálódik le. Az oldalon egy általános, `epubly.hu`-ra mutató placeholder kód látható.
+  - A kártyáról a szöveges azonosító kód el lett távolítva.
+- **Személyre Szabható Terminál Téma:**
+  - A Terminál téma mostantól egyetlen, a felhasználó által választott neonszínt használ. A beállítások menüben egy színválasztóval állítható be a kívánt árnyalat.
+  - A kiválasztott szín következetesen megjelenik a könyv szövegén, gombokon, logón és minden egyéb felületi elemen.
+- **Precíz Belső Navigáció:**
+  - A könyvön belüli linkekre (pl. lábjegyzet) kattintva a program mostantól pontosan a hivatkozott elemhez ugrik.
+  - Ilyen ugrás után a képernyő alján megjelenik egy **"Vissza az előző helyre" gomb**, amellyel pontosan a kiindulási pontra lehet visszatérni.
+- **Felhasználói Felület Tisztítása:**
+  - A pontatlanul működő haladásjelző (százalék és csík) el lett távolítva az olvasó nézet fejlécéből. A pontos haladás továbbra is elérhető a könyv információs ablakában.
+- **Szöveges Tartalom Finomítása:**
+  - A "Névjegy" és a támogatói szekció szövegei frissültek a jobb érthetőség és a gördülékenyebb fogalmazás érdekében.
+
+## [0.11.0-beta] - 2024-07-28
+- **"Terminál" Téma:** A "Mátrix" téma neve "Terminál"-ra változott és stílusa az egész alkalmazásra kiterjedt.
+- **"Folytatás" Gomb:** A könyvtárban az "Olvasás" gomb "Folytatás"-ra változik, ha a könyv már meg van kezdve.
+- **Támogatói Kártya Frissítés:** Új, bankkártya-szerű dizájn és frissített támogatói szöveg. PayPal integráció előkészítve.
+
+## [0.10.9-beta] - 2024-07-27
+- **Navigáció és Állapotkezelés:** Pontos "Vissza" gomb bevezetése belső linkek után, olvasási pozíció megjegyzése.
+- **Haladáskövetés:** Pontosabb, könyv-szintű haladásjelzés.
+- **Képkezelés:** Képek nagyítása (lightbox).
 
 ## [0.6.0-beta] - 2024-05-24
-
-### Kritikus Javítások
-- **ePub Constructor Hiba:** Javítva a `TypeError: window.ePub is not a constructor` hiba, amely a "Single File" környezetben jelentkezett. A script betöltése és inicializálása mostantól szigorúbban ellenőrzött.
-
-### Új Funkciók (Beállítások)
-- **Tipográfia:** Választható betűtípusok (Inter, Merriweather, Roboto Mono), sorkizárt igazítás opció, sorköz és betűköz állítás.
-- **Téma és Minták:** Egyedi színválasztók mellett mostantól háttér textúrák (papír, vonalas, zaj) is bekapcsolhatók.
-- **Kétoldalas Nézet:** Új "2 Oldal" opció a lapozáshoz, amely kényszeríti a könyv dupla oldalas megjelenítését (főleg asztali nézetben hasznos).
-- **Egyoldalas Nézet:** Választható görgetés vagy lapozás az egyoldalas nézethez.
-
-### UX Javítások
-- **Navigáció:** Megnövelt, láthatatlan érzékeny területek (jobb/bal 15%) a könnyebb lapozáshoz.
-- **Billentyűzet:** Nyíl gombokkal való lapozás támogatása.
+- **Tipográfia és Témák:** Betűtípusok, igazítás, sorköz, háttértextúrák bevezetése.
 
 ## [0.5.0-beta] - 2024-05-24
 *Single File Architecture bevezetése.*

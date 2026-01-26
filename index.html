@@ -45,12 +45,6 @@
                 <span class="logo-text">Epubly.hu</span>
             </div>
             
-            <!-- BACK BUTTON -->
-            <div id="btn-nav-back" title="Vissza az előző helyre">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                <span>Vissza</span>
-            </div>
-            
             <div class="view-separator"></div>
             
             <div class="view-info-container" id="header-info-area">
@@ -102,10 +96,10 @@
             
             <!-- Highlight Context Menu -->
             <div id="highlight-menu">
-                <button class="hl-color-btn" data-color="yellow"></button>
-                <button class="hl-color-btn" data-color="green"></button>
-                <button class="hl-color-btn" data-color="blue"></button>
-                <button class="hl-color-btn" data-color="red"></button>
+                <button class="hl-color-btn hl-yellow" data-color="yellow"></button>
+                <button class="hl-color-btn hl-green" data-color="green"></button>
+                <button class="hl-color-btn hl-blue" data-color="blue"></button>
+                <button class="hl-color-btn hl-red" data-color="red"></button>
             </div>
 
             <!-- Floating Back Button -->
@@ -125,17 +119,17 @@
             </div>
             <div class="sidebar-tabs">
                 <button class="sidebar-tab active" data-tab="toc-list">Tartalom</button>
-                <button class="sidebar-tab" data-tab="highlights-list">Jegyzetek</button>
+                <button class="sidebar-tab" data-tab="highlights-list-container">Jegyzetek</button>
             </div>
             <div class="sidebar-content">
-                <ul id="toc-list" class="active"></ul>
-                <div id="highlights-list-container">
+                <ul id="toc-list" class="sidebar-pane active"></ul>
+                <div id="highlights-list-container" class="sidebar-pane">
                      <div class="highlight-filters">
                         <button class="hl-filter-btn active" data-color="all">Összes</button>
-                        <button class="hl-filter-btn" data-color="yellow"><span class="hl-color-dot yellow"></span></button>
-                        <button class="hl-filter-btn" data-color="green"><span class="hl-color-dot green"></span></button>
-                        <button class="hl-filter-btn" data-color="blue"><span class="hl-color-dot blue"></span></button>
-                        <button class="hl-filter-btn" data-color="red"><span class="hl-color-dot red"></span></button>
+                        <button class="hl-filter-btn" data-color="yellow"><span class="hl-color-dot hl-yellow"></span></button>
+                        <button class="hl-filter-btn" data-color="green"><span class="hl-color-dot hl-green"></span></button>
+                        <button class="hl-filter-btn" data-color="blue"><span class="hl-color-dot hl-blue"></span></button>
+                        <button class="hl-filter-btn" data-color="red"><span class="hl-color-dot hl-red"></span></button>
                     </div>
                     <div id="highlights-list">
                         <p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>
@@ -385,4 +379,4 @@
 
     <script type="module" src="app.js"></script>
 </body>
-</html>--- END OF FILE ---
+</html>

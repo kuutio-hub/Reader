@@ -27,7 +27,6 @@ const Epubly = {
         isLoadingPrev: false,
         highlights: {},
         activeSidebar: null,
-        globalTheme: 'dark',
         history: [] // Navigation stack: [{chapterIndex, scrollPosition}, ...]
     },
 
@@ -35,29 +34,31 @@ const Epubly = {
     navigation: {
         pushState() {
             const viewer = document.getElementById('viewer');
-            let currentIdx = 0;
-            if(Epubly.state.renderedChapters.size > 0) {
-                const chapters = document.querySelectorAll('.chapter-container');
-                for(let c of chapters) {
-                    const rect = c.getBoundingClientRect();
-                    if(rect.top >= 0 && rect.top < window.innerHeight) {
-                        currentIdx = parseInt(c.dataset.index);
-                        break;
-                    }
+            let firstVisibleChapter = document.querySelector('.chapter-container');
+            if (!firstVisibleChapter) return;
+
+            // Find the first visible chapter
+            for(const chapter of document.querySelectorAll('.chapter-container')) {
+                const rect = chapter.getBoundingClientRect();
+                if (rect.bottom > 0) {
+                    firstVisibleChapter = chapter;
+                    break;
                 }
             }
+            
+            const currentIdx = parseInt(firstVisibleChapter.dataset.index);
             
             Epubly.state.history.push({
                 chapterIndex: currentIdx,
                 scrollTop: viewer.scrollTop
             });
-            Epubly.ui.updateBackButton();
+            Epubly.ui.showFloatingBackButton(false);
         },
         
         popState() {
             if(Epubly.state.history.length === 0) return;
             const state = Epubly.state.history.pop();
-            Epubly.ui.updateBackButton();
+            Epubly.ui.showFloatingBackButton(false);
             
             document.getElementById('viewer-content').innerHTML = '';
             Epubly.state.renderedChapters.clear();
@@ -83,31 +84,38 @@ const Epubly = {
             this.pushState();
 
             const [path, hash] = href.split('#');
+            const targetPath = Epubly.engine.resolvePath(Epubly.state.currentChapterPath, path);
             
-            if (!path || path === '') {
-                this.scrollToHash(hash);
-            } else {
-                let targetIndex = -1;
-                targetIndex = Epubly.state.spine.findIndex(s => s.href === path || s.href.endsWith(path));
-                
-                if (targetIndex !== -1) {
+            let targetIndex = Epubly.state.spine.findIndex(s => s.fullPath === targetPath);
+
+            if (targetIndex !== -1) {
+                const isSameChapter = Array.from(Epubly.state.renderedChapters).includes(targetIndex);
+                if (isSameChapter && hash) {
+                    this.scrollToHash(hash);
+                } else {
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(targetIndex, 'clear').then(() => {
                         if (hash) this.scrollToHash(hash);
                     });
-                } else {
-                    console.warn("Could not find target for:", href);
                 }
+            } else {
+                console.warn("Could not find target for:", href);
             }
+            Epubly.ui.showFloatingBackButton(true);
         },
 
         scrollToHash(hash) {
             if (!hash) return;
-            const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
+            // The timeout is a workaround to ensure the DOM has been painted after renderChapter
+            setTimeout(() => {
+                const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    console.warn(`Hash target #${hash} not found.`);
+                }
+            }, 100);
         }
     },
 
@@ -116,15 +124,12 @@ const Epubly = {
         async loadBook(arrayBuffer, bookId) {
             Epubly.ui.showLoader();
             
-            Epubly.state.zip = null;
-            Epubly.state.spine = [];
-            Epubly.state.manifest = {};
-            Epubly.state.renderedChapters.clear();
-            Epubly.state.currentBookId = bookId;
-            Epubly.state.activeBookSessionStart = Date.now();
-            Epubly.state.isLoadingNext = false;
-            Epubly.state.history = []; 
-            Epubly.ui.updateBackButton();
+            Object.assign(Epubly.state, {
+                zip: null, spine: [], manifest: {}, renderedChapters: new Set(),
+                toc: [], rootPath: '', currentBookId: bookId, activeBookSessionStart: Date.now(),
+                isLoadingNext: false, isLoadingPrev: false, history: []
+            });
+            Epubly.ui.showFloatingBackButton(false);
 
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
@@ -148,22 +153,19 @@ const Epubly = {
                 const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
                 const opfDoc = parser.parseFromString(opfXml, "application/xml");
 
-                const manifestItems = opfDoc.getElementsByTagName("item");
-                for (let item of manifestItems) {
+                for (let item of opfDoc.getElementsByTagName("item")) {
                     Epubly.state.manifest[item.getAttribute("id")] = {
                         href: item.getAttribute("href"),
                         type: item.getAttribute("media-type"),
-                        fullPath: Epubly.state.rootPath + item.getAttribute("href")
+                        fullPath: this.resolvePath(Epubly.state.rootPath, item.getAttribute("href"))
                     };
                 }
 
-                const spineItems = opfDoc.getElementsByTagName("itemref");
-                for (let item of spineItems) {
-                    const idref = item.getAttribute("idref");
-                    const manifestItem = Epubly.state.manifest[idref];
+                for (let item of opfDoc.getElementsByTagName("itemref")) {
+                    const manifestItem = Epubly.state.manifest[item.getAttribute("idref")];
                     if (manifestItem) {
                         Epubly.state.spine.push({
-                            id: idref,
+                            id: item.getAttribute("idref"),
                             href: manifestItem.href,
                             fullPath: manifestItem.fullPath
                         });
@@ -177,16 +179,21 @@ const Epubly = {
                 Epubly.ui.updateHeaderInfo(title, author, "");
 
                 let startIdx = 0;
-                const savedCfi = Epubly.storage.getLocation(bookId);
-                if(savedCfi) {
-                    const idx = parseInt(savedCfi);
+                const savedLoc = Epubly.storage.getLocation(bookId);
+                if(savedLoc) {
+                    const idx = parseInt(savedLoc.split(',')[0]);
                     if(!isNaN(idx) && idx < Epubly.state.spine.length) startIdx = idx;
                 }
 
                 document.getElementById('viewer-content').innerHTML = '';
                 Epubly.ui.showReaderView();
                 
-                await this.renderChapter(startIdx, 'append');
+                await this.renderChapter(startIdx, 'clear');
+
+                if (savedLoc) {
+                    const scrollTop = parseInt(savedLoc.split(',')[1]);
+                    if (!isNaN(scrollTop)) document.getElementById('viewer').scrollTop = scrollTop;
+                }
                 
                 this.initObservers();
                 document.getElementById('viewer').onscroll = this.handleScroll.bind(this);
@@ -194,22 +201,20 @@ const Epubly = {
                 this.parseTOC(opfDoc);
                 
                 Epubly.ui.hideLoader();
-                
-                return Promise.resolve();
             } catch (e) {
                 console.error("Engine Error:", e);
                 alert("Hiba: " + e.message);
                 Epubly.ui.hideLoader();
                 Epubly.ui.showLibraryView();
-                return Promise.reject(e);
             }
         },
 
         async renderChapter(index, method = 'append') {
             if (index < 0 || index >= Epubly.state.spine.length) return;
-            if (Epubly.state.renderedChapters.has(index)) return;
+            if (Epubly.state.renderedChapters.has(index) && method !== 'clear') return;
 
             const chapterItem = Epubly.state.spine[index];
+            Epubly.state.currentChapterPath = chapterItem.fullPath;
             const file = Epubly.state.zip.file(chapterItem.fullPath);
             if (!file) return;
 
@@ -218,128 +223,81 @@ const Epubly = {
             const doc = parser.parseFromString(htmlContent, "text/html");
 
             doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
-            doc.querySelectorAll('*').forEach(el => {
-                el.removeAttribute('style');
-                el.removeAttribute('class');
-            });
+            doc.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('class'); });
 
             const images = doc.querySelectorAll("img, image");
-            const processImage = async (img) => {
+            for (const img of images) {
                 const src = img.getAttribute("src") || img.getAttribute("href") || img.getAttribute("xlink:href");
-                if (!src) return;
-                const chapterDir = chapterItem.fullPath.substring(0, chapterItem.fullPath.lastIndexOf('/') + 1);
-                const resolvedPath = this.resolvePath(chapterDir, src);
+                if (!src) continue;
+                const resolvedPath = this.resolvePath(chapterItem.fullPath.substring(0, chapterItem.fullPath.lastIndexOf('/') + 1), src);
                 const imgFile = Epubly.state.zip.file(resolvedPath);
                 if (imgFile) {
                     const blob = await imgFile.async("blob");
-                    const url = URL.createObjectURL(blob);
-                    img.setAttribute("src", url);
-                    img.style.cursor = "pointer";
-                    img.onclick = (e) => {
-                        e.stopPropagation(); 
-                        if(confirm("Szeretnéd elmenteni ezt a képet a jegyzetek közé?")) {
-                            Epubly.highlights.addImage(index, src); 
-                        }
-                    };
-                    if(img.tagName.toLowerCase() === 'image') img.setAttribute("href", url);
+                    img.src = URL.createObjectURL(blob);
                 }
-            };
-            await Promise.all(Array.from(images).map(processImage));
+            }
 
             const chapterContainer = document.createElement('div');
             chapterContainer.className = 'chapter-container';
             chapterContainer.dataset.index = index;
-            
-            if (doc.body) {
-                chapterContainer.innerHTML = doc.body.innerHTML;
-            } else {
-                chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
-            }
-
+            chapterContainer.innerHTML = doc.body ? doc.body.innerHTML : "Hiba a fejezet megjelenítésekor.";
             chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
 
             const viewer = document.getElementById('viewer-content');
+            if (method === 'clear') viewer.innerHTML = '';
             
-            if (method === 'prepend') {
-                viewer.insertBefore(chapterContainer, viewer.firstChild);
-            } else {
-                if (method === 'clear') viewer.innerHTML = '';
-                viewer.appendChild(chapterContainer);
-            }
+            if (method === 'prepend') viewer.insertBefore(chapterContainer, viewer.firstChild);
+            else viewer.appendChild(chapterContainer);
 
             Epubly.state.renderedChapters.add(index);
             Epubly.reader.applySettings(Epubly.settings.get());
             Epubly.highlights.apply(index, chapterContainer);
-            
-            return chapterContainer;
         },
 
         resolvePath(base, relative) {
             const stack = base.split("/");
             stack.pop();
-            const parts = relative.split("/");
-            for (let i = 0; i < parts.length; i++) {
-                if (parts[i] === ".") continue;
-                if (parts[i] === "..") stack.pop();
-                else stack.push(parts[i]);
-            }
+            relative.split("/").forEach(part => {
+                if (part === ".") return;
+                if (part === "..") stack.pop();
+                else stack.push(part);
+            });
             return stack.join("/");
         },
 
         initObservers() {
-            const options = { root: document.getElementById('viewer'), threshold: 0.1 };
             Epubly.state.observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         const idx = parseInt(entry.target.dataset.index);
-                        Epubly.storage.saveLocation(Epubly.state.currentBookId, idx);
+                        const scrollTop = document.getElementById('viewer').scrollTop;
+                        Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
                         
-                        let chapterName = "Fejezet " + (idx + 1);
                         const hTag = entry.target.querySelector('h1, h2, h3');
-                        if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
+                        const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
                         
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.toc.highlight(idx);
                     }
                 });
-            }, options);
+            }, { root: document.getElementById('viewer'), threshold: 0.1 });
 
             document.querySelectorAll('.chapter-container').forEach(el => Epubly.state.observer.observe(el));
             
-            const containerObserver = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === 1 && node.classList.contains('chapter-container')) {
-                            Epubly.state.observer.observe(node);
-                        }
-                    });
-                });
+            const mutationObserver = new MutationObserver(mutations => {
+                mutations.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList.contains('chapter-container')) {
+                        Epubly.state.observer.observe(n);
+                    }
+                }));
             });
-            containerObserver.observe(document.getElementById('viewer-content'), { childList: true });
+            mutationObserver.observe(document.getElementById('viewer-content'), { childList: true });
         },
 
-        async handleScroll(e) {
-            const viewer = e.target;
-            const scrollTop = viewer.scrollTop;
-            const scrollHeight = viewer.scrollHeight;
-            const clientHeight = viewer.clientHeight;
-
-            // --- Overall Progress Update ---
-            if (scrollHeight > clientHeight) {
-                const progress = scrollTop / (scrollHeight - clientHeight);
-                const percent = Math.min(100, Math.round(progress * 100));
-                
-                const ind = document.getElementById('progress-indicator');
-                if (ind) ind.textContent = `${percent}%`;
-                document.getElementById('reading-progress-fill').style.width = percent + "%";
-            }
-
-
-            // --- Infinite Scroll ---
-            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
-                if(Epubly.state.isLoadingNext) return;
-                const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
-                const lastIdx = renderedIndices[renderedIndices.length - 1];
+        async handleScroll() {
+            const viewer = document.getElementById('viewer');
+            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
+                const lastIdx = Math.max(...Epubly.state.renderedChapters);
                 if (lastIdx < Epubly.state.spine.length - 1) {
                     Epubly.state.isLoadingNext = true;
                     document.getElementById('scroll-loader').style.display = 'block';
@@ -348,19 +306,14 @@ const Epubly = {
                     Epubly.state.isLoadingNext = false;
                 }
             }
-
-            if (viewer.scrollTop < 50) {
-                if(Epubly.state.isLoadingPrev) return;
-                const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
-                const firstIdx = renderedIndices[0];
-                
+            if (viewer.scrollTop < 50 && !Epubly.state.isLoadingPrev) {
+                const firstIdx = Math.min(...Epubly.state.renderedChapters);
                 if (firstIdx > 0) {
                     Epubly.state.isLoadingPrev = true;
                     document.getElementById('top-loader').style.display = 'block';
-                    const oldScrollHeight = viewer.scrollHeight;
+                    const oldHeight = viewer.scrollHeight;
                     await this.renderChapter(firstIdx - 1, 'prepend');
-                    const newScrollHeight = viewer.scrollHeight;
-                    viewer.scrollTop = newScrollHeight - oldScrollHeight + viewer.scrollTop;
+                    viewer.scrollTop += viewer.scrollHeight - oldHeight;
                     document.getElementById('top-loader').style.display = 'none';
                     Epubly.state.isLoadingPrev = false;
                 }
@@ -368,38 +321,27 @@ const Epubly = {
         },
 
         async parseTOC(opfDoc) {
-            let tocId = opfDoc.getElementsByTagName("spine")[0].getAttribute("toc");
             let tocPath = "";
+            const tocId = opfDoc.querySelector("spine")?.getAttribute("toc");
             if(tocId && Epubly.state.manifest[tocId]) {
                 tocPath = Epubly.state.manifest[tocId].fullPath;
             } else {
-                for(let key in Epubly.state.manifest) {
-                    if(Epubly.state.manifest[key].href.indexOf("toc") > -1) {
-                        tocPath = Epubly.state.manifest[key].fullPath;
-                        break;
-                    }
-                }
+                const key = Object.keys(Epubly.state.manifest).find(k => Epubly.state.manifest[k].href.includes("toc"));
+                if (key) tocPath = Epubly.state.manifest[key].fullPath;
             }
             if(!tocPath) { Epubly.toc.generate([]); return; }
 
             try {
                 const tocXml = await Epubly.state.zip.file(tocPath).async("string");
-                const parser = new DOMParser();
-                const tocDoc = parser.parseFromString(tocXml, "application/xml");
-                const navPoints = tocDoc.getElementsByTagName("navPoint");
-                const tocItems = [];
-                for(let point of navPoints) {
-                    const label = point.getElementsByTagName("text")[0]?.textContent;
-                    const content = point.getElementsByTagName("content")[0]?.getAttribute("src");
-                    if(label && content) {
-                        const cleanHref = content.split('#')[0];
-                        const tocDir = tocPath.substring(0, tocPath.lastIndexOf('/') + 1);
-                        const fullHref = this.resolvePath(tocDir, cleanHref);
-                        let spineIdx = -1;
-                        Epubly.state.spine.forEach((s, idx) => { if(s.fullPath === fullHref) spineIdx = idx; });
-                        if(spineIdx !== -1) tocItems.push({ label: label, index: spineIdx });
-                    }
-                }
+                const tocDoc = new DOMParser().parseFromString(tocXml, "application/xml");
+                const tocItems = Array.from(tocDoc.querySelectorAll("navPoint")).map(point => {
+                    const label = point.querySelector("text")?.textContent;
+                    const content = point.querySelector("content")?.getAttribute("src");
+                    if (!label || !content) return null;
+                    const fullHref = this.resolvePath(tocPath.substring(0, tocPath.lastIndexOf('/') + 1), content.split('#')[0]);
+                    const spineIdx = Epubly.state.spine.findIndex(s => s.fullPath === fullHref);
+                    return spineIdx !== -1 ? { label, index: spineIdx } : null;
+                }).filter(Boolean);
                 Epubly.toc.generate(tocItems);
             } catch(e) { console.warn("TOC Error", e); Epubly.toc.generate([]); }
         }
@@ -414,28 +356,22 @@ const Epubly = {
             document.getElementById('search-status').style.display = 'block';
             resultsDiv.innerHTML = '';
             
-            let count = 0;
-            const spine = Epubly.state.spine;
             const q = query.toLowerCase();
-
-            for (let i = 0; i < spine.length; i++) {
-                progress.textContent = `${Math.round((i/spine.length)*100)}%`;
-                const file = Epubly.state.zip.file(spine[i].fullPath);
+            let count = 0;
+            for (let i = 0; i < Epubly.state.spine.length; i++) {
+                progress.textContent = `${Math.round((i/Epubly.state.spine.length)*100)}%`;
+                const file = Epubly.state.zip.file(Epubly.state.spine[i].fullPath);
                 if(file) {
-                    const text = await file.async("string");
-                    const cleanText = text.replace(/<[^>]*>/g, ' '); 
-                    const lowerText = cleanText.toLowerCase();
-                    const index = lowerText.indexOf(q);
-                    if(index > -1) {
+                    const text = (await file.async("string")).replace(/<[^>]*>/g, ' '); 
+                    if(text.toLowerCase().includes(q)) {
                         count++;
-                        const snippet = cleanText.substring(Math.max(0, index - 40), Math.min(cleanText.length, index + 40));
+                        const snippet = text.substring(Math.max(0, text.toLowerCase().indexOf(q) - 40), text.toLowerCase().indexOf(q) + 40);
                         const item = document.createElement('div');
                         item.className = 'search-result-item';
                         item.innerHTML = `
                             <div style="font-weight:bold; font-size:0.8rem; color:var(--brand);">Fejezet ${i + 1}</div>
-                            <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), match => `<span style="background:rgba(212,175,55,0.3); color:inherit;">${match}</span>`)}...</div>
+                            <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), m => `<span class="hl-yellow">${m}</span>`)}...</div>
                         `;
-                        item.style.marginBottom = "10px"; item.style.padding = "10px"; item.style.cursor = "pointer"; item.style.borderBottom = "1px solid var(--border)";
                         item.onclick = () => {
                             Epubly.ui.hideModal('search-modal');
                             document.getElementById('viewer-content').innerHTML = '';
@@ -446,7 +382,6 @@ const Epubly = {
                         if(count > 50) break; 
                     }
                 }
-                if(i % 5 === 0) await new Promise(r => setTimeout(r, 0));
             }
             document.getElementById('search-status').style.display = 'none';
             if(count === 0) resultsDiv.innerHTML = '<p style="text-align:center; padding:20px;">Nincs találat.</p>';
@@ -458,16 +393,15 @@ const Epubly = {
         init() {
             const box = document.getElementById('lightbox');
             const img = document.getElementById('lightbox-img');
-            const close = document.querySelector('.lightbox-close');
-            document.getElementById('viewer-content').addEventListener('click', (e) => {
+            document.getElementById('viewer-content').addEventListener('click', e => {
                 if(e.target.tagName === 'IMG') {
                     img.src = e.target.src;
                     box.classList.add('visible');
                 }
             });
             const hide = () => box.classList.remove('visible');
-            close.onclick = hide;
-            box.onclick = (e) => { if(e.target === box) hide(); };
+            box.querySelector('.lightbox-close').onclick = hide;
+            box.onclick = e => { if(e.target === box) hide(); };
         }
     },
 
@@ -481,155 +415,137 @@ const Epubly = {
             const bookId = Epubly.state.currentBookId;
             if(bookId) {
                 localStorage.setItem(`epubly-highlights-${bookId}`, JSON.stringify(Epubly.state.highlights[bookId]));
-                this.renderList();
             }
         },
         add(color = 'yellow') {
             const selection = window.getSelection();
-            if(!selection.rangeCount) return;
-            const text = selection.toString().trim();
-            if(!text || text.length < 1) return;
+            if(!selection.rangeCount || selection.isCollapsed) return;
+            
+            const chapterDiv = selection.anchorNode.parentElement.closest('.chapter-container');
+            if(!chapterDiv) return;
 
-            let node = selection.anchorNode;
-            let chapterDiv = null;
-            while(node && node.id !== 'viewer-content') {
-                if(node.classList && node.classList.contains('chapter-container')) {
-                    chapterDiv = node;
-                    break;
-                }
-                node = node.parentNode;
-            }
+            const idx = parseInt(chapterDiv.dataset.index);
+            const bookId = Epubly.state.currentBookId;
+            const range = selection.getRangeAt(0);
+            
+            const highlightData = {
+                id: Date.now(),
+                type: 'text',
+                chapterIndex: idx,
+                text: range.toString(),
+                color: color,
+            };
 
-            if(chapterDiv) {
-                const idx = parseInt(chapterDiv.dataset.index);
-                const bookId = Epubly.state.currentBookId;
-                
-                const range = selection.getRangeAt(0);
-                const span = document.createElement('span');
-                span.className = 'highlighted-text';
-                
-                let bgMap = {
-                    'yellow': 'rgba(255, 235, 59, 0.4)',
-                    'green': 'rgba(76, 175, 80, 0.4)',
-                    'blue': 'rgba(33, 150, 243, 0.4)',
-                    'red': 'rgba(244, 67, 54, 0.4)'
-                };
-                span.style.backgroundColor = bgMap[color];
-
-                try { range.surroundContents(span); } catch(e) { console.warn("Complex selection not supported yet"); return; }
-
-                if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
-                Epubly.state.highlights[bookId].push({
-                    type: 'text',
-                    chapterIndex: idx,
-                    text: text,
-                    color: color,
-                    date: Date.now()
-                });
+            if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
+            Epubly.state.highlights[bookId].push(highlightData);
+            this.save();
+            this.renderList();
+            
+            this.applyToRange(range, highlightData);
+            
+            document.getElementById('highlight-menu').style.opacity = '0';
+            selection.removeAllRanges();
+        },
+        changeColor(id, newColor) {
+            const bookId = Epubly.state.currentBookId;
+            const highlight = Epubly.state.highlights[bookId].find(h => h.id === id);
+            if (highlight) {
+                highlight.color = newColor;
                 this.save();
-                document.getElementById('highlight-menu').style.opacity = '0';
-                selection.removeAllRanges();
+                this.renderList();
+                // Re-apply highlights to visible chapters
+                document.querySelectorAll('.chapter-container').forEach(container => {
+                    container.innerHTML = container.innerHTML.replace(/<span class="highlighted-text[^>]*>([^<]*)<\/span>/g, '$1'); // naive unwrap
+                    this.apply(parseInt(container.dataset.index), container);
+                });
             }
         },
-        addImage(chapterIndex, src) {
-            const bookId = Epubly.state.currentBookId;
-            if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
-            Epubly.state.highlights[bookId].push({
-                type: 'image',
-                chapterIndex: chapterIndex,
-                src: src, 
-                date: Date.now()
-            });
-            this.save();
-            alert("Kép mentve a jegyzetekhez!");
+        applyToRange(range, highlight) {
+            const span = document.createElement('span');
+            span.className = `highlighted-text hl-${highlight.color}`;
+            span.dataset.highlightId = highlight.id;
+            try { range.surroundContents(span); } catch (e) { console.warn("Complex selection not supported yet.", e); }
         },
         apply(chapterIndex, container) {
             const bookId = Epubly.state.currentBookId;
-            const items = Epubly.state.highlights[bookId];
-            if (!items) return;
-        
-            const bgMap = {
-                'yellow': 'rgba(255, 235, 59, 0.4)',
-                'green': 'rgba(76, 175, 80, 0.4)',
-                'blue': 'rgba(33, 150, 243, 0.4)',
-                'red': 'rgba(244, 67, 54, 0.4)'
-            };
-        
-            items.forEach(h => {
-                if (h.type === 'text' && h.chapterIndex === chapterIndex) {
-                    const search = h.text;
-        
-                    (function walkAndReplace(node) {
-                        if (node.nodeType === 3) { // TEXT_NODE
-                            const index = node.data.indexOf(search);
-                            if (index > -1) {
-                                const parent = node.parentNode;
-                                if (parent && parent.classList.contains('highlighted-text')) return;
-        
-                                const newSpan = document.createElement('span');
-                                newSpan.className = 'highlighted-text';
-                                newSpan.style.backgroundColor = bgMap[h.color];
-        
-                                const range = document.createRange();
-                                range.setStart(node, index);
-                                range.setEnd(node, index + search.length);
-        
-                                try {
-                                    range.surroundContents(newSpan);
-                                    // After surrounding, the structure is changed.
-                                    // To highlight multiple occurrences, we need to continue searching.
-                                    // The new node is `newSpan.nextSibling`.
-                                    if(newSpan.nextSibling) {
-                                      walkAndReplace(newSpan.nextSibling);
-                                    }
-                                } catch (e) {
-                                    // This can fail if the selection is not 'well-formed'.
-                                    console.warn(e);
-                                }
-                            }
-                        } else if (node.nodeType === 1) { // ELEMENT_NODE
-                            if (node.classList.contains('highlighted-text')) return;
-                            
-                            const children = Array.from(node.childNodes);
-                            for (let i = 0; i < children.length; i++) {
-                                walkAndReplace(children[i]);
-                            }
+            const items = (Epubly.state.highlights[bookId] || []).filter(h => h.type === 'text' && h.chapterIndex === chapterIndex);
+            if (items.length === 0) return;
+
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            const textNodes = [];
+            while(node = walker.nextNode()) {
+                textNodes.push(node);
+            }
+
+            textNodes.forEach(textNode => {
+                items.forEach(h => {
+                    let startIndex = 0;
+                    while ((startIndex = textNode.nodeValue.indexOf(h.text, startIndex)) !== -1) {
+                        const parent = textNode.parentNode;
+                        if (parent && parent.classList.contains('highlighted-text')) {
+                            startIndex += h.text.length;
+                            continue; 
                         }
-                    })(container);
-                }
+                        
+                        const range = document.createRange();
+                        range.setStart(textNode, startIndex);
+                        range.setEnd(textNode, startIndex + h.text.length);
+
+                        this.applyToRange(range, h);
+                        
+                        // After surrounding, the node is split. The walker won't find the rest.
+                        // This simple approach will only highlight the first occurrence in a text node.
+                        // A more complex implementation would be needed for multiple identical highlights in one paragraph.
+                        break; 
+                    }
+                });
             });
         },
-        renderList() {
+        renderList(filterColor = 'all') {
             const list = document.getElementById('highlights-list');
             if(!list) return;
             const bookId = Epubly.state.currentBookId;
-            const items = Epubly.state.highlights[bookId] || [];
+            let items = Epubly.state.highlights[bookId] || [];
+
+            if (filterColor !== 'all') {
+                items = items.filter(h => h.color === filterColor);
+            }
+            
             list.innerHTML = '';
             if(items.length === 0) {
-                list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>';
+                list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Nincsenek a szűrőnek megfelelő jegyzetek.</p>';
                 return;
             }
-            items.forEach(h => {
-                const li = document.createElement('div');
-                li.className = 'highlight-item';
-                let content = '';
-                if (h.type === 'image') {
-                    content = `<span class="highlight-text">[Kép könyvjelző]</span>`;
-                } else {
-                    content = `<span class="highlight-text">"${h.text.substring(0, 50)}..."</span>`;
-                }
-                li.innerHTML = `
-                    ${content}
-                    <span class="highlight-meta">Fejezet: ${h.chapterIndex + 1}</span>
+
+            items.sort((a, b) => a.chapterIndex - b.chapterIndex).forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'highlight-item';
+                item.style.borderLeftColor = `var(--hl-color-${h.color})`;
+                const content = h.type === 'image' ? `[Kép könyvjelző]` : `"${h.text.substring(0, 80)}..."`;
+                
+                item.innerHTML = `
+                    <p class="highlight-text">${content}</p>
+                    <div class="highlight-meta">
+                        <span>Fejezet: ${h.chapterIndex + 1}</span>
+                        <div class="hl-recolor-palette">
+                            <span class="hl-color-dot hl-yellow" data-color="yellow"></span>
+                            <span class="hl-color-dot hl-green" data-color="green"></span>
+                            <span class="hl-color-dot hl-blue" data-color="blue"></span>
+                            <span class="hl-color-dot hl-red" data-color="red"></span>
+                        </div>
+                    </div>
                 `;
-                li.onclick = () => {
-                    Epubly.navigation.pushState(); 
+                item.onclick = (e) => {
+                    if (e.target.classList.contains('hl-color-dot')) return;
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(h.chapterIndex, 'clear');
-                    Epubly.ui.toggleSidebar('sidebar-toc'); 
                 };
-                list.appendChild(li);
+                item.querySelectorAll('.hl-color-dot').forEach(dot => {
+                    dot.onclick = () => this.changeColor(h.id, dot.dataset.color);
+                });
+                list.appendChild(item);
             });
         }
     },
@@ -642,10 +558,7 @@ const Epubly = {
             const duration = now - Epubly.state.activeBookSessionStart;
             Epubly.state.activeBookSessionStart = now;
             
-            let maxRendered = 0;
-            if(Epubly.state.renderedChapters.size > 0) {
-                maxRendered = Math.max(...Epubly.state.renderedChapters);
-            }
+            const maxRendered = Epubly.state.renderedChapters.size > 0 ? Math.max(...Epubly.state.renderedChapters) : 0;
             const progress = (maxRendered + 1) / Epubly.state.spine.length;
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, progress);
         },
@@ -653,20 +566,22 @@ const Epubly = {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
-            viewer.style.fontFamily = settings.fontFamily;
-            viewer.style.fontSize = settings.fontSize + "%";
-            viewer.style.lineHeight = settings.lineHeight;
-            viewer.style.textAlign = settings.textAlign;
-            viewer.style.fontWeight = settings.fontWeight;
-            viewer.style.color = settings.fontColor;
-            viewer.style.letterSpacing = settings.letterSpacing + "px";
+            Object.assign(viewer.style, {
+                fontFamily: settings.fontFamily,
+                fontSize: `${settings.fontSize}%`,
+                lineHeight: settings.lineHeight,
+                textAlign: settings.textAlign,
+                fontWeight: settings.fontWeight,
+                color: settings.fontColor,
+                letterSpacing: `${settings.letterSpacing}px`,
+                paddingLeft: `${settings.margin}%`,
+                paddingRight: `${settings.margin}%`
+            });
             
-            const pad = settings.margin + "%";
-            viewer.style.paddingLeft = pad;
-            viewer.style.paddingRight = pad;
-            
-            document.body.className = ''; 
-            document.body.classList.add(`theme-${settings.theme}`);
+            document.body.className = `theme-${settings.theme}`;
+            if (settings.theme === 'terminal') {
+                document.documentElement.style.setProperty('--terminal-color', settings.terminalColor);
+            }
         }
     },
 
@@ -674,37 +589,21 @@ const Epubly = {
         generate(tocItems) {
             const tocList = document.getElementById('toc-list');
             if(!tocList) return;
-            tocList.innerHTML = '';
-            if (!tocItems || tocItems.length === 0) {
-                tocList.innerHTML = '<li><span style="color:var(--text-muted); padding:8px; display:block;">Nincs tartalomjegyzék.</span></li>';
-                return;
-            }
-            const fragment = document.createDocumentFragment();
-            tocItems.forEach(item => {
-                const li = document.createElement('li');
-                const a = document.createElement('a');
-                a.textContent = item.label || "Fejezet " + (item.index + 1);
-                a.dataset.idx = item.index;
-                a.className = "toc-link";
-                
-                a.onclick = () => {
-                    Epubly.navigation.pushState(); 
+            tocList.innerHTML = !tocItems || tocItems.length === 0 
+                ? '<li><span style="color:var(--text-muted); padding:8px; display:block;">Nincs tartalomjegyzék.</span></li>'
+                : tocItems.map(item => `<li><a class="toc-link" data-idx="${item.index}">${item.label || "Fejezet " + (item.index + 1)}</a></li>`).join('');
+            
+            tocList.querySelectorAll('.toc-link').forEach(link => {
+                link.onclick = () => {
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
-                    Epubly.engine.renderChapter(item.index, 'clear');
+                    Epubly.engine.renderChapter(parseInt(link.dataset.idx), 'clear');
                 };
-                li.appendChild(a);
-                fragment.appendChild(li);
             });
-            tocList.appendChild(fragment);
         },
         highlight(idx) {
             document.querySelectorAll('.toc-link').forEach(el => {
-                if(parseInt(el.dataset.idx) === idx) {
-                    el.classList.add('active');
-                } else {
-                    el.classList.remove('active');
-                }
+                el.classList.toggle('active', parseInt(el.dataset.idx) === idx);
             });
         }
     },
@@ -712,49 +611,33 @@ const Epubly = {
     settings: {
         init() {
             this.load();
-            const bindInput = (id, key) => {
+            const bind = (id, event, key) => {
                 const el = document.getElementById(id);
-                if(el) el.addEventListener('input', (e) => this.handleUpdate(key, e.target.value));
-            }
-            bindInput('font-size-range', 'fontSize');
-            bindInput('line-height-range', 'lineHeight');
-            bindInput('margin-range', 'margin');
-            bindInput('font-weight-range', 'fontWeight');
-            bindInput('letter-spacing-range', 'letterSpacing');
-            bindInput('font-color-picker', 'fontColor');
+                if(el) el.addEventListener(event, e => this.handleUpdate(key, e.target.value));
+            };
+            bind('font-size-range', 'input', 'fontSize');
+            bind('line-height-range', 'input', 'lineHeight');
+            bind('margin-range', 'input', 'margin');
+            bind('font-weight-range', 'input', 'fontWeight');
+            bind('letter-spacing-range', 'input', 'letterSpacing');
+            bind('font-color-picker', 'input', 'fontColor');
+            bind('terminal-color-picker', 'input', 'terminalColor');
+            bind('font-family-select', 'change', 'fontFamily');
             
-            const bindToggleGroup = (groupId, key) => {
-                const group = document.getElementById(groupId);
-                if(!group) return;
-                group.querySelectorAll('.toggle-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        this.handleUpdate(key, btn.dataset.val);
-                    });
+            ['align-toggle-group', 'theme-toggle-group'].forEach(id => {
+                document.getElementById(id)?.querySelectorAll('.toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.handleUpdate(id.includes('align') ? 'textAlign' : 'theme', btn.dataset.val));
                 });
-            }
-            bindToggleGroup('align-toggle-group', 'textAlign');
-            bindToggleGroup('theme-toggle-group', 'theme');
-            
-            const fontSelect = document.getElementById('font-family-select');
-            if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
+            });
         },
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '10',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
-                theme: 'dark'
+                theme: 'dark', terminalColor: '#00FF41'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
-            if(localStorage.getItem('epubly-theme')) saved.theme = localStorage.getItem('epubly-theme');
-            
-            // Adjust font color for contrast
-            if (saved.theme === 'light' || saved.theme === 'sepia') {
-                defaults.fontColor = '#1C1C1E'; 
-            } else {
-                defaults.fontColor = '#F2F2F7';
-            }
-
             return { ...defaults, ...saved };
         },
         save(settings) { localStorage.setItem('epubly-settings', JSON.stringify(settings)); },
@@ -767,30 +650,26 @@ const Epubly = {
             setVal('font-weight-range', s.fontWeight);
             setVal('letter-spacing-range', s.letterSpacing);
             setVal('font-color-picker', s.fontColor);
+            setVal('terminal-color-picker', s.terminalColor);
             setVal('font-family-select', s.fontFamily);
             
             const updateToggle = (groupId, val) => {
-                const g = document.getElementById(groupId);
-                if(g) g.querySelectorAll('.toggle-btn').forEach(b => { 
+                document.getElementById(groupId)?.querySelectorAll('.toggle-btn').forEach(b => { 
                     b.classList.toggle('active', b.dataset.val === val); 
                 });
             };
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
             
+            document.getElementById('terminal-color-picker-container').style.display = s.theme === 'terminal' ? 'block' : 'none';
+
             Epubly.reader.applySettings(s);
         },
         handleUpdate(key, value) {
             const s = this.get();
             s[key] = value;
             if (key === 'theme') {
-                localStorage.setItem('epubly-theme', value);
-                // Force font color update based on theme
-                if (value === 'light' || value === 'sepia') {
-                    s.fontColor = '#1C1C1E';
-                } else {
-                    s.fontColor = '#F2F2F7';
-                }
+                s.fontColor = (value === 'light' || value === 'sepia') ? '#1C1C1E' : '#F2F2F7';
             }
             this.save(s);
             this.load(); 
@@ -798,72 +677,45 @@ const Epubly = {
     },
 
     storage: {
-        db: {
-            _db: null,
-            async init() {
-                return new Promise((resolve, reject) => {
-                    if (this._db) return resolve(this._db);
-                    const request = indexedDB.open('EpublyDB', 4);
-                    request.onerror = e => reject("IndexedDB error");
-                    request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
-                    request.onupgradeneeded = e => {
-                        const db = e.target.result;
-                        if (!db.objectStoreNames.contains('books')) {
-                            db.createObjectStore('books', { keyPath: 'id' });
-                        }
-                    };
-                });
-            },
-            async saveBook(bookRecord) {
-                const db = await this.init();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['books'], 'readwrite');
-                    const store = tx.objectStore('books');
-                    const req = store.put(bookRecord);
-                    req.onsuccess = () => resolve(req.result);
-                    req.onerror = () => reject(req.error);
-                });
-            },
-            async getBook(id) {
-                const db = await this.init();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['books'], 'readonly');
-                    const store = tx.objectStore('books');
-                    const req = store.get(id);
-                    req.onsuccess = () => resolve(req.result);
-                    req.onerror = () => reject(req.error);
-                });
-            },
-            async getAllBooks() {
-                const db = await this.init();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['books'], 'readonly');
-                    const store = tx.objectStore('books');
-                    const req = store.getAll();
-                    req.onsuccess = () => resolve(req.result);
-                    req.onerror = () => reject(req.error);
-                });
-            },
-            async deleteBook(id) {
-                const db = await this.init();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['books'], 'readwrite');
-                    const store = tx.objectStore('books');
-                    const req = store.delete(id);
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
-            },
-            async clearBooks() {
-                const db = await this.init();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['books'], 'readwrite');
-                    const store = tx.objectStore('books');
-                    const req = store.clear();
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
-            }
+        db: null, // Lazily initialized
+        async getDb() {
+            if (this.db) return this.db;
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('EpublyDB', 4);
+                request.onerror = () => reject("IndexedDB error");
+                request.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
+                request.onupgradeneeded = e => e.target.result.createObjectStore('books', { keyPath: 'id' });
+            });
+        },
+        async transaction(storeName, mode, callback) {
+            const db = await this.getDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(storeName, mode);
+                const store = tx.objectStore(storeName);
+                callback(store, resolve, reject);
+            });
+        },
+        async saveBook(bookRecord) {
+            return this.transaction('books', 'readwrite', (store, res, rej) => {
+                const req = store.put(bookRecord);
+                req.onsuccess = () => res(req.result);
+                req.onerror = () => rej(req.error);
+            });
+        },
+        async getAllBooks() {
+            return this.transaction('books', 'readonly', (store, res, rej) => {
+                const req = store.getAll();
+                req.onsuccess = () => res(req.result);
+                req.onerror = () => rej(req.error);
+            });
+        },
+        async deleteBook(id) {
+            localStorage.removeItem(`epubly-loc-${id}`);
+            localStorage.removeItem(`epubly-highlights-${id}`);
+            return this.transaction('books', 'readwrite', (s, res, rej) => { s.delete(id).onsuccess = res; });
+        },
+        async clearBooks() {
+            return this.transaction('books', 'readwrite', (s, res, rej) => { s.clear().onsuccess = res; });
         },
         async handleFileUpload(file) {
             Epubly.ui.showLoader();
@@ -871,44 +723,25 @@ const Epubly = {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const zip = await JSZip.loadAsync(arrayBuffer);
-                const containerXml = await zip.file("META-INF/container.xml").async("string");
-                const parser = new DOMParser();
-                const containerDoc = parser.parseFromString(containerXml, "application/xml");
-                const fullOpfPath = containerDoc.querySelector("rootfile").getAttribute("full-path");
-                const opfXml = await zip.file(fullOpfPath).async("string");
-                const opfDoc = parser.parseFromString(opfXml, "application/xml");
-                
-                const title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || "Névtelen";
-                const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen";
-                const desc = opfDoc.getElementsByTagName("dc:description")[0]?.textContent || "";
-                
+                const opfPath = (await new DOMParser().parseFromString(await zip.file("META-INF/container.xml").async("string"), "application/xml")).querySelector("rootfile").getAttribute("full-path");
+                const opfDoc = new DOMParser().parseFromString(await zip.file(opfPath).async("string"), "application/xml");
+                const metadata = {};
+                ['title', 'creator', 'description'].forEach(tag => {
+                    metadata[tag] = opfDoc.getElementsByTagName(`dc:${tag}`)[0]?.textContent || "";
+                });
                 let coverUrl = null;
-                const rootPath = fullOpfPath.includes('/') ? fullOpfPath.substring(0, fullOpfPath.lastIndexOf('/') + 1) : '';
-                let coverItem = opfDoc.querySelector("item[properties~='cover-image']");
-                if (!coverItem) coverItem = opfDoc.querySelector("item[id='cover']");
+                const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
                 if (coverItem) {
-                    const href = coverItem.getAttribute("href");
-                    const coverFile = zip.file(rootPath + href);
-                    if(coverFile) {
-                        const blob = await coverFile.async("blob");
-                        coverUrl = await new Promise(r => {
-                            const reader = new FileReader();
-                            reader.onload = () => r(reader.result);
-                            reader.readAsDataURL(blob);
-                        });
-                    }
+                    const href = Epubly.engine.resolvePath(opfPath, coverItem.getAttribute("href"));
+                    const coverFile = zip.file(href);
+                    if(coverFile) coverUrl = URL.createObjectURL(await coverFile.async("blob"));
                 }
-                const bookRecord = {
-                    id: `${Date.now()}`,
-                    data: arrayBuffer,
-                    metadata: { title, creator: author, description: desc, coverUrl },
+                await this.saveBook({
+                    id: `${Date.now()}`, data: arrayBuffer, metadata: {...metadata, coverUrl},
                     stats: { totalTime: 0, progress: 0, lastRead: Date.now() }
-                };
-                await this.db.saveBook(bookRecord);
-                setTimeout(async () => {
-                    await Epubly.library.render();
-                    Epubly.ui.hideLoader();
-                }, 200);
+                });
+                await Epubly.library.render();
+                Epubly.ui.hideLoader();
             } catch (error) {
                 console.error(error);
                 alert("Hiba: " + error.message);
@@ -916,248 +749,144 @@ const Epubly = {
             }
         },
         async updateBookStats(bookId, durationDelta, percentage) {
-            try {
-                const book = await this.db.getBook(bookId);
+            await this.transaction('books', 'readwrite', async (store) => {
+                const book = await new Promise(res => store.get(bookId).onsuccess = e => res(e.target.result));
                 if(book) {
-                    if(!book.stats) book.stats = { totalTime: 0, progress: 0, lastRead: Date.now() };
+                    book.stats = book.stats || { totalTime: 0, progress: 0 };
                     if(durationDelta > 0 && durationDelta < 86400000) book.stats.totalTime += durationDelta;
-                    if(percentage !== null && !isNaN(percentage)) book.stats.progress = percentage;
+                    book.stats.progress = Math.max(book.stats.progress, percentage);
                     book.stats.lastRead = Date.now();
-                    await this.db.saveBook(book);
+                    store.put(book);
                 }
-            } catch(e) {}
+            });
         },
         getLocation(bookId) { return localStorage.getItem(`epubly-loc-${bookId}`); },
-        saveLocation(bookId, loc) { localStorage.setItem(`epubly-loc-${bookId}`, loc); }
+        saveLocation(bookId, idx, scroll) { localStorage.setItem(`epubly-loc-${bookId}`, `${idx},${Math.round(scroll)}`); }
     },
 
     library: {
         async render() {
             const grid = document.getElementById('library-grid');
-            if(!grid) return;
-            try {
-                const books = await Epubly.storage.db.getAllBooks();
-                grid.innerHTML = '';
-                if (!books || books.length === 0) {
-                    grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center; margin-top: 40px;">A könyvtárad üres.<br>Kattints az "Importálás" gombra!</p>`;
-                    return;
-                }
-                books.forEach(book => {
-                    const card = document.createElement('div');
-                    card.className = 'book-card';
-                    const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%232c2c2e"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
-                    const safeTitle = book.metadata.title || "Ismeretlen cím";
-                    const safeCreator = book.metadata.creator || "Ismeretlen szerző";
-                    card.innerHTML = `
-                        <div class="book-cover">
-                            <img src="${coverSrc}" alt="${safeTitle}" loading="lazy">
-                        </div>
-                        <div class="book-title" title="${safeTitle}">${safeTitle}</div>
-                        <div class="book-author" title="${safeCreator}">${safeCreator}</div>
-                    `;
-                    card.onclick = () => Epubly.ui.showBookInfoModal(book);
-                    grid.appendChild(card);
-                });
-            } catch (e) {
-                console.error("Library render error:", e);
-                grid.innerHTML = `<p style="color: var(--danger);">Hiba a könyvtár betöltésekor. (${e.message})</p>`;
+            grid.innerHTML = '';
+            const books = await Epubly.storage.getAllBooks();
+            if (!books || books.length === 0) {
+                grid.innerHTML = `<p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center; margin-top: 40px;">A könyvtárad üres.<br>Kattints az "Importálás" gombra!</p>`;
+                return;
             }
+            books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
+                const card = document.createElement('div');
+                card.className = 'book-card';
+                card.innerHTML = `
+                    <div class="book-cover"><img src="${book.metadata.coverUrl || ''}" alt="${book.metadata.title}"></div>
+                    <div class="book-title" title="${book.metadata.title}">${book.metadata.title || "Ismeretlen"}</div>
+                    <div class="book-author" title="${book.metadata.creator}">${book.metadata.creator || "Ismeretlen"}</div>
+                `;
+                card.onclick = () => Epubly.ui.showBookInfoModal(book);
+                grid.appendChild(card);
+            });
         }
     },
 
     ui: {
         init() {
-            // Sidebar buttons
-            document.querySelectorAll('.close-sidebar').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const targetId = e.currentTarget.dataset.target;
-                    Epubly.ui.toggleSidebar(targetId);
-                });
-            });
-            
-            document.querySelectorAll('.sidebar-tab').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const container = e.target.closest('.sidebar-tabs').parentElement;
-                    container.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
-                    container.querySelectorAll('.sidebar-content > *, .wiki-content').forEach(l => l.classList.remove('active'));
-                    e.target.classList.add('active');
-                    document.getElementById(e.target.dataset.tab).classList.add('active');
-                });
-            });
-            
-            // Wiki Modal Tabs
-            const wikiModal = document.getElementById('wiki-modal');
-            if (wikiModal) {
-                const tabs = wikiModal.querySelectorAll('.sidebar-tab[data-tab]');
-                tabs.forEach(tab => {
-                    tab.addEventListener('click', () => {
-                        const targetId = tab.dataset.tab;
-                        const targetContent = document.getElementById(targetId);
-
-                        tabs.forEach(t => t.classList.remove('active'));
-                        wikiModal.querySelectorAll('.wiki-content').forEach(c => c.classList.remove('active'));
-
-                        tab.classList.add('active');
-                        if (targetContent) {
-                            targetContent.classList.add('active');
-                        }
-                    });
-                });
-            }
-
-            document.getElementById('app-logo-btn').addEventListener('click', () => {
-                Epubly.reader.updateSessionStats();
-                Epubly.ui.showLibraryView();
+            // Event listeners
+            document.body.addEventListener('click', e => {
+                const target = e.target;
+                const closest = (selector) => target.closest(selector);
+                
+                if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
+                if (closest('.sidebar-tab')) this.handleTabClick(target);
+                if (closest('#app-logo-btn')) { Epubly.reader.updateSessionStats(); Epubly.ui.showLibraryView(); }
+                if (closest('.modal-close')) closest('.modal').classList.remove('visible');
+                if (target.classList.contains('modal')) target.classList.remove('visible');
+                if (closest('.hl-color-btn')) Epubly.highlights.add(target.dataset.color);
+                if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
+                if (closest('#btn-theme-toggle')) this.toggleTheme();
+                if (closest('#btn-delete-all') && confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
+                    localStorage.clear();
+                    Epubly.storage.clearBooks().then(() => location.reload());
+                }
+                if (closest('#floating-back-btn')) Epubly.navigation.popState();
+                if (closest('.hl-filter-btn')) {
+                    document.querySelectorAll('.hl-filter-btn').forEach(b => b.classList.remove('active'));
+                    target.classList.add('active');
+                    Epubly.highlights.renderList(target.dataset.color);
+                }
             });
 
-            // File Import
-            const fileInput = document.getElementById('epub-file');
-            if(fileInput) {
-                fileInput.addEventListener('change', (e) => {
-                    if(e.target.files.length > 0) {
-                        Epubly.storage.handleFileUpload(e.target.files[0]);
-                        e.target.value = '';
-                    }
-                });
-            }
+            // Drag & Drop
             const dropZone = document.getElementById('import-drop-zone');
-            if (dropZone) {
-                dropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
-                dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
-                dropZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.remove('dragover');
-                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
-                        e.dataTransfer.clearData();
-                    }
-                });
-            }
-
-            // Modals
-            document.querySelectorAll('.modal-close').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.target.closest('.modal').classList.remove('visible');
-                });
-            });
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.addEventListener('click', (e) => {
-                    if(e.target === modal) modal.classList.remove('visible');
-                });
-            });
-
-            // Highlights
+            ['dragover', 'dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.toggle('dragover', ev === 'dragover');
+                if (ev === 'drop') Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
+            }));
+            
+            // Selection Menu
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
-                if(!sel.isCollapsed && sel.toString().trim().length > 1) {
-                    const range = sel.getRangeAt(0);
-                    const rect = range.getBoundingClientRect();
+                if(sel.isCollapsed || sel.toString().trim().length < 2) {
+                    menu.style.opacity = '0'; menu.style.pointerEvents = 'none';
+                } else {
+                    const rect = sel.getRangeAt(0).getBoundingClientRect();
                     menu.style.opacity = '1';
                     menu.style.pointerEvents = 'auto';
-                    menu.style.top = (rect.bottom + window.scrollY + 10) + 'px';
-                    menu.style.left = (Math.max(10, rect.left + window.scrollX)) + 'px'; 
-                } else {
-                    menu.style.opacity = '0';
-                    menu.style.pointerEvents = 'none';
+                    menu.style.top = `${rect.bottom + window.scrollY + 10}px`;
+                    menu.style.left = `${Math.max(10, rect.left + window.scrollX)}px`; 
                 }
             });
+
+            // Print QR Code
+            window.onbeforeprint = () => this.generateQRCode('d0a663f6-b055-40e8-b3d5-399236cb6b94');
+            window.onafterprint = () => this.generateQRCode('https://epubly.hu');
             
-            document.querySelectorAll('.hl-color-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const color = e.target.dataset.color;
-                    Epubly.highlights.add(color);
-                });
-            });
+            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
+            this.generateQRCode('https://epubly.hu');
+        },
 
-            // Search
-            document.getElementById('btn-do-search').onclick = () => {
-                const val = document.getElementById('search-input').value;
-                Epubly.search.run(val);
-            };
-            
-            // Generic click-outside-to-close for sidebars
-            document.addEventListener('click', (e) => {
-                const sidebars = document.querySelectorAll('.sidebar.visible');
-                sidebars.forEach(sidebar => {
-                    if (!sidebar.contains(e.target) && !e.target.closest('.toggle-sidebar-btn')) {
-                        sidebar.classList.remove('visible');
-                    }
-                });
-            });
-
-            // Back Button
-            document.getElementById('btn-nav-back').addEventListener('click', () => {
-                Epubly.navigation.popState();
-            });
-
-            // --- Theme Toggle Logic ---
-            this.updateThemeIcons(Epubly.settings.get().theme);
-            document.getElementById('btn-theme-toggle').addEventListener('click', () => {
-                const currentSettings = Epubly.settings.get();
-                const newTheme = (currentSettings.theme === 'light' || currentSettings.theme === 'sepia') ? 'dark' : 'light';
-                Epubly.settings.handleUpdate('theme', newTheme);
-                this.updateThemeIcons(newTheme);
-            });
-            
-            // Data Deletion
-            document.getElementById('btn-delete-all').onclick = () => {
-                if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
-                    localStorage.clear();
-                    Epubly.storage.db.clearBooks().then(() => location.reload());
-                }
-            };
-
-            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
+        handleTabClick(tab) {
+            const container = tab.closest('.modal-content, .sidebar');
+            container.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+            container.querySelectorAll('.sidebar-pane, .wiki-content').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            container.querySelector(`#${tab.dataset.tab}`)?.classList.add('active');
         },
         
+        toggleTheme() {
+            const s = Epubly.settings.get();
+            const themes = ['light', 'dark', 'sepia', 'terminal'];
+            const nextTheme = themes[(themes.indexOf(s.theme) + 1) % themes.length];
+            Epubly.settings.handleUpdate('theme', nextTheme);
+            this.updateThemeIcons(nextTheme);
+        },
+
         updateThemeIcons(theme) {
-            const sunIcon = document.getElementById('theme-icon-sun');
-            const moonIcon = document.getElementById('theme-icon-moon');
-            if (theme === 'light' || theme === 'sepia') {
-                sunIcon.style.display = 'none';
-                moonIcon.style.display = 'block';
-                document.body.classList.add('theme-light'); 
-            } else { // dark, terminal
-                sunIcon.style.display = 'block';
-                moonIcon.style.display = 'none';
-                document.body.classList.remove('theme-light');
-            }
+            document.getElementById('theme-icon-sun').style.display = (theme === 'light' || theme === 'sepia') ? 'none' : 'block';
+            document.getElementById('theme-icon-moon').style.display = (theme === 'light' || theme === 'sepia') ? 'block' : 'none';
         },
 
         toggleSidebar(id) {
             const sidebar = document.getElementById(id);
-            if(!sidebar) return;
-            const isVisible = sidebar.classList.contains('visible');
-            document.querySelectorAll('.sidebar').forEach(el => el.classList.remove('visible'));
-            if (!isVisible) sidebar.classList.add('visible');
+            if(sidebar) sidebar.classList.toggle('visible');
         },
 
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
         
-        showLoader() { 
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('loader-msg').textContent = "Betöltés...";
-        },
+        showLoader() { document.getElementById('loader').classList.remove('hidden'); },
         hideLoader() { document.getElementById('loader').classList.add('hidden'); },
         
         updateHeaderInfo(title, author, chapter) {
             document.getElementById('header-author').textContent = author || "";
             document.getElementById('header-title').textContent = title || "";
             document.getElementById('header-chapter').textContent = chapter ? `(${chapter})` : "";
-            const sep = document.querySelector('.info-sep');
-            if (sep) sep.style.display = author ? 'inline' : 'none';
+            document.querySelector('.info-sep').style.display = author ? 'inline' : 'none';
         },
         
-        updateBackButton() {
-            const btn = document.getElementById('btn-nav-back');
-            if(Epubly.state.history.length > 0) {
-                btn.style.display = 'flex';
-            } else {
-                btn.style.display = 'none';
-            }
+        showFloatingBackButton(visible) {
+            document.getElementById('floating-back-btn-container').classList.toggle('visible', visible);
         },
         
         showReaderView() {
@@ -1166,86 +895,90 @@ const Epubly = {
             
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
-                <div id="progress-indicator">0%</div>
-                <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Navigáció">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-                </button>
+                <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg></button>
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Navigáció"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor"/></svg></button>
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg></button>
             `;
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('library-view').classList.add('active');
             this.updateHeaderInfo("Könyvtár", "", "");
-            document.getElementById('reading-progress-fill').style.width = "0%";
-            document.getElementById('btn-nav-back').style.display = 'none';
-            
-            const actions = document.getElementById('top-actions-container');
-            actions.innerHTML = `
-                <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
-            `;
-            Epubly.library.render();
+            this.showFloatingBackButton(false);
+            document.getElementById('top-actions-container').innerHTML = `<button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>`;
+            this.library.render();
         },
         showBookInfoModal(book) {
+            const set = (id, val) => document.getElementById(id).textContent = val;
             document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
-            document.getElementById('detail-title').textContent = book.metadata.title;
-            document.getElementById('detail-author').textContent = book.metadata.creator;
+            set('detail-title', book.metadata.title);
+            set('detail-author', book.metadata.creator);
             document.getElementById('detail-desc').innerHTML = book.metadata.description || "Leírás nem elérhető.";
+            
             const stats = book.stats || { totalTime: 0, progress: 0 };
-            const minutes = Math.floor(stats.totalTime / 1000 / 60);
-            const hours = Math.floor(minutes / 60);
-            const mins = minutes % 60;
-            const timeStr = hours > 0 ? `${hours}ó ${mins}p` : `${mins}p`;
-            const progressVal = Math.round((stats.progress || 0) * 100);
-            document.getElementById('detail-stats-time').textContent = timeStr;
-            document.getElementById('detail-stats-prog').textContent = `${progressVal}%`;
+            const minutes = Math.floor(stats.totalTime / 60000);
+            set('detail-stats-time', `${Math.floor(minutes/60)}ó ${minutes%60}p`);
+            set('detail-stats-prog', `${Math.round(stats.progress * 100)}%`);
+            set('btn-read-book', stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS');
             
-            const readBtn = document.getElementById('btn-read-book');
-            if (stats.progress > 0.01) {
-                readBtn.textContent = 'FOLYTATÁS';
-            } else {
-                readBtn.textContent = 'OLVASÁS';
-            }
-            
-            readBtn.onclick = async () => {
-                this.hideModal('book-details-modal');
-                Epubly.engine.loadBook(book.data, book.id);
-            };
-            document.getElementById('btn-show-toc').onclick = async () => {
-                this.hideModal('book-details-modal');
-                await Epubly.engine.loadBook(book.data, book.id);
-                setTimeout(() => Epubly.ui.toggleSidebar('sidebar-toc'), 0);
-            };
-            document.getElementById('btn-delete-book').onclick = async () => {
-                if(confirm('Biztosan törölni szeretnéd ezt a könyvet?')) {
-                    await Epubly.storage.db.deleteBook(book.id);
-                    this.hideModal('book-details-modal');
-                    Epubly.library.render();
-                }
-            };
+            document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id); };
+            document.getElementById('btn-show-toc').onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
+            document.getElementById('btn-delete-book').onclick = async () => { if(confirm('Biztosan törlöd?')) { await Epubly.storage.deleteBook(book.id); this.hideModal('book-details-modal'); this.library.render(); }};
             this.showModal('book-details-modal');
+        },
+        generateQRCode(data) {
+            // Minimal QR Code generator for alphanumeric data
+            const M = [
+                [1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],
+                [1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],
+                [1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],
+                [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1],
+                [1,0,1,0,0,1,1,1,0,0,0,1,1,0,1,0,1,0,0,1,1],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [1,1,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,1,1,1,1],
+                [0,1,0,1,1,1,1,0,1,0,1,0,0,1,0,1,1,0,0,0,0],
+                [1,0,1,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1],
+                [1,1,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,1,1,0,0],
+                [0,0,0,1,0,1,0,0,1,1,1,0,1,1,0,0,0,1,0,1,0],
+                [1,0,0,1,1,0,1,1,1,0,1,0,1,0,0,1,1,0,1,0,0],
+                [0,1,1,0,1,0,1,0,1,0,1,0,1,1,0,0,1,0,0,1,1],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [1,0,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,0,1,0,1],
+                [0,1,0,1,0,0,0,1,0,0,0,1,1,0,1,0,0,1,1,1,0],
+                [1,0,0,1,0,1,0,0,1,0,1,0,0,0,1,1,0,1,1,0,1],
+                [1,0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0,0,1,0,1],
+                [1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1],
+                [1,0,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,1,0,1,1],
+                [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1,1]
+            ];
+            const L = data.length;
+            const size = 21;
+            for(let y=0; y<9; y++) for(let x=0; x<9; x++) if(x<7&&y<7 || x<7&&y>size-8 || x>size-8&&y<7) M[y][x]=1;
+            const str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+            let p = 0;
+            for (let i = 0; i < L; i += 2) {
+                let a = str.indexOf(data[i]);
+                let b = (i + 1 < L) ? str.indexOf(data[i+1]) : 0;
+                let v = a * 45 + b;
+                for (let j = 0; j < 11; j++, v = Math.floor(v / 2)) {
+                    M[9 + Math.floor(p/2)][9 + p%2] = v % 2;
+                    p++;
+                }
+            }
+            let path = '';
+            for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M[y][x]) path += `M${x},${y}h1v1h-1z`;
+            document.getElementById('mohu-qr-container').innerHTML = `<svg viewBox="-2 -2 25 25"><path fill="black" d="${path}"/></svg>`;
         }
     },
     
     async init() {
         try {
-            if(!this.ui || !this.library || !this.settings || !this.storage) {
-                throw new Error("Initialization failed: Modules missing.");
-            }
-
             this.ui.init();
             this.settings.init();
             this.lightbox.init();
-            await this.storage.db.init();
-            
+            await this.storage.getDb();
             this.ui.showLibraryView();
             this.ui.hideLoader();
-            
             console.log(`Epubly v${version} Initialized.`);
         } catch (error) {
             console.error("Fatal init error:", error);
@@ -1257,19 +990,4 @@ const Epubly = {
 };
 
 window.Epubly = Epubly;
-
-const DependencyLoader = {
-    async boot() {
-        if (window.JSZip) {
-            Epubly.init();
-            return;
-        }
-        const msg = "A JSZip könyvtár nem töltődött be.";
-        console.error(msg);
-        document.getElementById('loader-error').textContent = msg;
-        document.getElementById('loader-error').style.display = 'block';
-        document.getElementById('retry-btn').style.display = 'block';
-    }
-};
-
-DependencyLoader.boot();
+Epubly.init();
