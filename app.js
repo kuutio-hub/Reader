@@ -728,13 +728,16 @@ const Epubly = {
             if (this.db) return this.db;
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open('EpublyDB', 4);
-                request.onerror = () => reject("IndexedDB error");
+                request.onerror = () => reject("IndexedDB error: " + request.error);
                 request.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
                 request.onupgradeneeded = e => {
                     if (!e.target.result.objectStoreNames.contains('books')) {
                         e.target.result.createObjectStore('books', { keyPath: 'id' });
                     }
-                }
+                };
+                request.onblocked = () => {
+                    reject("Az adatbázis frissítése blokkolva. Kérjük, zárja be az Epubly összes többi lapját, majd töltse be újra az oldalt.");
+                };
             });
         },
         async transaction(storeName, mode, callback) {
@@ -815,7 +818,7 @@ const Epubly = {
                 await this.saveBook(book);
             }
         },
-        getLocation(bookId) { return localStorage.getItem(`epubly-loc-${bookId}`); },
+        getLocation(bookId) { return localStorage.getItem(`epubly-loc-${id}`); },
         saveLocation(bookId, idx, scroll) { localStorage.setItem(`epubly-loc-${bookId}`, `${idx},${Math.round(scroll)}`); }
     },
 

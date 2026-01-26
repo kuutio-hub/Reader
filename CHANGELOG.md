@@ -1,8 +1,14 @@
 # Változási napló
 
-## [0.13.0-beta] - 2024-07-29
+## [0.13.1-beta] - 2024-07-29
 
-### Jelentős Javítások és Új Funkciók
+### Jelentős Javítások
+- **KRITIKUS HIBAJAVÍTÁS (STABILITÁS):** Kijavítva a "csendes hibát", ahol az alkalmazás hibaüzenet nélkül megállt a töltőképernyőn.
+  - Az indítási folyamat mostantól egy robusztus hibakezelő blokkban fut, amely bármilyen hiba esetén egyértelmű üzenetet jelenít meg a felhasználónak a töltőképernyőn.
+  - Az adatbázis-kapcsolat (IndexedDB) kezelése stabilabbá vált, hogy megelőzze a más böngészőfülek által okozott esetleges blokkolásokat és lefagyásokat.
+- **KÓD TISZTÍTÁSA:** A felesleges `index.tsx` fájl véglegesen eltávolítva.
+
+## [0.13.0-beta] - 2024-07-29
 - **HIBAJAVÍTÁS:** Kijavítva egy kritikus hiba, amely az alkalmazás indulásakor "Cannot read properties of null (reading 'style')" üzenettel leállást okozott. Az alkalmazás mostantól stabilan betölt.
 - **ÚJ FUNKCIÓ: Jegyzetekhez fűzött kommentárok:**
   - Mostantól minden kiemeléshez lehetőség van egyéni szöveges megjegyzés hozzáadására.
