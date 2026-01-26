@@ -67,22 +67,21 @@
         
         <!-- Theme Toggle -->
         <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 4px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                <line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg id="theme-icon-moon" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
         </button>
 
         <!-- Wiki / Help Button -->
         <button class="icon-btn" onclick="Epubly.ui.showModal('wiki-modal')" title="Segítség & Támogatás" style="margin-left: 4px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
         </button>
     </header>
     
@@ -157,17 +156,6 @@
                     </div>
                 </div>
 
-                <!-- BACKGROUND -->
-                <div class="settings-group">
-                    <h4>HÁTTÉR MINTÁZAT</h4>
-                    <div class="toggle-group" id="bg-toggle-group">
-                        <button class="toggle-btn" data-val="none">Sima</button>
-                        <button class="toggle-btn" data-val="papyrus">Papírusz</button>
-                        <button class="toggle-btn" data-val="fabric">Szövet</button>
-                        <button class="toggle-btn" data-val="concrete">Beton</button>
-                    </div>
-                </div>
-
                 <!-- TYPOGRAPHY -->
                 <div class="settings-group">
                     <h4>BETŰSTÍLUS</h4>
@@ -222,12 +210,6 @@
                         <input type="range" id="margin-range" min="0" max="40" step="1">
                     </div>
                 </div>
-
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
-                    <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
-                        MINDEN ADAT TÖRLÉSE
-                    </button>
-                </div>
             </div>
         </aside>
     </section>
@@ -235,66 +217,66 @@
     <!-- Modal: Wiki / Help / Donate -->
     <div id="wiki-modal" class="modal">
         <div class="modal-content" style="max-width:800px; height: 90vh;">
-            <div style="display:flex; justify-content:space-between; padding:20px; border-bottom:1px solid var(--border);">
-                <h3>Epubly.hu - Wiki & Támogatás</h3>
+             <div class="sidebar-header" style="padding: 20px;">
+                <div class="sidebar-tabs" style="border-bottom:none; flex:1;">
+                    <button class="sidebar-tab active" data-tab="wiki-tab-guide">Használati Útmutató</button>
+                    <button class="sidebar-tab" data-tab="wiki-tab-about">Névjegy & Támogatás</button>
+                </div>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
-            <div class="wiki-content">
-                <h2>Rólunk</h2>
-                <p>Az Epubly.hu egy ingyenes, hobbi projekt, melynek célja egy modern, reklámmentes és gyors e-könyv olvasó biztosítása mindenki számára. Az alkalmazás kliens oldalon fut, tehát a könyveid a saját eszközödön maradnak, nem töltjük fel őket sehova.</p>
-                
-                <h2>Használati Útmutató</h2>
+
+            <div class="wiki-content" id="wiki-tab-guide">
+                <h2>Alapvető Funkciók</h2>
                 <ul>
-                    <li><b>Importálás:</b> Húzd be az .epub fájlt a könyvtár nézetbe, vagy használd a gombot.</li>
-                    <li><b>Olvasás:</b> A fejezetek automatikusan betöltődnek lefelé és felfelé görgetve.</li>
-                    <li><b>Kiemelés:</b> Jelölj ki szöveget az egérrel, majd válassz színt. Képekre kattintva könyvjelzőzheted őket.</li>
-                    <li><b>Navigáció:</b> Használd a "Vissza" gombot a lábjegyzetekről való visszaugráshoz.</li>
+                    <li><b>Könyv hozzáadása:</b> Kattints az "Importálás" gombra, vagy egyszerűen húzd az .epub fájlt a könyvtár ablakába.</li>
+                    <li><b>Olvasás:</b> A fejezetek folyamatosan töltődnek be, ahogy lefelé vagy felfelé görgetsz.</li>
+                    <li><b>Kiemelés:</b> Jelölj ki egy szövegrészletet, és válassz színt a felugró menüből. A kiemeléseid a "Jegyzetek" fülön gyűlnek össze.</li>
+                    <li><b>Könyvjelző:</b> Kattints egy képre az olvasóban, hogy elmenthesd a jegyzetek közé. Így később gyorsan visszatalálsz hozzá.</li>
+                    <li><b>Navigáció:</b> A "Tartalom" menüben ugorhatsz a fejezetek között. Ha egy könyvön belüli linkre (pl. lábjegyzetre) kattintasz, a "Vissza" gombbal visszaugorhatsz az eredeti olvasási pozíciódra.</li>
                 </ul>
 
-                <h2>Támogatás (Donate)</h2>
-                <p>Mivel az oldal ingyenes, minden támogatást hálásan köszönök! Ha szeretnéd segíteni a fejlesztést, az alábbi módokon teheted meg:</p>
+                <h2>Testreszabás</h2>
+                <p>Az olvasó nézetben a jobb felső "Beállítások" ikonra kattintva személyre szabhatod az olvasási élményt:</p>
+                <ul>
+                    <li><b>Téma:</b> Válassz a Világos, Sötét, Szépia vagy Mátrix színsémák közül.</li>
+                    <li><b>Betűstílus:</b> Állítsd be a betűtípust, színt, méretet, vastagságot, sorközt és betűközt.</li>
+                    <li><b>Elrendezés:</b> Igazítsd a szöveget balra vagy sorkizártra, és állítsd be a margók szélességét.</li>
+                </ul>
+
+                <h2>Hibaelhárítás</h2>
+                <p>Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen, vagy az alkalmazás lelassul), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
+                <div style="margin-top:20px;">
+                    <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
+                        MINDEN ADAT VÉGLEGES TÖRLÉSE
+                    </button>
+                </div>
+            </div>
+
+            <div class="wiki-content" id="wiki-tab-about" style="display:none;">
+                <h2>A projektről</h2>
+                <p>Az Epubly.hu egy ingyenes, reklámmentes, nyílt forráskódú hobbi projekt. Célja egy modern és gyors e-könyv olvasó biztosítása, amely tiszteletben tartja a magánszférádat.</p>
+                <p><b>Minden kliens oldalon történik:</b> A könyveid a saját böngésződben, a te eszközödön kerülnek feldolgozásra és tárolásra. Semmilyen adatot nem töltünk fel külső szerverre.</p>
+                <p>Ha tetszik az alkalmazás, oszd meg másokkal is! A legnagyobb segítség, ha minél többen használják.</p>
                 
-                <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin:20px 0; text-align:center;">
+                <h2>Támogatás (Donate)</h2>
+                <p>Az oldal fejlesztése és fenntartása kizárólag szabadidőben történik. Ha szeretnéd támogatni a munkámat, azt a legegyszerűbben a MOHU REpont rendszerén keresztül teheted meg. Egy kávé árával már sokat segítesz!</p>
+                
+                <div class="mohu-print-area" style="background:var(--surface-alt); padding:20px; border-radius:12px; margin:20px 0; text-align:center;">
                     <h3 style="color:var(--brand);">MOHU REpont Támogatás</h3>
                     <p style="font-size:0.9rem; margin-bottom:15px;">Váltsd vissza a palackokat a támogatásomra! Nyomtasd ki ezt a kártyát, és használd az automatáknál.</p>
                     
-                    <!-- MOHU CARD GENERATOR CONTAINER -->
-                    <div class="mohu-print-area">
-                        <div class="mohu-card">
-                            <div class="mohu-header">
-                                <span>MOHU</span>
-                                <span>REPONT</span>
-                            </div>
-                            <div class="mohu-qr">
-                                <!-- Placeholder SVG QR Code -->
-                                <svg viewBox="0 0 100 100" width="70" height="70" fill="black">
-                                    <rect x="10" y="10" width="30" height="30"/>
-                                    <rect x="60" y="10" width="30" height="30"/>
-                                    <rect x="10" y="60" width="30" height="30"/>
-                                    <rect x="50" y="50" width="10" height="10"/>
-                                    <rect x="70" y="60" width="10" height="10"/>
-                                    <rect x="55" y="75" width="15" height="15"/>
-                                    <rect x="15" y="15" width="20" height="20" fill="white"/>
-                                    <rect x="65" y="15" width="20" height="20" fill="white"/>
-                                    <rect x="15" y="65" width="20" height="20" fill="white"/>
-                                    <rect x="20" y="20" width="10" height="10"/>
-                                    <rect x="70" y="20" width="10" height="10"/>
-                                    <rect x="20" y="70" width="10" height="10"/>
-                                </svg>
-                            </div>
-                            <div class="mohu-details">
-                                <div>Beneficiary ID: EPUB-DEV-01</div>
-                                <div class="mohu-name">Epubly.hu Támogatás</div>
-                            </div>
+                    <div class="mohu-card">
+                        <div class="mohu-header"><span>MOHU</span><span>REPONT</span></div>
+                        <div class="mohu-qr">
+                            <svg viewBox="0 0 100 100" width="70" height="70" fill="black"><rect x="10" y="10" width="30" height="30"/><rect x="60" y="10" width="30" height="30"/><rect x="10" y="60" width="30" height="30"/><rect x="50" y="50" width="10" height="10"/><rect x="70" y="60" width="10" height="10"/><rect x="55" y="75" width="15" height="15"/><rect x="15" y="15" width="20" height="20" fill="white"/><rect x="65" y="15" width="20" height="20" fill="white"/><rect x="15" y="65" width="20" height="20" fill="white"/><rect x="20" y="20" width="10" height="10"/><rect x="70" y="20" width="10" height="10"/><rect x="20" y="70" width="10" height="10"/></svg>
+                        </div>
+                        <div class="mohu-details">
+                            <div>Beneficiary ID: EPUB-DEV-01</div>
+                            <div class="mohu-name">Epubly.hu Támogatás</div>
                         </div>
                     </div>
-                    <!-- END CONTAINER -->
                     
                     <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
-                </div>
-
-                <div style="text-align:center; margin-top:30px;">
-                    <p>Hamarosan PayPal támogatás is elérhető lesz!</p>
                 </div>
             </div>
         </div>
@@ -361,7 +343,7 @@
                 <button class="icon-btn modal-close">&times;</button>
             </div>
             <div id="import-drop-zone" class="drop-zone">
-                <p style="margin-bottom:15px; color:var(--text);">Húzd ide az EPUB fájlt.</p>
+                <p style="margin-bottom:15px; color:var(--text-muted);">Húzd ide az EPUB fájlt.</p>
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
                 <button class="btn btn-primary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása</button>
             </div>
