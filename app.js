@@ -21,12 +21,13 @@ const Epubly = {
         rootPath: '', 
         activeBookSessionStart: null,
         metadata: {},
-        renderedChapters: new Set(),
+        renderedChapters: new Set(), // Now tracks all rendered indices
         observer: null,
         isLoadingNext: false,
+        isLoadingPrev: false,
         highlights: {},
         activeSidebar: null,
-        globalTheme: 'dark' // 'dark' or 'light'
+        globalTheme: 'dark' // handled by css body class
     },
 
     // --- ENGINE ---
@@ -34,7 +35,6 @@ const Epubly = {
         async loadBook(arrayBuffer, bookId) {
             Epubly.ui.showLoader();
             
-            // Reset state
             Epubly.state.zip = null;
             Epubly.state.spine = [];
             Epubly.state.manifest = {};
@@ -46,12 +46,12 @@ const Epubly = {
 
             // Load Highlights
             Epubly.highlights.load(bookId);
+            Epubly.highlights.renderList(); // Populate sidebar list
 
             try {
                 if (!window.JSZip) throw new Error("JSZip hiányzik!");
                 Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
 
-                // Find OPF
                 const containerXml = await Epubly.state.zip.file("META-INF/container.xml").async("string");
                 const parser = new DOMParser();
                 const containerDoc = parser.parseFromString(containerXml, "application/xml");
@@ -62,11 +62,9 @@ const Epubly = {
                 const lastSlash = fullOpfPath.lastIndexOf('/');
                 Epubly.state.rootPath = lastSlash !== -1 ? fullOpfPath.substring(0, lastSlash + 1) : '';
 
-                // Parse OPF
                 const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
                 const opfDoc = parser.parseFromString(opfXml, "application/xml");
 
-                // Manifest
                 const manifestItems = opfDoc.getElementsByTagName("item");
                 for (let item of manifestItems) {
                     Epubly.state.manifest[item.getAttribute("id")] = {
@@ -76,7 +74,6 @@ const Epubly = {
                     };
                 }
 
-                // Spine
                 const spineItems = opfDoc.getElementsByTagName("itemref");
                 for (let item of spineItems) {
                     const idref = item.getAttribute("idref");
@@ -90,15 +87,12 @@ const Epubly = {
                     }
                 }
 
-                // Metadata
                 const title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || "Névtelen Könyv";
                 const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen Szerző";
                 Epubly.state.metadata = { title, author };
                 
-                // Set Header
                 Epubly.ui.updateHeaderInfo(title, author, "");
 
-                // Resume Position
                 let startIdx = 0;
                 const savedCfi = Epubly.storage.getLocation(bookId);
                 if(savedCfi) {
@@ -109,7 +103,9 @@ const Epubly = {
                 document.getElementById('viewer-content').innerHTML = '';
                 Epubly.ui.showReaderView();
                 
-                await this.renderChapter(startIdx);
+                // Initial Render
+                await this.renderChapter(startIdx, 'append');
+                
                 this.initObservers();
                 document.getElementById('viewer').onscroll = this.handleScroll.bind(this);
 
@@ -125,7 +121,7 @@ const Epubly = {
             }
         },
 
-        async renderChapter(index) {
+        async renderChapter(index, method = 'append') {
             if (index < 0 || index >= Epubly.state.spine.length) return;
             if (Epubly.state.renderedChapters.has(index)) return;
 
@@ -137,14 +133,14 @@ const Epubly = {
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlContent, "text/html");
 
-            // --- CRITICAL VISIBILITY FIX ---
+            // Cleanup styles
             doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
             doc.querySelectorAll('*').forEach(el => {
                 el.removeAttribute('style');
                 el.removeAttribute('class');
             });
 
-            // Images replacement
+            // Process Images
             const images = doc.querySelectorAll("img, image");
             const processImage = async (img) => {
                 const src = img.getAttribute("src") || img.getAttribute("href") || img.getAttribute("xlink:href");
@@ -156,6 +152,13 @@ const Epubly = {
                     const blob = await imgFile.async("blob");
                     const url = URL.createObjectURL(blob);
                     img.setAttribute("src", url);
+                    // Add click handler for image bookmarking
+                    img.style.cursor = "pointer";
+                    img.onclick = () => {
+                        if(confirm("Szeretnéd elmenteni ezt a képet a jegyzetek közé?")) {
+                            Epubly.highlights.addImage(index, src); // Save ref
+                        }
+                    };
                     if(img.tagName.toLowerCase() === 'image') img.setAttribute("href", url);
                 }
             };
@@ -171,12 +174,22 @@ const Epubly = {
                 chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
             }
 
-            document.getElementById('viewer-content').appendChild(chapterContainer);
-            Epubly.state.renderedChapters.add(index);
+            const viewer = document.getElementById('viewer-content');
             
-            // Re-apply settings
+            if (method === 'prepend') {
+                // Insert at top
+                viewer.insertBefore(chapterContainer, viewer.firstChild);
+            } else {
+                // Append at bottom (default) or clear if jump
+                if (method === 'clear') viewer.innerHTML = '';
+                viewer.appendChild(chapterContainer);
+            }
+
+            Epubly.state.renderedChapters.add(index);
             Epubly.reader.applySettings(Epubly.settings.get());
             Epubly.highlights.apply(index, chapterContainer);
+            
+            return chapterContainer;
         },
 
         resolvePath(base, relative) {
@@ -203,7 +216,6 @@ const Epubly = {
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
                         
-                        // Update Header
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.ui.updateProgress(idx, Epubly.state.spine.length);
                         Epubly.toc.highlight(idx);
@@ -228,14 +240,11 @@ const Epubly = {
         async handleScroll(e) {
             const viewer = e.target;
             
-            // Update Progress Bar based on pixel scroll
-            const scrolled = viewer.scrollTop;
-            const maxScroll = viewer.scrollHeight - viewer.clientHeight;
-            if(maxScroll > 0) {
-                const percent = (scrolled / maxScroll) * 100;
-                document.getElementById('reading-progress-fill').style.width = percent + "%";
-            }
-
+            // Update Progress Bar based on TOTAL book position approximation
+            // Using current chapter index vs total chapters is more reliable for long books
+            const currentC = document.querySelector('.chapter-container'); // roughly check logic later
+            
+            // --- SCROLL DOWN (Next Chapter) ---
             if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
                 if(Epubly.state.isLoadingNext) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
@@ -243,9 +252,32 @@ const Epubly = {
                 if (lastIdx < Epubly.state.spine.length - 1) {
                     Epubly.state.isLoadingNext = true;
                     document.getElementById('scroll-loader').style.display = 'block';
-                    await this.renderChapter(lastIdx + 1);
+                    await this.renderChapter(lastIdx + 1, 'append');
                     document.getElementById('scroll-loader').style.display = 'none';
                     Epubly.state.isLoadingNext = false;
+                }
+            }
+
+            // --- SCROLL UP (Previous Chapter - Prepend) ---
+            if (viewer.scrollTop < 50) {
+                if(Epubly.state.isLoadingPrev) return;
+                const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
+                const firstIdx = renderedIndices[0];
+                
+                if (firstIdx > 0) {
+                    Epubly.state.isLoadingPrev = true;
+                    document.getElementById('top-loader').style.display = 'block';
+                    
+                    const oldScrollHeight = viewer.scrollHeight;
+                    
+                    await this.renderChapter(firstIdx - 1, 'prepend');
+                    
+                    // Restore scroll position to prevent jumping
+                    const newScrollHeight = viewer.scrollHeight;
+                    viewer.scrollTop = newScrollHeight - oldScrollHeight + viewer.scrollTop;
+                    
+                    document.getElementById('top-loader').style.display = 'none';
+                    Epubly.state.isLoadingPrev = false;
                 }
             }
         },
@@ -292,7 +324,6 @@ const Epubly = {
     search: {
         async run(query) {
             if(!Epubly.state.zip || !query || query.length < 3) return;
-            
             const resultsDiv = document.getElementById('search-results');
             const progress = document.getElementById('search-progress');
             document.getElementById('search-status').style.display = 'block';
@@ -310,27 +341,21 @@ const Epubly = {
                     const cleanText = text.replace(/<[^>]*>/g, ' '); 
                     const lowerText = cleanText.toLowerCase();
                     const index = lowerText.indexOf(q);
-                    
                     if(index > -1) {
                         count++;
                         const snippet = cleanText.substring(Math.max(0, index - 40), Math.min(cleanText.length, index + 40));
-                        
                         const item = document.createElement('div');
                         item.className = 'search-result-item';
                         item.innerHTML = `
                             <div style="font-weight:bold; font-size:0.8rem; color:var(--brand);">Fejezet ${i + 1}</div>
                             <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), match => `<span style="background:rgba(212,175,55,0.3); color:inherit;">${match}</span>`)}...</div>
                         `;
-                        item.style.marginBottom = "10px";
-                        item.style.padding = "10px";
-                        item.style.cursor = "pointer";
-                        item.style.borderBottom = "1px solid var(--border)";
-                        
+                        item.style.marginBottom = "10px"; item.style.padding = "10px"; item.style.cursor = "pointer"; item.style.borderBottom = "1px solid var(--border)";
                         item.onclick = () => {
                             Epubly.ui.hideModal('search-modal');
                             document.getElementById('viewer-content').innerHTML = '';
                             Epubly.state.renderedChapters.clear();
-                            Epubly.engine.renderChapter(i);
+                            Epubly.engine.renderChapter(i, 'clear');
                         };
                         resultsDiv.appendChild(item);
                         if(count > 50) break; 
@@ -338,7 +363,6 @@ const Epubly = {
                 }
                 if(i % 5 === 0) await new Promise(r => setTimeout(r, 0));
             }
-            
             document.getElementById('search-status').style.display = 'none';
             if(count === 0) resultsDiv.innerHTML = '<p style="text-align:center; padding:20px;">Nincs találat.</p>';
         }
@@ -350,14 +374,14 @@ const Epubly = {
             const box = document.getElementById('lightbox');
             const img = document.getElementById('lightbox-img');
             const close = document.querySelector('.lightbox-close');
-            
             document.getElementById('viewer-content').addEventListener('click', (e) => {
                 if(e.target.tagName === 'IMG') {
+                    // Only lightbox if not bookmarked recently (simple click vs double)
+                    // For now, let's keep it simple: Click opens lightbox. Bookmark via long press or context menu would be ideal, but for now specific bookmark logic is inside renderChapter.
                     img.src = e.target.src;
                     box.classList.add('visible');
                 }
             });
-
             const hide = () => box.classList.remove('visible');
             close.onclick = hide;
             box.onclick = (e) => { if(e.target === box) hide(); };
@@ -372,13 +396,16 @@ const Epubly = {
         },
         save() {
             const bookId = Epubly.state.currentBookId;
-            if(bookId) localStorage.setItem(`epubly-highlights-${bookId}`, JSON.stringify(Epubly.state.highlights[bookId]));
+            if(bookId) {
+                localStorage.setItem(`epubly-highlights-${bookId}`, JSON.stringify(Epubly.state.highlights[bookId]));
+                this.renderList();
+            }
         },
-        add() {
+        add(color = 'yellow') {
             const selection = window.getSelection();
             if(!selection.rangeCount) return;
             const text = selection.toString();
-            if(!text || text.length < 3) return;
+            if(!text || text.length < 1) return;
 
             let node = selection.anchorNode;
             let chapterDiv = null;
@@ -397,12 +424,25 @@ const Epubly = {
                 const range = selection.getRangeAt(0);
                 const span = document.createElement('span');
                 span.className = 'highlighted-text';
-                try { range.surroundContents(span); } catch(e) { console.warn(e); return; }
+                span.style.backgroundColor = `var(--highlight-${color}, rgba(255, 255, 0, 0.3))`;
+                
+                // Color mapping for style injection
+                let bgMap = {
+                    'yellow': 'rgba(255, 235, 59, 0.4)',
+                    'green': 'rgba(76, 175, 80, 0.4)',
+                    'blue': 'rgba(33, 150, 243, 0.4)',
+                    'red': 'rgba(244, 67, 54, 0.4)'
+                };
+                span.style.backgroundColor = bgMap[color];
+
+                try { range.surroundContents(span); } catch(e) { console.warn("Complex selection not supported yet"); return; }
 
                 if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
                 Epubly.state.highlights[bookId].push({
+                    type: 'text',
                     chapterIndex: idx,
                     text: text,
+                    color: color,
                     date: Date.now()
                 });
                 this.save();
@@ -410,16 +450,72 @@ const Epubly = {
                 selection.removeAllRanges();
             }
         },
+        addImage(chapterIndex, src) {
+            const bookId = Epubly.state.currentBookId;
+            if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
+            Epubly.state.highlights[bookId].push({
+                type: 'image',
+                chapterIndex: chapterIndex,
+                src: src, // Note: this is relative, might break if zip reloaded. Ideally store Base64 but that's heavy.
+                date: Date.now()
+            });
+            this.save();
+            alert("Kép mentve a jegyzetekhez!");
+        },
         apply(chapterIndex, container) {
             const bookId = Epubly.state.currentBookId;
             const items = Epubly.state.highlights[bookId];
             if(!items) return;
+            
+            let bgMap = {
+                'yellow': 'rgba(255, 235, 59, 0.4)',
+                'green': 'rgba(76, 175, 80, 0.4)',
+                'blue': 'rgba(33, 150, 243, 0.4)',
+                'red': 'rgba(244, 67, 54, 0.4)'
+            };
+
             items.forEach(h => {
-                if(h.chapterIndex === chapterIndex) {
-                    if(!container.innerHTML.includes(`<span class="highlighted-text">${h.text}</span>`)) {
-                         container.innerHTML = container.innerHTML.replace(h.text, `<span class="highlighted-text">${h.text}</span>`);
+                if(h.type === 'text' && h.chapterIndex === chapterIndex) {
+                    // Simple text replacement (fragile but works for static content)
+                    if(container.innerHTML.includes(h.text) && !container.innerHTML.includes(`<span class="highlighted-text"`)) {
+                         container.innerHTML = container.innerHTML.replace(
+                             h.text, 
+                             `<span class="highlighted-text" style="background-color:${bgMap[h.color]}">${h.text}</span>`
+                         );
                     }
                 }
+            });
+        },
+        renderList() {
+            const list = document.getElementById('highlights-list');
+            if(!list) return;
+            const bookId = Epubly.state.currentBookId;
+            const items = Epubly.state.highlights[bookId] || [];
+            list.innerHTML = '';
+            if(items.length === 0) {
+                list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>';
+                return;
+            }
+            items.forEach(h => {
+                const li = document.createElement('div');
+                li.className = 'highlight-item';
+                let content = '';
+                if (h.type === 'image') {
+                    content = `<span class="highlight-text">[Kép könyvjelző]</span>`;
+                } else {
+                    content = `<span class="highlight-text">"${h.text.substring(0, 50)}..."</span>`;
+                }
+                li.innerHTML = `
+                    ${content}
+                    <span class="highlight-meta">Fejezet: ${h.chapterIndex + 1}</span>
+                `;
+                li.onclick = () => {
+                    document.getElementById('viewer-content').innerHTML = '';
+                    Epubly.state.renderedChapters.clear();
+                    Epubly.engine.renderChapter(h.chapterIndex, 'clear');
+                    Epubly.ui.toggleSidebar('sidebar-toc'); // Close sidebar
+                };
+                list.appendChild(li);
             });
         }
     },
@@ -432,6 +528,7 @@ const Epubly = {
             const duration = now - Epubly.state.activeBookSessionStart;
             Epubly.state.activeBookSessionStart = now;
             
+            // Logic for progress is now handled by rendered chapters and scroll position in a simpler way for storage
             let maxRendered = 0;
             if(Epubly.state.renderedChapters.size > 0) {
                 maxRendered = Math.max(...Epubly.state.renderedChapters);
@@ -443,17 +540,27 @@ const Epubly = {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
+            // Basic Props
             viewer.style.fontFamily = settings.fontFamily;
             viewer.style.fontSize = settings.fontSize + "%";
             viewer.style.lineHeight = settings.lineHeight;
             viewer.style.textAlign = settings.textAlign;
+            viewer.style.fontWeight = settings.fontWeight;
+            viewer.style.color = settings.fontColor;
+            viewer.style.letterSpacing = settings.letterSpacing + "px";
             
-            // Margin Logic: 0% = 0px padding. 40% setting = 40% padding left + 40% padding right.
             const pad = settings.margin + "%";
             viewer.style.paddingLeft = pad;
             viewer.style.paddingRight = pad;
             
-            // Dynamic Styles
+            // Theme & Background classes on Body
+            document.body.className = ''; // clear
+            document.body.classList.add(`theme-${settings.theme}`);
+            if(settings.background !== 'none') {
+                document.body.classList.add(`bg-${settings.background}`);
+            }
+
+            // Dynamic Styles for Image constraints
             const styleId = 'epubly-dynamic-styles';
             let styleTag = document.getElementById(styleId);
             if (!styleTag) {
@@ -467,11 +574,8 @@ const Epubly = {
                     color: inherit !important;
                     background-color: transparent !important;
                 }
-                .highlighted-text {
-                    background-color: rgba(212, 175, 55, 0.4) !important;
-                    color: inherit !important;
-                }
-                img { max-width: 100%; height: auto; }
+                img { max-width: 100% !important; height: auto !important; object-fit: contain; }
+                .highlighted-text { color: inherit !important; }
             `;
         }
     },
@@ -496,8 +600,8 @@ const Epubly = {
                 a.onclick = () => {
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
-                    Epubly.engine.renderChapter(item.index);
-                    Epubly.ui.toggleSidebar('sidebar-toc');
+                    Epubly.engine.renderChapter(item.index, 'clear');
+                    // We don't toggle sidebar automatically here to allow user to browse more
                 };
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -508,11 +612,6 @@ const Epubly = {
             document.querySelectorAll('.toc-link').forEach(el => {
                 if(parseInt(el.dataset.idx) === idx) {
                     el.classList.add('active');
-                    // Only scroll if sidebar is visible to avoid layout thrashing
-                    const sidebar = document.getElementById('sidebar-toc');
-                    if(sidebar.classList.contains('visible')) {
-                        el.scrollIntoView({ block: "center", behavior: "smooth" });
-                    }
                 } else {
                     el.classList.remove('active');
                 }
@@ -530,6 +629,9 @@ const Epubly = {
             bindInput('font-size-range', 'fontSize');
             bindInput('line-height-range', 'lineHeight');
             bindInput('margin-range', 'margin');
+            bindInput('font-weight-range', 'fontWeight');
+            bindInput('letter-spacing-range', 'letterSpacing');
+            bindInput('font-color-picker', 'fontColor');
             
             const bindToggleGroup = (groupId, key) => {
                 const group = document.getElementById(groupId);
@@ -541,24 +643,30 @@ const Epubly = {
                 });
             }
             bindToggleGroup('align-toggle-group', 'textAlign');
+            bindToggleGroup('theme-toggle-group', 'theme');
+            bindToggleGroup('bg-toggle-group', 'background');
             
             const fontSelect = document.getElementById('font-family-select');
             if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
             
-            const clearBtn = document.getElementById('btn-clear-cache');
-            if(clearBtn) clearBtn.addEventListener('click', () => {
-                if(confirm("Ez visszaállítja a megjelenítési beállításokat alapértelmezettre.")) {
-                    localStorage.removeItem('epubly-settings');
-                    this.load(); 
+            // Delete Data
+            document.getElementById('btn-delete-all').onclick = () => {
+                if(confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
+                    localStorage.clear();
+                    Epubly.storage.db.clearBooks().then(() => location.reload());
                 }
-            });
+            };
         },
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '10',
-                textAlign: 'left', fontFamily: "'Inter', sans-serif"
+                textAlign: 'left', fontFamily: "'Inter', sans-serif",
+                fontWeight: '400', letterSpacing: '0', fontColor: '#F2F2F7',
+                theme: 'dark', background: 'none'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
+            // Ensure fontColor isn't undefined if old settings exist
+            if(!saved.fontColor) saved.fontColor = defaults.fontColor;
             return { ...defaults, ...saved };
         },
         save(settings) { localStorage.setItem('epubly-settings', JSON.stringify(settings)); },
@@ -568,27 +676,28 @@ const Epubly = {
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
             setVal('margin-range', s.margin);
+            setVal('font-weight-range', s.fontWeight);
+            setVal('letter-spacing-range', s.letterSpacing);
+            setVal('font-color-picker', s.fontColor);
             setVal('font-family-select', s.fontFamily);
+            
             const updateToggle = (groupId, val) => {
                 const g = document.getElementById(groupId);
-                if(g) g.querySelectorAll('.toggle-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === val); });
+                if(g) g.querySelectorAll('.toggle-btn').forEach(b => { 
+                    b.classList.toggle('active', b.dataset.val === val); 
+                });
             };
             updateToggle('align-toggle-group', s.textAlign);
+            updateToggle('theme-toggle-group', s.theme);
+            updateToggle('bg-toggle-group', s.background);
+            
             Epubly.reader.applySettings(s);
         },
         handleUpdate(key, value) {
             const s = this.get();
             s[key] = value;
             this.save(s);
-            // Apply immediately
-            Epubly.reader.applySettings(s);
-            
-            // Update UI toggle visual state immediately if needed
-            if(key === 'textAlign') {
-                 document.querySelectorAll('#align-toggle-group .toggle-btn').forEach(b => { 
-                     b.classList.toggle('active', b.dataset.val === value); 
-                 });
-            }
+            this.load(); // Refreshes UI state classes too
         }
     },
 
@@ -723,13 +832,7 @@ const Epubly = {
             } catch(e) {}
         },
         getLocation(bookId) { return localStorage.getItem(`epubly-loc-${bookId}`); },
-        saveLocation(bookId, loc) { localStorage.setItem(`epubly-loc-${bookId}`, loc); },
-        async clearAllBooks() {
-            if (confirm("Minden törölve lesz. Folytatod?")) {
-                await Epubly.storage.db.clearBooks();
-                location.reload();
-            }
-        }
+        saveLocation(bookId, loc) { localStorage.setItem(`epubly-loc-${bookId}`, loc); }
     },
 
     library: {
@@ -775,6 +878,16 @@ const Epubly = {
                     Epubly.ui.toggleSidebar(targetId);
                 });
             });
+            
+            // Tab switching for Sidebar
+            document.querySelectorAll('.sidebar-tab').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('#toc-list, #highlights-list').forEach(l => l.classList.remove('active'));
+                    e.target.classList.add('active');
+                    document.getElementById(e.target.dataset.tab).classList.add('active');
+                });
+            });
 
             document.getElementById('app-logo-btn').addEventListener('click', () => {
                 Epubly.reader.updateSessionStats();
@@ -800,22 +913,30 @@ const Epubly = {
                 });
             });
 
+            // Text Selection & Highlights
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
-                if(!sel.isCollapsed && sel.toString().length > 2) {
+                if(!sel.isCollapsed && sel.toString().length > 1) {
                     const range = sel.getRangeAt(0);
                     const rect = range.getBoundingClientRect();
                     menu.style.opacity = '1';
                     menu.style.pointerEvents = 'auto';
                     menu.style.top = (rect.bottom + window.scrollY + 10) + 'px';
-                    menu.style.left = (rect.left + window.scrollX) + 'px';
+                    menu.style.left = (Math.max(10, rect.left + window.scrollX)) + 'px'; // Prevent left overflow
                 } else {
                     menu.style.opacity = '0';
                     menu.style.pointerEvents = 'none';
                 }
             });
-            document.getElementById('btn-highlight-save').onclick = () => Epubly.highlights.add();
+            
+            // Highlight color buttons
+            document.querySelectorAll('.hl-color-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const color = e.target.dataset.color;
+                    Epubly.highlights.add(color);
+                });
+            });
 
             document.getElementById('btn-do-search').onclick = () => {
                 const val = document.getElementById('search-input').value;
@@ -831,28 +952,8 @@ const Epubly = {
                 });
             });
 
-            // Global Theme Toggle
-            const themeBtn = document.getElementById('btn-theme-toggle');
-            const storedTheme = localStorage.getItem('epubly-theme') || 'dark';
-            if (storedTheme === 'light') this.setTheme('light');
-            
-            themeBtn.addEventListener('click', () => {
-                const current = document.body.classList.contains('theme-light') ? 'light' : 'dark';
-                this.setTheme(current === 'light' ? 'dark' : 'light');
-            });
-
             // Footer Year
             document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
-        },
-        
-        setTheme(theme) {
-            if (theme === 'light') {
-                document.body.classList.add('theme-light');
-            } else {
-                document.body.classList.remove('theme-light');
-            }
-            localStorage.setItem('epubly-theme', theme);
-            Epubly.reader.applySettings(Epubly.settings.get());
         },
         
         toggleSidebar(id) {
@@ -876,7 +977,6 @@ const Epubly = {
             document.getElementById('header-author').textContent = author || "";
             document.getElementById('header-title').textContent = title || "";
             document.getElementById('header-chapter').textContent = chapter ? `(${chapter})` : "";
-            
             const sep = document.querySelector('.info-sep');
             if (sep) sep.style.display = author ? 'inline' : 'none';
         },
@@ -885,6 +985,7 @@ const Epubly = {
             if(ind && total > 0) {
                 const pct = Math.round(((current + 1) / total) * 100);
                 ind.textContent = `${pct}%`;
+                document.getElementById('reading-progress-fill').style.width = pct + "%";
             }
         },
         showReaderView() {
@@ -897,32 +998,18 @@ const Epubly = {
                 <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Tartalom">
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Navigáció">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
-                    <!-- New Apple Style Slider Icon -->
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="4" y1="21" x2="4" y2="14"></line>
-                        <line x1="4" y1="10" x2="4" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="12"></line>
-                        <line x1="12" y1="8" x2="12" y2="3"></line>
-                        <line x1="20" y1="21" x2="20" y2="16"></line>
-                        <line x1="20" y1="12" x2="20" y2="3"></line>
-                        <line x1="1" y1="14" x2="7" y2="14"></line>
-                        <line x1="9" y1="8" x2="15" y2="8"></line>
-                        <line x1="17" y1="16" x2="23" y2="16"></line>
-                    </svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
                 </button>
             `;
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('library-view').classList.add('active');
-            
-            // Clean Header info for Library
             this.updateHeaderInfo("Könyvtár", "", "");
-            // Reset progress bar
             document.getElementById('reading-progress-fill').style.width = "0%";
             
             const actions = document.getElementById('top-actions-container');

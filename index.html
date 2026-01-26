@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Epubly</title>
+    <title>Epubly.hu</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='%23D4AF37' stroke='%233A2F14' stroke-width='2'/%3E%3Cpath d='M50 25 L50 90' stroke='%233A2F14' stroke-width='2'/%3E%3C/svg%3E">
@@ -42,7 +42,7 @@
                 <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon">
                     <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
                 </svg>
-                <span class="logo-text">Epubly</span>
+                <span class="logo-text">Epubly.hu</span>
             </div>
             
             <div class="view-separator"></div>
@@ -59,26 +59,16 @@
             <!-- Buttons injected by JS -->
         </div>
         
-        <!-- Global Theme Toggle -->
-        <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
+        <!-- Wiki / Help Button -->
+        <button class="icon-btn" onclick="Epubly.ui.showModal('wiki-modal')" title="Segítség & Támogatás" style="margin-left: 4px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
         </button>
-
-        <!-- Progress Bar (Thin Line) -->
-        <div id="reading-progress-bar">
-            <div id="reading-progress-fill"></div>
-        </div>
     </header>
+    
+    <!-- Progress Bar (Thin Line) -->
+    <div id="reading-progress-bar">
+        <div id="reading-progress-fill"></div>
+    </div>
 
     <!-- LIBRARY VIEW -->
     <section id="library-view" class="view-section active">
@@ -89,6 +79,9 @@
     <section id="reader-view" class="view-section">
         <div id="reader-main">
             <div id="viewer">
+                <div id="top-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted); font-size:0.8rem;">
+                    Előző fejezet betöltése...
+                </div>
                 <div id="viewer-content">
                     <!-- Chapters -->
                 </div>
@@ -97,46 +90,84 @@
                 </div>
             </div>
             
-            <div id="highlight-menu" class="glow-effect" style="position: absolute; background: var(--bg-glass); border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 8px; padding: 6px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;">
-                <button class="icon-btn" id="btn-highlight-save" title="Kijelölés" style="color:var(--brand);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </button>
+            <!-- Highlight Context Menu -->
+            <div id="highlight-menu" class="glow-effect">
+                <button class="hl-color-btn" style="background:#ffeb3b" data-color="yellow"></button>
+                <button class="hl-color-btn" style="background:#4caf50" data-color="green"></button>
+                <button class="hl-color-btn" style="background:#2196f3" data-color="blue"></button>
+                <button class="hl-color-btn" style="background:#f44336" data-color="red"></button>
             </div>
         </div>
 
-        <!-- Sidebar TOC -->
+        <!-- Sidebar TOC / Notes -->
         <aside id="sidebar-toc" class="sidebar">
             <div class="sidebar-header">
-                <h3>TARTALOM</h3>
+                <h3>NAVIGÁCIÓ</h3>
                 <button class="icon-btn close-sidebar" data-target="sidebar-toc">&times;</button>
             </div>
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" data-tab="toc-list">Tartalom</button>
+                <button class="sidebar-tab" data-tab="highlights-list">Jegyzetek</button>
+            </div>
             <div class="sidebar-content">
-                <ul id="toc-list"></ul>
+                <ul id="toc-list" class="active"></ul>
+                <div id="highlights-list">
+                    <p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>
+                </div>
             </div>
         </aside>
 
         <!-- Sidebar Settings -->
         <aside id="sidebar-settings" class="sidebar">
             <div class="sidebar-header">
-                <h3>BEÁLLÍTÁSOK</h3>
+                <h3>MEGJELENÉS</h3>
                 <button class="icon-btn close-sidebar" data-target="sidebar-settings">&times;</button>
             </div>
             <div class="sidebar-content">
+                
+                <!-- THEME -->
                 <div class="settings-group">
-                    <h4>TIPOGRÁFIA</h4>
+                    <h4>TÉMA</h4>
+                    <div class="toggle-group" id="theme-toggle-group">
+                        <button class="toggle-btn" data-val="light">Világos</button>
+                        <button class="toggle-btn" data-val="dark">Sötét</button>
+                        <button class="toggle-btn" data-val="sepia">Szépia</button>
+                        <button class="toggle-btn" data-val="matrix">Mátrix</button>
+                    </div>
+                </div>
+
+                <!-- BACKGROUND -->
+                <div class="settings-group">
+                    <h4>HÁTTÉR MINTÁZAT</h4>
+                    <div class="toggle-group" id="bg-toggle-group">
+                        <button class="toggle-btn" data-val="none">Sima</button>
+                        <button class="toggle-btn" data-val="papyrus">Papírusz</button>
+                        <button class="toggle-btn" data-val="fabric">Szövet</button>
+                        <button class="toggle-btn" data-val="concrete">Beton</button>
+                    </div>
+                </div>
+
+                <!-- TYPOGRAPHY -->
+                <div class="settings-group">
+                    <h4>BETŰSTÍLUS</h4>
                     <div class="setting-item">
                          <select id="font-family-select" style="width:100%; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); font-size: 0.95rem;">
-                            <option value="'Inter', sans-serif">Inter</option>
-                            <option value="'Merriweather', serif">Merriweather</option>
-                            <option value="'Lora', serif">Lora</option>
+                            <option value="'Inter', sans-serif">Modern (Inter)</option>
+                            <option value="'Merriweather', serif">Könyv (Merriweather)</option>
+                            <option value="'Lora', serif">Elegáns (Lora)</option>
                             <option value="'Roboto', sans-serif">Roboto</option>
-                            <option value="'Arial', sans-serif">Arial</option>
-                            <option value="'Verdana', sans-serif">Verdana</option>
+                            <option value="'Open Sans', sans-serif">Open Sans</option>
                             <option value="'Georgia', serif">Georgia</option>
                             <option value="'Times New Roman', serif">Times New Roman</option>
-                            <option value="'Roboto Mono', monospace">Mono</option>
+                            <option value="'Courier New', monospace">Írógép</option>
                         </select>
                     </div>
+                    
+                    <div class="setting-item">
+                        <label>Szín</label>
+                        <input type="color" id="font-color-picker" style="width:100%; height:30px; border:none; padding:0;">
+                    </div>
+
                     <div class="setting-item">
                         <label>Igazítás</label>
                          <div class="toggle-group" id="align-toggle-group">
@@ -144,30 +175,106 @@
                             <button class="toggle-btn" data-val="justify">Sorkizárt</button>
                         </div>
                     </div>
+                    
                     <div class="setting-item">
-                        <label>Betűméret</label>
+                        <label>Méret</label>
                         <input type="range" id="font-size-range" min="80" max="250" step="10">
                     </div>
+                    
+                    <div class="setting-item">
+                        <label>Vastagság</label>
+                        <input type="range" id="font-weight-range" min="100" max="900" step="100">
+                    </div>
+
                      <div class="setting-item">
-                        <!-- Wider Range: 0.8 to 3.0 -->
                         <label>Sorköz</label>
                         <input type="range" id="line-height-range" min="0.8" max="3.0" step="0.1">
                     </div>
+                    
                     <div class="setting-item">
-                        <!-- Margin: 0% to 40% (leaving 20% min text width) -->
+                        <label>Betűköz (Tracking)</label>
+                        <input type="range" id="letter-spacing-range" min="-2" max="5" step="0.5">
+                    </div>
+
+                    <div class="setting-item">
                         <label>Margó</label>
                         <input type="range" id="margin-range" min="0" max="40" step="1">
                     </div>
                 </div>
 
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
-                    <button class="btn btn-danger" id="btn-clear-cache" style="width:100%;">
-                        Gyári visszaállítás
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
+                    <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
+                        MINDEN ADAT TÖRLÉSE
                     </button>
                 </div>
             </div>
         </aside>
     </section>
+
+    <!-- Modal: Wiki / Help / Donate -->
+    <div id="wiki-modal" class="modal">
+        <div class="modal-content" style="max-width:800px; height: 90vh;">
+            <div style="display:flex; justify-content:space-between; padding:20px; border-bottom:1px solid var(--border);">
+                <h3>Epubly.hu - Wiki & Támogatás</h3>
+                <button class="icon-btn modal-close">&times;</button>
+            </div>
+            <div class="wiki-content">
+                <h2>Rólunk</h2>
+                <p>Az Epubly.hu egy ingyenes, hobbi projekt, melynek célja egy modern, reklámmentes és gyors e-könyv olvasó biztosítása mindenki számára. Az alkalmazás kliens oldalon fut, tehát a könyveid a saját eszközödön maradnak, nem töltjük fel őket sehova.</p>
+                
+                <h2>Használati Útmutató</h2>
+                <ul>
+                    <li><b>Importálás:</b> Húzd be az .epub fájlt a könyvtár nézetbe, vagy használd a gombot.</li>
+                    <li><b>Olvasás:</b> A fejezetek automatikusan betöltődnek lefelé és felfelé görgetve.</li>
+                    <li><b>Kiemelés:</b> Jelölj ki szöveget az egérrel, majd válassz színt. Képekre kattintva könyvjelzőzheted őket.</li>
+                    <li><b>Beállítások:</b> A jobb felső sarokban található ikonnal testreszabhatod a betűket, színeket és a hátteret.</li>
+                </ul>
+
+                <h2>Támogatás (Donate)</h2>
+                <p>Mivel az oldal ingyenes, minden támogatást hálásan köszönök! Ha szeretnéd segíteni a fejlesztést, az alábbi módokon teheted meg:</p>
+                
+                <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin:20px 0; text-align:center;">
+                    <h3 style="color:var(--brand);">MOHU REpont Támogatás</h3>
+                    <p style="font-size:0.9rem; margin-bottom:15px;">Váltsd vissza a palackokat a támogatásomra! Nyomtasd ki ezt a kártyát, és használd az automatáknál.</p>
+                    
+                    <!-- MOHU CARD GENERATOR -->
+                    <div class="mohu-card">
+                        <div class="mohu-header">
+                            <span>MOHU</span>
+                            <span>REPONT</span>
+                        </div>
+                        <div class="mohu-qr">
+                            <!-- Placeholder SVG QR Code -->
+                            <svg viewBox="0 0 100 100" width="70" height="70" fill="black">
+                                <rect x="10" y="10" width="30" height="30"/>
+                                <rect x="60" y="10" width="30" height="30"/>
+                                <rect x="10" y="60" width="30" height="30"/>
+                                <rect x="50" y="50" width="10" height="10"/>
+                                <rect x="70" y="60" width="10" height="10"/>
+                                <rect x="55" y="75" width="15" height="15"/>
+                                <rect x="15" y="15" width="20" height="20" fill="white"/>
+                                <rect x="65" y="15" width="20" height="20" fill="white"/>
+                                <rect x="15" y="65" width="20" height="20" fill="white"/>
+                                <rect x="20" y="20" width="10" height="10"/>
+                                <rect x="70" y="20" width="10" height="10"/>
+                                <rect x="20" y="70" width="10" height="10"/>
+                            </svg>
+                        </div>
+                        <div class="mohu-details">
+                            <div>Beneficiary ID: EPUB-DEV-01</div>
+                            <div class="mohu-name">Epubly.hu Támogatás</div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
+                </div>
+
+                <div style="text-align:center; margin-top:30px;">
+                    <p>Hamarosan PayPal támogatás is elérhető lesz!</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Details -->
     <div id="book-details-modal" class="modal">
