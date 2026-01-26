@@ -12,7 +12,7 @@ const Epubly = {
     reader: {
         async loadBook(bookData, bookId) {
             if (Epubly.state.book) {
-                Epubly.tts.stop();
+                if (Epubly.tts) Epubly.tts.stop();
                 Epubly.state.book.destroy();
             }
             
@@ -24,12 +24,14 @@ const Epubly = {
                 Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
                     width: "100%", height: "100%",
                     flow: isScrolled ? "scrolled-doc" : "paginated",
-                    spread: "auto"
+                    spread: settings.readingFlow === 'spread' ? "always" : "auto"
                 });
 
                 document.getElementById('viewer').classList.toggle('scrolled', isScrolled);
-                document.getElementById('prev').style.display = isScrolled ? 'none' : 'block';
-                document.getElementById('next').style.display = isScrolled ? 'none' : 'block';
+                
+                // Hide nav zones if scrolled
+                const navZones = document.querySelectorAll('.nav-zone');
+                navZones.forEach(nz => nz.style.display = isScrolled ? 'none' : 'block');
 
                 const location = Epubly.storage.getLocation(bookId);
                 await Epubly.state.rendition.display(location || undefined);
@@ -37,9 +39,6 @@ const Epubly = {
                 Epubly.storage.saveLastOpenedBook(bookId);
                 Epubly.state.currentBookId = bookId;
                 
-                // Initialize bookmarks for this book
-                Epubly.bookmarks.render(bookId);
-
                 await Epubly.state.book.ready;
                 Epubly.toc.generate(Epubly.state.book.navigation.toc);
                 this.applySettings(settings);
@@ -49,39 +48,73 @@ const Epubly = {
                     Epubly.storage.saveLocation(bookId, location.start.cfi);
                 });
 
-                Epubly.tts.init();
+                if (Epubly.tts) Epubly.tts.init();
             } catch (error) {
                 console.error("Error loading EPUB:", error);
                 throw new Error("Hiba a könyv feldolgozása közben.");
             }
         },
         nextPage() {
-            Epubly.tts.stop();
+            if (Epubly.tts) Epubly.tts.stop();
             Epubly.state.rendition?.next();
         },
         prevPage() {
-            Epubly.tts.stop();
+            if (Epubly.tts) Epubly.tts.stop();
             Epubly.state.rendition?.prev();
         },
         applySettings(settings) {
             if (!Epubly.state.rendition || !Epubly.state.book.isOpen) return;
             const themes = Epubly.state.rendition.themes;
             themes.fontSize(`${settings.fontSize}%`);
-            themes.override("padding", `0 ${settings.margin}px`);
+            // EPUB.js padding override needs care, sometimes it breaks layout. Removed direct padding override for now.
             themes.override("line-height", settings.lineHeight);
             themes.override("letter-spacing", `${settings.letterSpacing}px`);
+            
+            // Text Align
+            themes.override("text-align", settings.textAlign);
 
-            themes.register("custom", { "body": { "color": settings.textColor, "background-color": settings.bgColor } });
+            themes.register("custom", { 
+                "body": { 
+                    "color": settings.textColor, 
+                    "background-color": "transparent",
+                    "font-family": settings.fontFamily
+                },
+                "p": {
+                    "font-family": settings.fontFamily,
+                    "text-align": settings.textAlign
+                }
+            });
             themes.select("custom");
+
+            // Apply global background
+            document.getElementById('reader-main').style.backgroundColor = settings.bgColor;
+            
+            // Pattern
+            const overlay = document.getElementById('pattern-overlay');
+            if (settings.pattern === 'paper') {
+                overlay.style.backgroundImage = 'radial-gradient(#000 1px, transparent 0)';
+                overlay.style.backgroundSize = '20px 20px';
+                overlay.style.opacity = '0.1';
+            } else if (settings.pattern === 'lines') {
+                overlay.style.backgroundImage = 'repeating-linear-gradient(0deg, transparent, transparent 19px, #000 20px)';
+                overlay.style.backgroundSize = '100% 20px';
+                overlay.style.opacity = '0.05';
+            } else if (settings.pattern === 'noise') {
+                 overlay.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22 opacity=%221%22/%3E%3C/svg%3E")';
+                 overlay.style.opacity = '0.15';
+            } else {
+                overlay.style.backgroundImage = 'none';
+            }
         }
     },
 
     toc: {
         generate(tocItems) {
-            const tocList = Epubly.dom.tocList;
+            const tocList = document.getElementById('toc-list');
+            if(!tocList) return;
             tocList.innerHTML = '';
             if (!tocItems || tocItems.length === 0) {
-                tocList.innerHTML = '<li>Nincs tartalomjegyzék.</li>';
+                tocList.innerHTML = '<li><span style="color:var(--text-muted); padding:8px; display:block;">Nincs tartalomjegyzék.</span></li>';
                 return;
             }
             const fragment = document.createDocumentFragment();
@@ -89,7 +122,28 @@ const Epubly = {
                 const a = document.createElement('a');
                 a.textContent = item.label.trim();
                 a.href = item.href;
-                a.addEventListener('click', (e) => { e.preventDefault(); Epubly.state.rendition.display(item.href); });
+                a.style.display = "block";
+                a.style.padding = "8px";
+                a.style.color = "var(--text-muted)";
+                a.style.textDecoration = "none";
+                a.style.cursor = "pointer";
+                a.style.borderRadius = "4px";
+
+                a.addEventListener('mouseenter', () => { a.style.color = "var(--text)"; a.style.backgroundColor = "var(--surface-alt)"; });
+                a.addEventListener('mouseleave', () => { 
+                    if(!a.classList.contains('active')) {
+                        a.style.color = "var(--text-muted)"; a.style.backgroundColor = "transparent"; 
+                    }
+                });
+                
+                a.addEventListener('click', (e) => { 
+                    e.preventDefault(); 
+                    Epubly.state.rendition.display(item.href); 
+                    // On mobile, close sidebar after click
+                    if(window.innerWidth < 800) {
+                        document.getElementById('reader-sidebar-left').classList.remove('visible');
+                    }
+                });
                 const li = document.createElement('li');
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -97,73 +151,27 @@ const Epubly = {
             tocList.appendChild(fragment);
         },
         updateActive(currentHref) {
-            const links = Epubly.dom.tocList.querySelectorAll('a');
+            const tocList = document.getElementById('toc-list');
+            if(!tocList) return;
+            const links = tocList.querySelectorAll('a');
             links.forEach(link => {
-                link.classList.toggle('active', link.getAttribute('href').split('#')[0] === currentHref.split('#')[0]);
-            });
-        }
-    },
-    
-    bookmarks: {
-        get(bookId) {
-            return JSON.parse(localStorage.getItem(`epubly-bookmarks-${bookId}`)) || [];
-        },
-        add() {
-            if (!Epubly.state.rendition) return;
-            const location = Epubly.state.rendition.currentLocation();
-            if (!location || !location.start) return;
-            
-            const bookId = Epubly.state.currentBookId;
-            const cfi = location.start.cfi;
-            const label = `Oldal ${location.start.displayed.page}` || `Könyvjelző ${new Date().toLocaleTimeString()}`; // Simple label fallback
-            
-            const bookmarks = this.get(bookId);
-            // Avoid duplicates based on CFI
-            if (bookmarks.some(b => b.cfi === cfi)) {
-                alert("Ez az oldal már el van mentve.");
-                return;
-            }
-            
-            bookmarks.push({ cfi, label: `Pozíció: ${Math.round(location.start.percentage * 100)}%`, created: Date.now() });
-            localStorage.setItem(`epubly-bookmarks-${bookId}`, JSON.stringify(bookmarks));
-            this.render(bookId);
-        },
-        remove(bookId, cfi) {
-            const bookmarks = this.get(bookId).filter(b => b.cfi !== cfi);
-            localStorage.setItem(`epubly-bookmarks-${bookId}`, JSON.stringify(bookmarks));
-            this.render(bookId);
-        },
-        render(bookId) {
-            const list = Epubly.dom.bookmarksList;
-            const bookmarks = this.get(bookId);
-            list.innerHTML = '';
-            
-            if (bookmarks.length === 0) {
-                list.innerHTML = '<li class="empty-state">Még nincs mentett könyvjelződ ehhez a könyvhöz.</li>';
-                return;
-            }
-            
-            bookmarks.sort((a, b) => b.created - a.created).forEach(b => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <div class="bookmark-link" title="${b.cfi}">${b.label} <small style="color:var(--text-muted);">(${new Date(b.created).toLocaleDateString()})</small></div>
-                    <button class="delete-bookmark-btn" title="Törlés">&times;</button>
-                `;
-                li.querySelector('.bookmark-link').addEventListener('click', () => {
-                    Epubly.state.rendition.display(b.cfi);
-                });
-                li.querySelector('.delete-bookmark-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.remove(bookId, b.cfi);
-                });
-                list.appendChild(li);
+                const isActive = link.getAttribute('href').split('#')[0] === currentHref.split('#')[0];
+                link.classList.toggle('active', isActive);
+                if(isActive) {
+                    link.style.color = "var(--brand)";
+                    link.style.fontWeight = "bold";
+                } else {
+                    link.style.color = "var(--text-muted)";
+                    link.style.fontWeight = "normal";
+                }
             });
         }
     },
 
     library: {
         async render() {
-            const grid = Epubly.dom.libraryGrid;
+            const grid = document.getElementById('library-grid');
+            if(!grid) return;
             grid.innerHTML = '<div class="spinner"></div>';
             const books = await Epubly.storage.db.getAllBooks();
             grid.innerHTML = '';
@@ -176,32 +184,14 @@ const Epubly = {
             books.forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-card';
-                card.dataset.bookId = book.id;
                 card.innerHTML = `
-                    <div class="book-card-cover">
+                    <div class="book-cover">
                         <img src="${book.metadata.coverUrl || ''}" alt="Borító" onerror="this.style.display='none'">
                     </div>
-                    <div class="book-card-info">
-                        <div class="book-card-title">${book.metadata.title}</div>
-                        <div class="book-card-author">${book.metadata.creator}</div>
-                    </div>
-                    <button class="book-card-menu-btn" data-book-id="${book.id}">&#x22EE;</button>
+                    <div class="book-title">${book.metadata.title}</div>
+                    <div class="book-author">${book.metadata.creator}</div>
                 `;
-                card.querySelector('.book-card-cover').addEventListener('click', async () => {
-                    Epubly.ui.showLoader('Könyv betöltése...');
-                    try {
-                        await Epubly.reader.loadBook(book.data, book.id);
-                        Epubly.ui.showReaderView();
-                    } catch (e) {
-                        alert(e.message);
-                    } finally {
-                        Epubly.ui.hideLoader();
-                    }
-                });
-                card.querySelector('.book-card-menu-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    Epubly.ui.showBookInfoModal(book);
-                });
+                card.onclick = () => Epubly.ui.showBookInfoModal(book);
                 grid.appendChild(card);
             });
         }
@@ -210,35 +200,60 @@ const Epubly = {
     settings: {
         init() {
             this.load();
-            Epubly.dom.fontSizeSlider.addEventListener('input', () => this.handleUpdate('fontSize', Epubly.dom.fontSizeSlider.value));
-            Epubly.dom.marginSlider.addEventListener('input', () => this.handleUpdate('margin', Epubly.dom.marginSlider.value));
-            Epubly.dom.lineHeightSlider.addEventListener('input', () => this.handleUpdate('lineHeight', Epubly.dom.lineHeightSlider.value));
-            Epubly.dom.letterSpacingSlider.addEventListener('input', () => this.handleUpdate('letterSpacing', Epubly.dom.letterSpacingSlider.value));
-            Epubly.dom.textColorPicker.addEventListener('input', () => this.handleUpdate('textColor', Epubly.dom.textColorPicker.value, true));
-            Epubly.dom.bgColorPicker.addEventListener('input', () => this.handleUpdate('bgColor', Epubly.dom.bgColorPicker.value, true));
-
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.addEventListener('click', () => this.applyThemePreset(btn.dataset.theme));
-            });
-
-            document.querySelectorAll('input[name="reading-mode"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    this.handleUpdate('readingFlow', e.target.value, false, true); // requires reload
+            // Bind inputs from UI
+            const bind = (id, key, needsReload = false) => {
+                const el = document.getElementById(id);
+                if(el) el.addEventListener(el.tagName === 'INPUT' || el.tagName === 'SELECT' ? 'change' : 'click', (e) => {
+                    let val = e.target.value;
+                    // Handle buttons in toggle groups
+                    if(e.target.classList.contains('toggle-btn')) {
+                        val = e.target.dataset.val;
+                    }
+                    this.handleUpdate(key, val, false, needsReload);
                 });
-            });
+            };
 
-            document.querySelectorAll('.settings-tab').forEach(tab => {
-                tab.addEventListener('click', () => Epubly.ui.switchSettingsTab(tab.dataset.tab));
-            });
+            const bindInput = (id, key) => {
+                const el = document.getElementById(id);
+                if(el) el.addEventListener('input', (e) => this.handleUpdate(key, e.target.value));
+            }
 
-            Epubly.dom.clearCacheBtn.addEventListener('click', Epubly.storage.clearAllBooks);
+            bindInput('font-size-range', 'fontSize');
+            bindInput('line-height-range', 'lineHeight');
+            bindInput('letter-spacing-range', 'letterSpacing');
+            bindInput('bg-color-picker', 'bgColor');
+            bindInput('text-color-picker', 'textColor');
+            
+            const bindToggleGroup = (groupId, key, needsReload) => {
+                const group = document.getElementById(groupId);
+                if(!group) return;
+                group.querySelectorAll('.toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.handleUpdate(key, btn.dataset.val, false, needsReload);
+                    });
+                });
+            }
+
+            bindToggleGroup('layout-toggle-group', 'readingFlow', true);
+            bindToggleGroup('align-toggle-group', 'textAlign');
+            bindToggleGroup('theme-toggle-group', 'theme');
+            
+            const fontSelect = document.getElementById('font-family-select');
+            if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
+
+            const patternSelect = document.getElementById('pattern-select');
+            if(patternSelect) patternSelect.addEventListener('change', (e) => this.handleUpdate('pattern', e.target.value));
+
+            const clearBtn = document.getElementById('btn-clear-cache');
+            if(clearBtn) clearBtn.addEventListener('click', Epubly.storage.clearAllBooks);
         },
 
         get() {
             const defaults = {
-                fontSize: '100', margin: '40', lineHeight: '1.6', letterSpacing: '0',
+                fontSize: '100', lineHeight: '1.6', letterSpacing: '0',
                 readingFlow: 'paginated', theme: 'oled',
-                textColor: '#EDEDED', bgColor: '#000000'
+                textAlign: 'left', fontFamily: "'Inter', sans-serif",
+                textColor: '#EDEDED', bgColor: '#000000', pattern: 'none'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
             return { ...defaults, ...saved };
@@ -250,53 +265,63 @@ const Epubly = {
 
         load() {
             const s = this.get();
-            Epubly.dom.fontSizeSlider.value = s.fontSize;
-            Epubly.dom.marginSlider.value = s.margin;
-            Epubly.dom.lineHeightSlider.value = s.lineHeight;
-            Epubly.dom.letterSpacingSlider.value = s.letterSpacing;
-            Epubly.dom.textColorPicker.value = s.textColor;
-            Epubly.dom.bgColorPicker.value = s.bgColor;
-            document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector(`.theme-btn[data-theme="${s.theme}"]`)?.classList.add('active');
-            document.querySelector(`input[name="reading-mode"][value="${s.readingFlow}"]`).checked = true;
+            const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+            setVal('font-size-range', s.fontSize);
+            setVal('line-height-range', s.lineHeight);
+            setVal('letter-spacing-range', s.letterSpacing);
+            setVal('text-color-picker', s.textColor);
+            setVal('bg-color-picker', s.bgColor);
+            setVal('font-family-select', s.fontFamily);
+            setVal('pattern-select', s.pattern);
+
+            // Update toggle buttons active state
+            const updateToggle = (groupId, val) => {
+                const g = document.getElementById(groupId);
+                if(g) {
+                    g.querySelectorAll('.toggle-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.val === val);
+                    });
+                }
+            };
+            updateToggle('layout-toggle-group', s.readingFlow);
+            updateToggle('align-toggle-group', s.textAlign);
+            updateToggle('theme-toggle-group', s.theme);
 
             Epubly.reader.applySettings(s);
         },
 
         handleUpdate(key, value, isCustomTheme = false, requiresReload = false) {
             const s = this.get();
+            
+            // Special case for presets
+            if(key === 'theme') {
+                const presets = {
+                    oled: { textColor: '#EDEDED', bgColor: '#000000' },
+                    sepia: { textColor: '#5b4636', bgColor: '#fbf0d9' },
+                    light: { textColor: '#111111', bgColor: '#ffffff' },
+                };
+                if(presets[value]) {
+                    s.textColor = presets[value].textColor;
+                    s.bgColor = presets[value].bgColor;
+                    // Update pickers
+                    const tcp = document.getElementById('text-color-picker'); if(tcp) tcp.value = s.textColor;
+                    const bcp = document.getElementById('bg-color-picker'); if(bcp) bcp.value = s.bgColor;
+                }
+            }
+            
             s[key] = value;
-            if (isCustomTheme) s.theme = 'custom';
             this.save(s);
-            Epubly.reader.applySettings(s);
-            if (!isCustomTheme) {
-                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-            }
+            this.load(); // Refresh UI states
+
             if (requiresReload && Epubly.state.currentBookId) {
-                Epubly.ui.showLoader('Beállítások alkalmazása...');
-                Epubly.loadInitialBook().catch(console.error);
+                Epubly.ui.showLoader('Nézet frissítése...');
+                // Small delay to allow loader to appear
+                setTimeout(() => {
+                    Epubly.storage.db.getBook(Epubly.state.currentBookId).then(book => {
+                         Epubly.reader.loadBook(book.data, book.id).then(() => Epubly.ui.hideLoader());
+                    });
+                }, 100);
             }
-        },
-
-        applyThemePreset(themeName) {
-            const themes = {
-                oled: { textColor: '#EDEDED', bgColor: '#000000' },
-                sepia: { textColor: '#5b4636', bgColor: '#fbf0d9' },
-                light: { textColor: '#111111', bgColor: '#ffffff' },
-            };
-            if (!themes[themeName]) return;
-
-            const s = this.get();
-            s.theme = themeName;
-            s.textColor = themes[themeName].textColor;
-            s.bgColor = themes[themeName].bgColor;
-            this.save(s);
-
-            Epubly.dom.textColorPicker.value = s.textColor;
-            Epubly.dom.bgColorPicker.value = s.bgColor;
-            document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector(`.theme-btn[data-theme="${themeName}"]`)?.classList.add('active');
-            Epubly.reader.applySettings(s);
         }
     },
 
@@ -307,7 +332,7 @@ const Epubly = {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
                     const request = indexedDB.open('EpublyDB', 2);
-                    request.onerror = e => reject("IndexedDB error: " + e.target.errorCode);
+                    request.onerror = e => reject("IndexedDB error");
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
@@ -380,21 +405,20 @@ const Epubly = {
                     coverBlobUrl = URL.createObjectURL(blob);
                 }
 
-                const finalId = isDefault ? bookId : `${metadata.title}-${Date.now()}`;
+                const finalId = isDefault ? bookId : `${Date.now()}`;
                 const bookRecord = {
                     id: finalId, data: arrayBuffer,
                     metadata: {
                         title: metadata.title || 'Ismeretlen cím', creator: metadata.creator || 'Ismeretlen szerző',
-                        publisher: metadata.publisher, pubdate: metadata.pubdate, coverUrl: coverBlobUrl
+                        publisher: metadata.publisher, pubdate: metadata.pubdate, coverUrl: coverBlobUrl, description: metadata.description
                     }
                 };
                 await this.db.saveBook(bookRecord);
                 tempBook.destroy();
-                console.log(`Book "${metadata.title}" saved.`);
                 return bookRecord;
             } catch (err) {
-                console.error("Error parsing EPUB for metadata:", err);
-                throw new Error("Hiba a könyv metaadatainak olvasása közben. A fájl valószínűleg sérült.");
+                console.error("Error parsing EPUB:", err);
+                throw new Error("Hiba a könyv olvasása közben.");
             }
         },
         async handleFileUpload(file) {
@@ -402,9 +426,8 @@ const Epubly = {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const bookRecord = await this.importBook(arrayBuffer);
-                await Epubly.reader.loadBook(bookRecord.data, bookRecord.id);
                 Epubly.ui.hideModal('import-modal');
-                Epubly.ui.showReaderView();
+                await Epubly.library.render();
             } catch (error) {
                 alert(error.message);
             } finally {
@@ -416,303 +439,152 @@ const Epubly = {
         saveLocation(bookId, cfi) { if (bookId && cfi) localStorage.setItem(`epubly-location-${bookId}`, cfi); },
         getLocation(bookId) { return localStorage.getItem(`epubly-location-${bookId}`); },
         async clearAllBooks() {
-            if (confirm("Biztosan törölni szeretnéd az összes könyvet? Ez a művelet nem vonható vissza.")) {
+            if (confirm("Biztosan törölni szeretnéd az összes könyvet?")) {
                 await Epubly.storage.db.clearBooks();
                 localStorage.removeItem('epubly-lastBookId');
-                Object.keys(localStorage).forEach(key => {
-                    if (key.startsWith('epubly-location-')) {
-                        localStorage.removeItem(key);
-                    }
-                });
-
-                alert("Minden könyv törölve.");
-                await Epubly.library.render();
-                await Epubly.loadInitialBook();
+                location.reload();
             }
-        }
-    },
-
-    search: {
-        init() {
-            Epubly.dom.searchBtn.addEventListener('click', () => this.performSearch());
-            Epubly.dom.searchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') this.performSearch();
-            });
-        },
-        async performSearch() {
-            const query = Epubly.dom.searchInput.value.trim();
-            if (query.length < 3) {
-                alert("A kereséshez legalább 3 karakter szükséges.");
-                return;
-            }
-            if (!Epubly.state.book) return;
-
-            const list = Epubly.dom.searchResultsList;
-            list.innerHTML = '<li><div class="spinner"></div><p>Keresés folyamatban...</p></li>';
-
-            try {
-                const searchPromises = Epubly.state.book.spine.sections.map(section => {
-                    return section.load().then(() => {
-                        const results = section.find(query);
-                        section.unload();
-                        return results;
-                    });
-                });
-
-                const results = await Promise.all(searchPromises);
-                const flatResults = results.flat();
-                this.renderResults(flatResults, query);
-            } catch (error) {
-                console.error("Search failed:", error);
-                list.innerHTML = '<li>Hiba történt a keresés során.</li>';
-            }
-        },
-        renderResults(results, query) {
-            const list = Epubly.dom.searchResultsList;
-            list.innerHTML = '';
-            if (results.length === 0) {
-                list.innerHTML = '<li>Nincs találat.</li>';
-                return;
-            }
-
-            const fragment = document.createDocumentFragment();
-            results.forEach(result => {
-                const li = document.createElement('li');
-                li.dataset.cfi = result.cfi;
-                const excerpt = result.excerpt.replace(new RegExp(`(${query})`, 'gi'), '<strong>$1</strong>');
-                li.innerHTML = `<div class="excerpt">${excerpt}</div>`;
-                li.addEventListener('click', () => {
-                    Epubly.state.rendition.display(result.cfi);
-                    Epubly.ui.showReaderView();
-                });
-                fragment.appendChild(li);
-            });
-            list.appendChild(fragment);
-        }
-    },
-
-    tts: {
-        init() {
-            if ('speechSynthesis' in window) {
-                Epubly.dom.ttsControls.style.display = 'flex';
-                Epubly.dom.ttsPlayBtn.addEventListener('click', () => this.play());
-                Epubly.dom.ttsPauseBtn.addEventListener('click', () => this.pause());
-                Epubly.dom.ttsStopBtn.addEventListener('click', () => this.stop());
-            } else {
-                console.warn("Text-to-Speech not supported in this browser.");
-                Epubly.dom.ttsControls.style.display = 'none';
-            }
-        },
-        async play() {
-            if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
-                window.speechSynthesis.resume();
-                this.updateUI('playing');
-                return;
-            }
-
-            const contents = await Epubly.state.rendition.getContents();
-            const text = contents[0].document.body.innerText;
-
-            if (text) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = Epubly.state.book.metadata.language || 'hu-HU';
-                utterance.onend = () => { this.updateUI('stopped'); };
-                window.speechSynthesis.cancel(); // Stop previous speech
-                window.speechSynthesis.speak(utterance);
-                this.updateUI('playing');
-            }
-        },
-        pause() {
-            window.speechSynthesis.pause();
-            this.updateUI('paused');
-        },
-        stop() {
-            window.speechSynthesis.cancel();
-            this.updateUI('stopped');
-        },
-        updateUI(state) {
-            Epubly.dom.ttsPlayBtn.style.display = (state === 'playing') ? 'none' : 'flex';
-            Epubly.dom.ttsPauseBtn.style.display = (state === 'playing') ? 'flex' : 'none';
-            Epubly.dom.ttsStopBtn.style.display = (state === 'playing' || state === 'paused') ? 'flex' : 'none';
         }
     },
 
     ui: {
         init() {
-            const ids = ['topbar', 'sidebar-left', 'sidebar-right', 'main-content', 'viewer', 'prev', 'next', 'loader', 'toc-list', 'zen-mode-btn', 'import-modal', 'settings-modal', 'epub-file', 'font-size-slider', 'margin-slider', 'import-book-sidebar-btn', 'library-grid', 'line-height-slider', 'letter-spacing-slider', 'text-color-picker', 'bg-color-picker', 'clear-cache-btn', 'book-info-modal', 'delete-book-btn', 'book-info-meta', 'book-info-cover', 'search-input', 'search-btn', 'search-results-list', 'tts-controls', 'tts-play-btn', 'tts-pause-btn', 'tts-stop-btn', 'app-footer', 'footer-year', 'footer-version', 'toggle-bookmarks-btn', 'bookmarks-list', 'add-bookmark-btn'];
-            ids.forEach(id => Epubly.dom[id.replace(/-(\w)/g, (m, g) => g.toUpperCase())] = document.getElementById(id));
-            Epubly.dom.navLinks = document.querySelectorAll('.nav-link');
-            Epubly.dom.modalCloseBtns = document.querySelectorAll('.modal-close-btn');
-            this.attachEventListeners();
-            this.setFooter();
-        },
-        attachEventListeners() {
-            Epubly.dom.prev.addEventListener('click', () => Epubly.reader.prevPage());
-            Epubly.dom.next.addEventListener('click', () => Epubly.reader.nextPage());
-            document.addEventListener('keydown', e => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                if (e.key === 'ArrowLeft') Epubly.reader.prevPage();
-                if (e.key === 'ArrowRight') Epubly.reader.nextPage();
+            // Bind Nav Clicks
+            document.getElementById('nav-prev').addEventListener('click', () => Epubly.reader.prevPage());
+            document.getElementById('nav-next').addEventListener('click', () => Epubly.reader.nextPage());
+            
+            // Sidebar Close
+            document.getElementById('btn-close-sidebar').addEventListener('click', () => {
+                document.getElementById('reader-sidebar-left').classList.remove('visible');
             });
-            Epubly.dom.zenModeBtn.addEventListener('click', this.toggleZenMode);
-            Epubly.dom.toggleBookmarksBtn.addEventListener('click', this.toggleRightSidebar);
-            Epubly.dom.addBookmarkBtn.addEventListener('click', () => Epubly.bookmarks.add());
-            Epubly.dom.navLinks.forEach(link => link.addEventListener('click', e => { e.preventDefault(); this.handleNavClick(e.currentTarget); }));
-            Epubly.dom.modalCloseBtns.forEach(btn => btn.addEventListener('click', () => this.hideModal(btn.dataset.target)));
-            Epubly.dom.epubFile.addEventListener('change', e => { if (e.target.files[0]) Epubly.storage.handleFileUpload(e.target.files[0]); });
-            Epubly.dom.importBookSidebarBtn.addEventListener('click', () => this.showModal('import-modal'));
-        },
-        toggleZenMode() { 
-            Epubly.state.isZenMode = !Epubly.state.isZenMode; 
-            document.body.classList.toggle('zen-mode', Epubly.state.isZenMode);
-            Epubly.dom.zenModeBtn.classList.toggle('active', Epubly.state.isZenMode);
-        },
-        toggleRightSidebar() {
-            Epubly.dom.sidebarRight.classList.toggle('visible');
-            Epubly.dom.toggleBookmarksBtn.classList.toggle('active');
-        },
-        handleNavClick(target) {
-            const targetId = target.dataset.target;
-            Epubly.dom.navLinks.forEach(l => l.classList.remove('active'));
-            target.classList.add('active');
-            if (targetId === 'reader') { this.showReaderView(); }
-            else if (targetId === 'library') { this.showLibraryView(); }
-            else if (targetId === 'search') { this.showSearchView(); }
-            else if (targetId === 'settings') { this.showModal('settings-modal'); }
-        },
-        showReaderView() {
-            this.showSidebarPanel('toc');
-            Epubly.dom.navLinks.forEach(l => l.classList.remove('active'));
-            document.querySelector('.nav-link[data-target="reader"]').classList.add('active');
-        },
-        showLibraryView() {
-            this.showSidebarPanel('library-sidebar');
-            Epubly.library.render();
-            Epubly.dom.sidebarRight.classList.remove('visible');
-            Epubly.dom.toggleBookmarksBtn.classList.remove('active');
-        },
-        showSearchView() {
-            this.showSidebarPanel('search');
-            Epubly.dom.searchInput.focus();
-            Epubly.dom.sidebarRight.classList.remove('visible');
-            Epubly.dom.toggleBookmarksBtn.classList.remove('active');
-        },
-        showSidebarPanel(panelId) {
-            document.querySelectorAll('#sidebar-left .sidebar-panel').forEach(p => p.classList.remove('active'));
-            document.getElementById(`panel-${panelId}`).classList.add('active');
+
+            // Library Actions
+            const importBtn = document.getElementById('btn-import-trigger');
+            if(importBtn) importBtn.addEventListener('click', () => this.showModal('import-modal'));
+            
+            const settingsBtn = document.getElementById('btn-settings-trigger');
+            if(settingsBtn) settingsBtn.addEventListener('click', () => this.showModal('settings-modal'));
+
+            // Modal Close Buttons
+            document.querySelectorAll('.modal-close').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.target.closest('.modal').classList.remove('visible');
+                });
+            });
+
+            // Keys
+            document.addEventListener('keydown', e => {
+                if(Epubly.state.currentBookId && document.getElementById('reader-view').classList.contains('active')) {
+                     if (e.key === 'ArrowLeft') Epubly.reader.prevPage();
+                     if (e.key === 'ArrowRight') Epubly.reader.nextPage();
+                }
+            });
         },
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
         showLoader(msg) { 
-            if(Epubly.dom.loader) {
-                Epubly.dom.loader.classList.remove('hidden');
-                Epubly.dom.loader.querySelector('p').textContent = msg;
-            }
+            const l = document.getElementById('loader');
+            l.classList.remove('hidden');
+            document.getElementById('loader-msg').textContent = msg;
+            document.getElementById('loader-error').style.display = 'none';
+            document.getElementById('retry-btn').style.display = 'none';
         },
-        hideLoader() { 
-            if(Epubly.dom.loader) {
-                Epubly.dom.loader.classList.add('hidden'); 
-            }
+        hideLoader() { document.getElementById('loader').classList.add('hidden'); },
+        showReaderView() {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('reader-view').classList.add('active');
+            
+            // Update Header actions for Reader
+            const actions = document.getElementById('top-actions-container');
+            actions.innerHTML = `
+                <button class="btn btn-secondary" onclick="Epubly.reader.loadBook(null); Epubly.ui.showLibraryView()">Vissza</button>
+                <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.add('visible')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+            `;
+            const headerTitle = document.getElementById('header-title');
+            headerTitle.textContent = Epubly.state.book ? Epubly.state.book.metadata.title : 'Olvasó';
         },
-        switchSettingsTab(tabId) {
-            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.settings-tab[data-tab="${tabId}"]`).classList.add('active');
-            document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
-            document.getElementById(`settings-panel-${tabId}`).classList.add('active');
+        showLibraryView() {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('library-view').classList.add('active');
+            document.getElementById('top-actions-container').innerHTML = '';
+            document.getElementById('header-title').textContent = 'Könyvtár';
+            Epubly.library.render();
         },
         showBookInfoModal(book) {
-            Epubly.dom.bookInfoCover.src = book.metadata.coverUrl || '';
-            Epubly.dom.bookInfoCover.style.display = book.metadata.coverUrl ? 'block' : 'none';
-            Epubly.dom.bookInfoMeta.innerHTML = `
-                <p><strong>Cím:</strong> ${book.metadata.title}</p>
-                <p><strong>Szerző:</strong> ${book.metadata.creator}</p>
-                <p><strong>Kiadó:</strong> ${book.metadata.publisher || 'N/A'}</p>
-                <p><strong>Dátum:</strong> ${book.metadata.pubdate || 'N/A'}</p>
-            `;
-            Epubly.dom.deleteBookBtn.onclick = async () => {
-                if (confirm(`Biztosan törlöd a "${book.metadata.title}" című könyvet?`)) {
+            document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
+            document.getElementById('detail-title').textContent = book.metadata.title;
+            document.getElementById('detail-author').textContent = book.metadata.creator;
+            document.getElementById('detail-desc').innerHTML = book.metadata.description || 'Nincs leírás.';
+            
+            document.getElementById('btn-read-book').onclick = async () => {
+                this.hideModal('book-details-modal');
+                this.showLoader('Könyv megnyitása...');
+                try {
+                    await Epubly.reader.loadBook(book.data, book.id);
+                    this.showReaderView();
+                } catch(e) { alert(e.message); } finally { this.hideLoader(); }
+            };
+
+            document.getElementById('btn-delete-book').onclick = async () => {
+                if(confirm('Törlöd?')) {
                     await Epubly.storage.db.deleteBook(book.id);
-                    if (book.metadata.coverUrl && book.metadata.coverUrl.startsWith('blob:')) {
-                        URL.revokeObjectURL(book.metadata.coverUrl);
-                    }
-                    this.hideModal('book-info-modal');
-                    await Epubly.library.render();
-                    if (Epubly.state.currentBookId === book.id) {
-                        await Epubly.loadInitialBook();
-                    }
+                    this.hideModal('book-details-modal');
+                    Epubly.library.render();
                 }
             };
-            this.showModal('book-info-modal');
-        },
-        setFooter() {
-            Epubly.dom.footerYear.textContent = new Date().getFullYear();
-            Epubly.dom.footerVersion.textContent = version;
+
+            this.showModal('book-details-modal');
         }
     },
     
-    async loadInitialBook() {
-        this.ui.showLoader('Alkalmazás indítása...');
-        try {
-            const lastBookId = this.storage.getLastOpenedBook();
-            let bookRecord = null;
-            if (lastBookId) {
-                bookRecord = await this.storage.db.getBook(lastBookId);
-            }
-
-            if (bookRecord) {
-                await this.reader.loadBook(bookRecord.data, bookRecord.id);
-            } else {
-                const defaultRecord = await this.storage.db.getBook('default-moby-dick');
-                if (defaultRecord) {
-                    await this.reader.loadBook(defaultRecord.data, defaultRecord.id);
-                } else {
-                    this.ui.showLoader('Alapértelmezett könyv letöltése...');
-                    const defaultBookUrl = "https://s3.amazonaws.com/moby-dick/moby-dick.epub";
-                    const response = await fetch(defaultBookUrl);
-                    if (!response.ok) {
-                        throw new Error(`Nem sikerült letölteni az alapértelmezett könyvet: ${response.statusText}`);
-                    }
-                    const arrayBuffer = await response.arrayBuffer();
-                    const importedBook = await this.storage.importBook(arrayBuffer, 'default-moby-dick', true);
-                    await this.reader.loadBook(importedBook.data, importedBook.id);
-                }
-            }
-        } catch (error) {
-            console.error("Fatal error during initial book load:", error);
-            alert(`Hiba a könyv betöltése közben: ${error.message}. Kérjük, ellenőrizze az internetkapcsolatot, vagy importáljon egy saját könyvet.`);
-        } finally {
-            this.ui.hideLoader();
-        }
-    },
-
     async init() {
         try {
-            // Setup footer immediately to ensure version visibility
-            this.ui.setFooter(); 
+            document.getElementById('version-display').textContent = version;
+            document.getElementById('year-display').textContent = new Date().getFullYear();
+            
             this.ui.init();
             this.settings.init();
-            this.search.init();
-
             await this.storage.db.init();
-
-            await this.loadInitialBook();
             
-            console.log(`Epubly Initialized. Version: ${version}`);
-
+            this.library.render();
+            
+            // Check for last open book but don't auto-open to Library view is default as per request
+            // Or auto-open if desired. Let's stick to Library view default to avoid confusion.
+            this.ui.hideLoader();
+            console.log(`Epubly v${version} Initialized.`);
         } catch (error) {
-            console.error("Fatal initialization error:", error);
-            // Even if init fails, we try to show the footer
-            document.getElementById('footer-year').textContent = new Date().getFullYear();
-            document.getElementById('footer-version').textContent = version;
+            console.error("Fatal init error:", error);
+            this.ui.showLoader("Hiba történt!");
+            document.getElementById('loader-error').textContent = error.message;
+            document.getElementById('loader-error').style.display = 'block';
         }
     }
 };
 
+window.Epubly = Epubly;
+
+// Robust initialization loop
+let attempts = 0;
 function attemptInit() {
-    if (window.ePub) {
+    if (window.ePub && window.JSZip) {
         Epubly.init();
     } else {
-        setTimeout(attemptInit, 50);
+        attempts++;
+        if (attempts > 50) { // 2.5 seconds timeout
+            const msg = "Hiba: Az ePub.js vagy JSZip könyvtár nem töltődött be. Ellenőrizd, hogy a 'js/libs/' mappában lévő fájlok nem üresek-e!";
+            console.error(msg);
+            document.getElementById('loader-msg').textContent = "Inicializálási hiba";
+            document.getElementById('loader-error').textContent = msg;
+            document.getElementById('loader-error').style.display = 'block';
+            document.getElementById('retry-btn').style.display = 'block';
+        } else {
+            setTimeout(attemptInit, 50);
+        }
     }
 }
 attemptInit();
