@@ -540,11 +540,16 @@ const Epubly = {
             if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
             
             const clearBtn = document.getElementById('btn-clear-cache');
-            if(clearBtn) clearBtn.addEventListener('click', Epubly.storage.clearAllBooks);
+            if(clearBtn) clearBtn.addEventListener('click', () => {
+                if(confirm("Ez visszaállítja a megjelenítési beállításokat alapértelmezettre (a könyvtár megmarad).")) {
+                    localStorage.removeItem('epubly-settings');
+                    this.load(); // Reload defaults
+                }
+            });
         },
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', margin: '15',
+                fontSize: '100', lineHeight: '1.6', margin: '10', // Safe default
                 textAlign: 'left', fontFamily: "'Inter', sans-serif"
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
@@ -905,7 +910,8 @@ const Epubly = {
             document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
             document.getElementById('detail-title').textContent = book.metadata.title;
             document.getElementById('detail-author').textContent = book.metadata.creator;
-            document.getElementById('detail-desc').textContent = book.metadata.description || "Leírás nem elérhető.";
+            // FIXED: Use innerHTML to render HTML tags in description
+            document.getElementById('detail-desc').innerHTML = book.metadata.description || "Leírás nem elérhető.";
             const stats = book.stats || { totalTime: 0, progress: 0 };
             const minutes = Math.floor(stats.totalTime / 1000 / 60);
             const hours = Math.floor(minutes / 60);
