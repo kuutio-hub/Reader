@@ -18,6 +18,10 @@ const Epubly = {
                 try { Epubly.state.book.destroy(); } catch(e) {}
             }
             
+            // Clean DOM - Critical for "Blank Screen" fix
+            const viewer = document.getElementById('viewer');
+            viewer.innerHTML = '';
+            
             // Reset state
             Epubly.state.book = null;
             Epubly.state.rendition = null;
@@ -36,8 +40,10 @@ const Epubly = {
                 Epubly.state.book = window.ePub(bookData);
                 await Epubly.state.book.ready; // Wait for parsing to finish
 
+                // Render with explicit dimensions
                 Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
-                    width: "100%", height: "100%",
+                    width: "100%", 
+                    height: "100%",
                     flow: isScrolled ? "scrolled-doc" : "paginated",
                     spread: settings.readingFlow === 'spread' ? "always" : "auto"
                 });
@@ -108,26 +114,39 @@ const Epubly = {
         },
         applySettings(settings) {
             if (!Epubly.state.rendition) return;
-            const themes = Epubly.state.rendition.themes;
-            themes.fontSize(`${settings.fontSize}%`);
-            themes.override("line-height", settings.lineHeight);
-            themes.override("letter-spacing", `${settings.letterSpacing}px`);
-            themes.override("text-align", settings.textAlign);
-
-            themes.register("custom", { 
-                "body": { 
-                    "color": settings.textColor, 
-                    "background-color": "transparent",
-                    "font-family": settings.fontFamily
+            
+            // Use themes.default to override book styles more aggressively
+            // Note: We use !important to force overrides over specific book CSS
+            const rules = {
+                'body': { 
+                    'color': `${settings.textColor} !important`, 
+                    'background': `${settings.bgColor} !important`,
+                    'font-family': `${settings.fontFamily} !important`,
+                    'font-size': `${settings.fontSize}% !important`,
+                    'line-height': `${settings.lineHeight} !important`,
+                    // Margin application (applied as padding to body)
+                    'padding-left': `${settings.margin}% !important`,
+                    'padding-right': `${settings.margin}% !important`,
+                    'margin': '0 !important' // Reset native margin
                 },
-                "p": {
-                    "font-family": settings.fontFamily,
-                    "text-align": settings.textAlign
+                'p': {
+                    'font-family': `${settings.fontFamily} !important`,
+                    'font-size': '1em !important',
+                    'line-height': `${settings.lineHeight} !important`,
+                    'text-align': `${settings.textAlign} !important`,
+                    'color': `${settings.textColor} !important`
+                },
+                'a': {
+                    'color': `${settings.textColor} !important`
                 }
-            });
-            themes.select("custom");
+            };
 
-            // Apply global background
+            Epubly.state.rendition.themes.default(rules);
+
+            // Apply specific ePub.js adjustments
+            // themes.fontSize doesn't accept !important natively in some versions, so handled via CSS above
+            
+            // Apply global background to the container outside the iframe as well
             document.getElementById('reader-main').style.backgroundColor = settings.bgColor;
             
             // Pattern
@@ -274,6 +293,7 @@ const Epubly = {
             bindInput('font-size-range', 'fontSize');
             bindInput('line-height-range', 'lineHeight');
             bindInput('letter-spacing-range', 'letterSpacing');
+            bindInput('margin-range', 'margin');
             bindInput('bg-color-picker', 'bgColor');
             bindInput('text-color-picker', 'textColor');
             
@@ -303,7 +323,7 @@ const Epubly = {
 
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', letterSpacing: '0',
+                fontSize: '100', lineHeight: '1.6', letterSpacing: '0', margin: '5',
                 readingFlow: 'paginated', theme: 'oled',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 textColor: '#EDEDED', bgColor: '#000000', pattern: 'none'
@@ -322,6 +342,7 @@ const Epubly = {
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
             setVal('letter-spacing-range', s.letterSpacing);
+            setVal('margin-range', s.margin);
             setVal('text-color-picker', s.textColor);
             setVal('bg-color-picker', s.bgColor);
             setVal('font-family-select', s.fontFamily);
@@ -693,7 +714,7 @@ const Epubly = {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
             const headerTitle = document.getElementById('header-title');
@@ -709,7 +730,7 @@ const Epubly = {
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
 

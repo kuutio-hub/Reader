@@ -11,7 +11,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500&family=Lora:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
     
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
@@ -145,6 +145,10 @@
                             <button class="toggle-btn" data-val="spread">2 Oldal</button>
                         </div>
                     </div>
+                    <div class="settings-row">
+                        <label title="Oldalmargó növelése (keskenyebb szöveg)">Margó (szélesség)</label>
+                        <input type="range" id="margin-range" min="0" max="35" step="1">
+                    </div>
                 </div>
 
                 <!-- Typography Settings -->
@@ -155,6 +159,9 @@
                         <select id="font-family-select">
                             <option value="'Inter', sans-serif">Inter (Sans)</option>
                             <option value="'Merriweather', serif">Merriweather (Serif)</option>
+                            <option value="'Lora', serif">Lora (Serif)</option>
+                            <option value="'Lato', sans-serif">Lato (Sans)</option>
+                            <option value="'Open Sans', sans-serif">Open Sans</option>
                             <option value="'Roboto Mono', monospace">Roboto Mono</option>
                             <option value="'Roboto', sans-serif">Roboto</option>
                         </select>
