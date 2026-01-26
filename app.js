@@ -10,13 +10,12 @@ const Epubly = {
     dom: {},
 
     reader: {
-        init() { this.loadLastOpenedBook(); },
         async loadBook(bookData, bookId) {
             if (Epubly.state.book) {
                 Epubly.tts.stop();
                 Epubly.state.book.destroy();
             }
-            Epubly.ui.showLoader('Könyv feldolgozása...');
+            // Loader is now managed by the calling function (loadInitialBook)
 
             try {
                 const settings = Epubly.settings.get();
@@ -48,37 +47,12 @@ const Epubly = {
                     Epubly.storage.saveLocation(bookId, location.start.cfi);
                 });
 
-                Epubly.ui.hideLoader();
                 Epubly.tts.init();
             } catch (error) {
                 console.error("Error loading EPUB:", error);
-                alert("Hiba a könyv betöltése közben.");
-                Epubly.ui.hideLoader();
-                Epubly.dom.ttsControls.style.display = 'none';
+                // Re-throw the error to be caught by the central handler
+                throw new Error("Hiba a könyv feldolgozása közben.");
             }
-        },
-        async loadDefaultBook() {
-            const defaultBookUrl = "https://s3.amazonaws.com/moby-dick/moby-dick.epub";
-            const bookRecord = await Epubly.storage.db.getBook('default-moby-dick');
-            if (bookRecord) {
-                this.loadBook(bookRecord.data, 'default-moby-dick');
-            } else {
-                console.log("Loading default book for the first time...");
-                Epubly.ui.showLoader('Alapértelmezett könyv letöltése...');
-                const response = await fetch(defaultBookUrl);
-                const arrayBuffer = await response.arrayBuffer();
-                await Epubly.storage.importBook(arrayBuffer, 'default-moby-dick', true);
-                this.loadBook(arrayBuffer, 'default-moby-dick');
-            }
-        },
-        async loadLastOpenedBook() {
-            const lastBookId = Epubly.storage.getLastOpenedBook();
-            if (lastBookId) {
-                const bookRecord = await Epubly.storage.db.getBook(lastBookId);
-                if (bookRecord) {
-                    this.loadBook(bookRecord.data, lastBookId);
-                } else { this.loadDefaultBook(); }
-            } else { this.loadDefaultBook(); }
         },
         nextPage() {
             Epubly.tts.stop();
@@ -155,9 +129,16 @@ const Epubly = {
                     </div>
                     <button class="book-card-menu-btn" data-book-id="${book.id}">&#x22EE;</button>
                 `;
-                card.querySelector('.book-card-cover').addEventListener('click', () => {
-                    Epubly.reader.loadBook(book.data, book.id);
-                    Epubly.ui.showReaderView();
+                card.querySelector('.book-card-cover').addEventListener('click', async () => {
+                    Epubly.ui.showLoader('Könyv betöltése...');
+                    try {
+                        await Epubly.reader.loadBook(book.data, book.id);
+                        Epubly.ui.showReaderView();
+                    } catch (e) {
+                        alert(e.message);
+                    } finally {
+                        Epubly.ui.hideLoader();
+                    }
                 });
                 card.querySelector('.book-card-menu-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -234,7 +215,8 @@ const Epubly = {
                 document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
             }
             if (requiresReload && Epubly.state.currentBookId) {
-                Epubly.reader.loadLastOpenedBook();
+                Epubly.ui.showLoader('Beállítások alkalmazása...');
+                Epubly.loadInitialBook().catch(console.error);
             }
         },
 
@@ -330,7 +312,6 @@ const Epubly = {
         },
         async importBook(arrayBuffer, bookId, isDefault = false) {
             try {
-                Epubly.ui.showLoader('Metaadatok olvasása...');
                 const tempBook = new window.ePub(arrayBuffer);
                 const metadata = await tempBook.loaded.metadata;
                 const coverUrl = await tempBook.coverUrl();
@@ -355,19 +336,20 @@ const Epubly = {
                 return bookRecord;
             } catch (err) {
                 console.error("Error parsing EPUB for metadata:", err);
-                alert("Hiba a könyv metaadatainak olvasása közben. A fájl valószínűleg sérült vagy nem támogatott formátumú.");
-                return null;
+                throw new Error("Hiba a könyv metaadatainak olvasása közben. A fájl valószínűleg sérült.");
             }
         },
         async handleFileUpload(file) {
-            Epubly.ui.showLoader('Fájl olvasása...');
-            const arrayBuffer = await file.arrayBuffer();
-            const bookRecord = await this.importBook(arrayBuffer);
-            if (bookRecord) {
+            Epubly.ui.showLoader('Fájl feldolgozása...');
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const bookRecord = await this.importBook(arrayBuffer);
                 await Epubly.reader.loadBook(bookRecord.data, bookRecord.id);
                 Epubly.ui.hideModal('import-modal');
                 Epubly.ui.showReaderView();
-            } else {
+            } catch (error) {
+                alert(error.message);
+            } finally {
                 Epubly.ui.hideLoader();
             }
         },
@@ -387,7 +369,7 @@ const Epubly = {
 
                 alert("Minden könyv törölve.");
                 await Epubly.library.render();
-                await Epubly.reader.loadDefaultBook();
+                await Epubly.loadInitialBook();
             }
         }
     },
@@ -411,11 +393,10 @@ const Epubly = {
             list.innerHTML = '<li><div class="spinner"></div><p>Keresés folyamatban...</p></li>';
 
             try {
-                // epub.js search is intensive, so we do it chapter by chapter
                 const searchPromises = Epubly.state.book.spine.sections.map(section => {
                     return section.load().then(() => {
                         const results = section.find(query);
-                        section.unload(); // free memory
+                        section.unload();
                         return results;
                     });
                 });
@@ -553,8 +534,17 @@ const Epubly = {
         },
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
-        showLoader(msg) { Epubly.dom.loader.classList.remove('hidden'); Epubly.dom.loader.querySelector('p').textContent = msg; },
-        hideLoader() { Epubly.dom.loader.classList.add('hidden'); },
+        showLoader(msg) { 
+            if(Epubly.dom.loader) {
+                Epubly.dom.loader.classList.remove('hidden');
+                Epubly.dom.loader.querySelector('p').textContent = msg;
+            }
+        },
+        hideLoader() { 
+            if(Epubly.dom.loader) {
+                Epubly.dom.loader.classList.add('hidden'); 
+            }
+        },
         switchSettingsTab(tabId) {
             document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.settings-tab[data-tab="${tabId}"]`).classList.add('active');
@@ -579,7 +569,7 @@ const Epubly = {
                     this.hideModal('book-info-modal');
                     await Epubly.library.render();
                     if (Epubly.state.currentBookId === book.id) {
-                        await Epubly.reader.loadDefaultBook();
+                        await Epubly.loadInitialBook();
                     }
                 }
             };
@@ -590,15 +580,58 @@ const Epubly = {
             Epubly.dom.footerVersion.textContent = version;
         }
     },
+    
+    async loadInitialBook() {
+        this.ui.showLoader('Alkalmazás indítása...');
+        try {
+            const lastBookId = this.storage.getLastOpenedBook();
+            let bookRecord = null;
+            if (lastBookId) {
+                bookRecord = await this.storage.db.getBook(lastBookId);
+            }
 
-    init() {
-        this.ui.init();
-        this.storage.db.init().then(() => {
-            this.reader.init();
+            if (bookRecord) {
+                await this.reader.loadBook(bookRecord.data, bookRecord.id);
+            } else {
+                const defaultRecord = await this.storage.db.getBook('default-moby-dick');
+                if (defaultRecord) {
+                    await this.reader.loadBook(defaultRecord.data, defaultRecord.id);
+                } else {
+                    this.ui.showLoader('Alapértelmezett könyv letöltése...');
+                    const defaultBookUrl = "https://s3.amazonaws.com/moby-dick/moby-dick.epub";
+                    const response = await fetch(defaultBookUrl);
+                    if (!response.ok) {
+                        throw new Error(`Nem sikerült letölteni az alapértelmezett könyvet: ${response.statusText}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const importedBook = await this.storage.importBook(arrayBuffer, 'default-moby-dick', true);
+                    await this.reader.loadBook(importedBook.data, importedBook.id);
+                }
+            }
+        } catch (error) {
+            console.error("Fatal error during initial book load:", error);
+            alert(`Hiba a könyv betöltése közben: ${error.message}. Kérjük, ellenőrizze az internetkapcsolatot, vagy importáljon egy saját könyvet.`);
+        } finally {
+            this.ui.hideLoader();
+        }
+    },
+
+    async init() {
+        try {
+            this.ui.init();
             this.settings.init();
             this.search.init();
+
+            await this.storage.db.init();
+
+            await this.loadInitialBook();
+            
             console.log(`Epubly Initialized. Version: ${version}`);
-        });
+
+        } catch (error) {
+            console.error("Fatal initialization error:", error);
+            alert("Végzetes hiba történt az alkalmazás indítása közben. Kérjük, frissítse az oldalt.");
+        }
     }
 };
 

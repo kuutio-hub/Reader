@@ -2,6 +2,14 @@
 
 Minden jelentős változás ebben a fájlban lesz dokumentálva. A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) elvein alapul.
 
+## [0.3.2] - 2024-05-24
+
+### Javítva (Fixed)
+
+- **Kritikus Indítási Hiba (Stuck Loader):** Az alkalmazás indítási logikája teljesen át lett alakítva a "beragadt töltőképernyő" hiba megszüntetésére. A felhasználói felület már azelőtt betöltődik, hogy a könyvbetöltés megkezdődne.
+- **Robusztus Hibakezelés:** A könyvbetöltési folyamat (beleértve az alapértelmezett könyv letöltését) mostantól egy központi, hibakezelt `try...catch...finally` blokkban fut, ami garantálja, hogy a töltőképernyő hiba esetén is eltűnik, és a felhasználó értesítést kap.
+- **Felhasználói Élmény:** A töltőképernyő (`loader`) alapértelmezetten rejtett, és csak a tényleges betöltési műveletek alatt jelenik meg, így az alkalmazás sosem tűnik "beragadtnak" egy esetleges JavaScript hiba esetén.
+
 ## [0.3.1] - 2024-05-23
 
 ### Javítva (Fixed)
