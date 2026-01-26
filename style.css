@@ -25,9 +25,10 @@
 html { color-scheme: dark; }
 body {
     background-color: var(--bg); color: var(--text); font-size: 16px; line-height: 1.6;
-    overflow: hidden; display: grid; grid-template-rows: 1fr auto; grid-template-columns: auto 1fr auto;
+    overflow: hidden; display: grid; grid-template-rows: 1fr; grid-template-columns: auto 1fr auto;
     height: 100vh;
-    grid-template-areas: "sidebar-left main sidebar-right" "footer footer footer";
+    grid-template-areas: "sidebar-left main sidebar-right";
+    padding-bottom: 30px; /* Space for fixed footer */
 }
 body.zen-mode #topbar, body.zen-mode #sidebar-left, body.zen-mode #sidebar-right { transform: translateY(-150%); }
 body.zen-mode #sidebar-left { transform: translateX(-150%); }
@@ -38,25 +39,30 @@ body.zen-mode #app-footer { transform: translateY(150%); }
 /* --- LAYOUT & MAIN COMPONENTS --- */
 #topbar {
     position: fixed; top: var(--space-4); left: 50%; transform: translateX(-50%);
-    width: calc(100% - 2 * var(--space-4)); max-width: 800px; display: flex; justify-content: space-between;
-    align-items: center; padding: var(--space-2) var(--space-5); background: rgba(13, 13, 13, 0.7);
+    width: calc(100% - 2 * var(--space-4)); max-width: 850px; display: flex; justify-content: space-between;
+    align-items: center; padding: var(--space-2) var(--space-5); background: rgba(13, 13, 13, 0.85);
     backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: var(--radius-l);
     box-shadow: var(--shadow-m); z-index: 100; transition: var(--transition);
 }
 #sidebar-left, #sidebar-right {
     padding: var(--space-5); background-color: var(--bg-elevated);
     height: 100%; overflow-y: auto; transition: transform var(--transition); width: 300px; z-index: 50;
-    grid-row: 1;
+    grid-row: 1; padding-top: 100px; /* Make space for topbar */
 }
 #sidebar-left { grid-area: sidebar-left; border-right: 1px solid var(--border); transform: translateX(0); }
 #sidebar-left.collapsed { transform: translateX(-100%); }
-#sidebar-right { grid-area: sidebar-right; border-left: 1px solid var(--border); transform: translateX(100%); }
-#sidebar-right.visible { transform: translateX(0); }
-#main-content { grid-area: main; overflow: hidden; position: relative; }
+#sidebar-right { grid-area: sidebar-right; border-left: 1px solid var(--border); transform: translateX(100%); position: absolute; right: 0; height: 100%; }
+#sidebar-right.visible { transform: translateX(0); position: relative; } /* Relative when open to push content if needed, but here we overlay or push depending on pref. Let's stick to standard flow */
+
+#main-content { grid-area: main; overflow: hidden; position: relative; height: 100%; }
+
 #app-footer {
-    grid-area: footer; text-align: center; font-size: 0.8rem; padding: var(--space-2);
+    position: fixed; bottom: 0; left: 0; width: 100%;
+    text-align: center; font-size: 0.75rem; padding: 6px;
     color: var(--text-muted); background-color: var(--bg-elevated); border-top: 1px solid var(--border);
-    z-index: 50; transition: transform var(--transition);
+    z-index: 900; transition: transform var(--transition);
+    pointer-events: none; /* Let clicks pass through if mostly transparent, but it has background */
+    pointer-events: auto;
 }
 
 /* --- LOADER --- */
@@ -87,9 +93,11 @@ body.zen-mode #app-footer { transform: translateY(150%); }
 .top-actions { display: flex; align-items: center; gap: var(--space-2); }
 #tts-controls { display: flex; align-items: center; gap: var(--space-2); border-right: 1px solid var(--border); padding-right: var(--space-3); margin-right: var(--space-1); }
 
-.icon-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; }
+.icon-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-s); transition: background-color var(--transition); }
 .icon-btn svg { width: 20px; height: 20px; stroke: var(--text-muted); transition: stroke var(--transition); }
 .icon-btn:hover svg { stroke: var(--text); }
+.icon-btn.active { background-color: var(--surface-alt); }
+.icon-btn.active svg { stroke: var(--brand); }
 
 .btn { padding: var(--space-3) var(--space-4); border-radius: var(--radius-s); border: none; cursor: pointer; font-size: 1rem; font-weight: 500; transition: all var(--transition); }
 .btn-primary { background-color: var(--brand); color: var(--bg); }
@@ -102,14 +110,20 @@ body.zen-mode #app-footer { transform: translateY(150%); }
 .sidebar-panel { display: none; }
 .sidebar-panel.active { display: block; }
 .sidebar-header { margin-bottom: var(--space-5); font-size: 1.4rem; font-weight: 600; color: var(--text); }
-#toc-list { list-style: none; }
-#toc-list li a {
+#toc-list, #bookmarks-list { list-style: none; }
+#toc-list li a, #bookmarks-list li div {
     color: var(--text-muted); text-decoration: none; display: block; padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-s); transition: all var(--transition); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-radius: var(--radius-s); transition: all var(--transition); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
-#toc-list li a:hover { color: var(--text); background-color: var(--surface-alt); }
+#toc-list li a:hover, #bookmarks-list li:hover div.bookmark-link { color: var(--text); background-color: var(--surface-alt); }
 #toc-list li a.active { color: var(--brand); font-weight: 500; }
-        
+
+#bookmarks-list li { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+#bookmarks-list li div.bookmark-link { flex-grow: 1; }
+.delete-bookmark-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 0 var(--space-2); opacity: 0.6; transition: opacity 0.2s; }
+.delete-bookmark-btn:hover { opacity: 1; }
+.empty-state { padding: var(--space-3); font-style: italic; color: var(--text-muted); text-align: center; border-bottom: none !important; }
+
 /* --- READER AREA --- */
 #viewer { width: 100%; height: 100%; }
 #viewer.scrolled { overflow-y: auto; }

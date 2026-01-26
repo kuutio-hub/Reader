@@ -3,4 +3,4 @@
  * Project version control file.
  * Conforms to MAJOR.MINOR.PATCH semantic versioning.
  */
-export const version = '0.3.2';
+export const version = '0.4.0';

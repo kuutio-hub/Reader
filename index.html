@@ -31,6 +31,9 @@
                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><rect x="9" y="9" width="6" height="6"></rect></svg>
                 </button>
             </div>
+            <button id="toggle-bookmarks-btn" class="icon-btn" title="Könyvjelzők és Jegyzetek">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            </button>
             <button id="zen-mode-btn" class="icon-btn" title="Zen Mód">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9-9-1.8-9-9 1.8-9 9-9z"></path></svg>
             </button>
@@ -65,8 +68,16 @@
     </main>
 
     <aside id="sidebar-right">
-        <h2 class="sidebar-header">Jegyzetek & Könyvjelzők</h2>
-        <p style="color: var(--text-muted);">Ez a funkció fejlesztés alatt áll.</p>
+        <h2 class="sidebar-header">Könyvjelzők</h2>
+        <div style="margin-bottom: var(--space-4);">
+            <button id="add-bookmark-btn" class="btn btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Jelenlegi oldal mentése
+            </button>
+        </div>
+        <ul id="bookmarks-list">
+            <li class="empty-state">Még nincs mentett könyvjelződ ehhez a könyvhöz.</li>
+        </ul>
     </aside>
 
     <!-- MODALS -->

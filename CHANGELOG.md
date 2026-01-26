@@ -2,6 +2,19 @@
 
 Minden jelentős változás ebben a fájlban lesz dokumentálva. A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) elvein alapul.
 
+## [0.4.0] - 2024-05-24
+
+### Hozzáadva (Added)
+
+- **Könyvjelző Kezelés:** Teljes funkcionalitású könyvjelző rendszer. A felső sávban új gombbal nyitható meg a jobb oldali panel, ahol menthetjük az aktuális oldalt, listázhatjuk a mentett könyvjelzőket és törölhetjük azokat. A könyvjelzők könyvenként külön tárolódnak.
+- **Lábléc Rögzítése:** A lábléc (verziószámmal) mostantól `fixed` pozíciójú, így mindig látható a képernyő alján, függetlenül a tartalom hosszától.
+
+### Módosítva (Changed)
+
+- **Jobb Oldali Sáv:** A korábbi "fejlesztés alatt" helykitöltő szöveg helyett a könyvjelzők listája és kezelőfelülete jelenik meg.
+- **UI Stabilizálás:** A `viewer` komponens CSS szabályai szigorodtak a layout szétcsúszásának megakadályozására.
+- **Gombok Állapota:** A Zen Mód és a Könyvjelző gombok aktív állapota vizuálisan is megjelenik.
+
 ## [0.3.2] - 2024-05-24
 
 ### Javítva (Fixed)
