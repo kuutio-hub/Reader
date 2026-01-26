@@ -18,7 +18,6 @@
     
     <!-- DEPENDENCIES (CDN FIRST STRATEGY) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
-    <!-- Removed epub.js reliance, using native implementation -->
 </head>
 <body>
 
@@ -44,18 +43,18 @@
             
             <div class="view-separator"></div>
             
-            <!-- Static Title (Not clickable) -->
+            <!-- Metadata in Header -->
             <span class="view-title-label" id="header-title-text">Könyvtár</span>
+            <span class="view-subtitle" id="header-subtitle-text"></span>
         </div>
 
         <div class="top-actions" id="top-actions-container">
-            <!-- Injected by JS based on view -->
+            <!-- Buttons injected by JS -->
         </div>
     </header>
 
     <!-- LIBRARY VIEW -->
     <section id="library-view" class="view-section active">
-        <!-- Buttons moved to header -->
         <div id="library-grid"></div>
     </section>
 
@@ -77,11 +76,13 @@
             <div id="pattern-overlay"></div>
             <!-- Native Viewer Container -->
             <div id="viewer">
-                <div id="viewer-content"></div>
-                <div style="padding: 20px; text-align: center;">
-                    <div id="viewer-nav-controls">
-                        <!-- Navigation will be injected here -->
-                    </div>
+                <div id="viewer-content">
+                    <!-- Chapters will be appended here -->
+                </div>
+                <!-- Loader for infinite scroll -->
+                <div id="scroll-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted);">
+                    <div class="spinner" style="width:20px; height:20px; border-width:2px; margin:0 auto 10px auto;"></div>
+                    Betöltés...
                 </div>
             </div>
         </div>
@@ -129,7 +130,6 @@
             </div>
             <div id="import-drop-zone" class="drop-zone">
                 <p>Húzd ide az EPUB fájlt, vagy kattints a tallózáshoz.</p>
-                <!-- Fixed: Ensure input has id="epub-file" -->
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
                 <button class="btn btn-secondary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása (.epub)</button>
             </div>
@@ -177,8 +177,8 @@
                         <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1">
                     </div>
                     <div class="settings-row">
-                        <label>Szélesség</label>
-                        <input type="range" id="margin-range" min="300" max="1200" step="50" title="Olvasó ablak szélessége">
+                        <label>Oldalmargó</label>
+                        <input type="range" id="margin-range" min="0" max="30" step="1" title="Szöveg távolsága a szélektől">
                     </div>
                 </div>
 
@@ -186,20 +186,27 @@
                 <div class="settings-section">
                     <h3 style="margin-bottom:12px; color:var(--brand);">Megjelenés</h3>
                     <div class="settings-row">
-                        <label>Előre beállított</label>
+                        <label>Téma</label>
                         <div class="toggle-group" id="theme-toggle-group">
-                            <button class="toggle-btn" data-val="oled">OLED</button>
+                            <button class="toggle-btn active" data-val="oled">Sötét</button>
                             <button class="toggle-btn" data-val="sepia">Szépia</button>
                             <button class="toggle-btn" data-val="light">Világos</button>
+                            <button class="toggle-btn" data-val="custom">Egyéni</button>
                         </div>
                     </div>
-                    <div class="settings-row">
-                        <label>Színek (Egyéni)</label>
-                        <div style="display:flex; gap:8px;">
+                    
+                    <!-- Hidden Custom Settings -->
+                    <div id="custom-theme-container" style="display:none; padding: 10px; background: var(--bg-elevated); border-radius: 8px; margin-bottom: 12px;">
+                        <div class="settings-row">
+                            <label>Háttérszín</label>
                             <input type="color" id="bg-color-picker" title="Háttérszín">
+                        </div>
+                        <div class="settings-row">
+                            <label>Szövegszín</label>
                             <input type="color" id="text-color-picker" title="Szövegszín">
                         </div>
                     </div>
+
                      <div class="settings-row">
                         <label>Háttér Minta</label>
                         <select id="pattern-select">
