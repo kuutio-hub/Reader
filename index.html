@@ -11,7 +11,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
     
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
@@ -43,6 +43,12 @@
                     <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
                 </svg>
                 <span class="logo-text">Epubly.hu</span>
+            </div>
+            
+            <!-- BACK BUTTON -->
+            <div id="btn-nav-back" title="Vissza az előző helyre">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span>Vissza</span>
             </div>
             
             <div class="view-separator"></div>
@@ -79,6 +85,16 @@
         </button>
     </header>
     
+    <!-- Progress Bar (Thin Line) -->
+    <div id="reading-progress-bar">
+        <div id="reading-progress-fill"></div>
+    </div>
+
+    <!-- LIBRARY VIEW -->
+    <section id="library-view" class="view-section active">
+        <div id="library-grid"></div>
+    </section>
+
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
         <div id="reader-main">
@@ -95,19 +111,11 @@
             </div>
             
             <!-- Highlight Context Menu -->
-            <div id="highlight-menu">
-                <button class="hl-color-btn hl-yellow" data-color="yellow"></button>
-                <button class="hl-color-btn hl-green" data-color="green"></button>
-                <button class="hl-color-btn hl-blue" data-color="blue"></button>
-                <button class="hl-color-btn hl-red" data-color="red"></button>
-            </div>
-
-            <!-- Floating Back Button -->
-            <div id="floating-back-btn-container">
-                <button id="floating-back-btn" class="btn btn-secondary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                    Vissza az előző helyre
-                </button>
+            <div id="highlight-menu" class="glow-effect">
+                <button class="hl-color-btn" style="background:#ffeb3b" data-color="yellow"></button>
+                <button class="hl-color-btn" style="background:#4caf50" data-color="green"></button>
+                <button class="hl-color-btn" style="background:#2196f3" data-color="blue"></button>
+                <button class="hl-color-btn" style="background:#f44336" data-color="red"></button>
             </div>
         </div>
 
@@ -119,21 +127,12 @@
             </div>
             <div class="sidebar-tabs">
                 <button class="sidebar-tab active" data-tab="toc-list">Tartalom</button>
-                <button class="sidebar-tab" data-tab="highlights-list-container">Jegyzetek</button>
+                <button class="sidebar-tab" data-tab="highlights-list">Jegyzetek</button>
             </div>
             <div class="sidebar-content">
-                <ul id="toc-list" class="sidebar-pane active"></ul>
-                <div id="highlights-list-container" class="sidebar-pane">
-                     <div class="highlight-filters">
-                        <button class="hl-filter-btn active" data-color="all">Összes</button>
-                        <button class="hl-filter-btn" data-color="yellow"><span class="hl-color-dot hl-yellow"></span></button>
-                        <button class="hl-filter-btn" data-color="green"><span class="hl-color-dot hl-green"></span></button>
-                        <button class="hl-filter-btn" data-color="blue"><span class="hl-color-dot hl-blue"></span></button>
-                        <button class="hl-filter-btn" data-color="red"><span class="hl-color-dot hl-red"></span></button>
-                    </div>
-                    <div id="highlights-list">
-                        <p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>
-                    </div>
+                <ul id="toc-list" class="active"></ul>
+                <div id="highlights-list">
+                    <p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>
                 </div>
             </div>
         </aside>
@@ -154,10 +153,6 @@
                         <button class="toggle-btn" data-val="dark">Sötét</button>
                         <button class="toggle-btn" data-val="sepia">Szépia</button>
                         <button class="toggle-btn" data-val="terminal">Terminál</button>
-                    </div>
-                    <div class="setting-item" id="terminal-color-picker-container" style="display:none; margin-top: 15px;">
-                        <label>Terminál Szín</label>
-                        <input type="color" id="terminal-color-picker" style="width:100%; height:30px; border:none; padding:0;">
                     </div>
                 </div>
 
@@ -219,11 +214,6 @@
         </aside>
     </section>
 
-     <!-- LIBRARY VIEW -->
-    <section id="library-view" class="view-section active">
-        <div id="library-grid"></div>
-    </section>
-
     <!-- Modal: Wiki / Help / Donate -->
     <div id="wiki-modal" class="modal">
         <div class="modal-content" style="max-width:800px; height: 90vh;">
@@ -242,7 +232,7 @@
                     <li><b>Olvasás:</b> A fejezetek folyamatosan töltődnek be, ahogy lefelé vagy felfelé görgetsz.</li>
                     <li><b>Kiemelés:</b> Jelölj ki egy szövegrészletet, és válassz színt a felugró menüből. A kiemeléseid a "Jegyzetek" fülön gyűlnek össze.</li>
                     <li><b>Könyvjelző:</b> Kattints egy képre az olvasóban, hogy elmenthesd a jegyzetek közé. Így később gyorsan visszatalálsz hozzá.</li>
-                    <li><b>Navigáció:</b> A "Tartalom" menüben ugorhatsz a fejezetek között. Ha egy könyvön belüli linkre (pl. lábjegyzetre) kattintasz, a képernyő alján megjelenik egy "Vissza" gomb, amivel visszaugorhatsz az eredeti olvasási pozíciódra.</li>
+                    <li><b>Navigáció:</b> A "Tartalom" menüben ugorhatsz a fejezetek között. Ha egy könyvön belüli linkre (pl. lábjegyzetre) kattintasz, a "Vissza" gombbal visszaugorhatsz az eredeti olvasási pozíciódra.</li>
                 </ul>
 
                 <h2>Testreszabás</h2>
@@ -253,28 +243,23 @@
                     <li><b>Elrendezés:</b> Igazítsd a szöveget balra vagy sorkizártra, és állítsd be a margók szélességét.</li>
                 </ul>
 
-                <h2>Hibaelhárítás & Adatkezelés</h2>
-                <p><b>Gyorsítótár törlése:</b> Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
+                <h2>Hibaelhárítás</h2>
+                <p>Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen, vagy az alkalmazás lelassul), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
                 <div style="margin-top:20px;">
                     <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
                         MINDEN ADAT VÉGLEGES TÖRLÉSE
                     </button>
                 </div>
-                <p style="margin-top: 20px;"><b>Adatok mentése és visszaállítása:</b> Mentsd le vagy töltsd vissza az összes könyvedet, beállításodat és jegyzetedet egyetlen fájlban. Ez hasznos eszköz költözéshez vagy a gyorsítótár törlése utáni visszaállításhoz.</p>
-                 <div class="data-management-actions">
-                    <button id="btn-export-data" class="btn btn-secondary">Adatok Exportálása</button>
-                    <label for="import-file" class="btn btn-secondary">Adatok Importálása</label>
-                    <input type="file" id="import-file" accept=".json" style="display:none;">
-                </div>
             </div>
 
             <div class="wiki-content" id="wiki-tab-about">
                 <h2>A projektről</h2>
-                <p>Az Epubly.hu egy ingyenes, reklámmentes, nyílt forráskódú hobbi projekt. Célja egy modern, gyors és böngésző alapú e-könyv olvasó biztosítása, amely tiszteletben tartja a magánszférádat.</p>
+                <p>Az Epubly.hu egy ingyenes, reklámmentes, nyílt forráskódú hobbi projekt. Célja egy modern és gyors e-könyv olvasó biztosítása, amely tiszteletben tartja a magánszférádat.</p>
                 <p><b>Minden kliens oldalon történik:</b> A könyveid a saját böngésződben, a te eszközödön kerülnek feldolgozásra és tárolásra. Semmilyen adatot nem töltünk fel külső szerverre. Az alkalmazás teljesen ingyenes, és az is marad.</p>
+                <p>Ha tetszik az alkalmazás, és hasznosnak találod, kérlek oszd meg másokkal is! A legnagyobb segítség, ha minél többen használják.</p>
                 
                 <h2>Támogatás (Donate)</h2>
-                <p>Az oldal fejlesztése és fenntartása kizárólag szabadidőben történik. A támogatásért cserébe nem jár extra funkció, az csupán a munkám elismerését szolgálja. Ha szeretnéd meghálálni az erőfeszítéseimet, a legegyszerűbben a MOHU REpont rendszerén keresztül teheted meg. A visszaváltott palackok ára közvetlenül hozzám érkezik, és már egy-egy darab is óriási segítséget jelent a projekt fenntartásában. Köszönöm!</p>
+                <p>Az oldal fejlesztése és fenntartása kizárólag szabadidőben történik. A támogatásért cserébe nem jár extra funkció, az csupán a munkám elismerését szolgálja. Ha szeretnéd támogatni a munkámat, azt a legegyszerűbben a MOHU REpont rendszerén keresztül teheted meg. Egy kávé árával már sokat segítesz! Ezen keresztül garantáltan hozzám érkezik, egy-egy palack ára sokat jelent! Köszönöm!</p>
                 
                 <div class="donation-area">
                     <div class="mohu-print-area">
@@ -287,10 +272,11 @@
                                  <svg width="20" height="20" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
                                 <span>Epubly.hu</span>
                             </div>
-                            <div id="mohu-qr-container" class="mohu-qr">
-                                <!-- QR Code will be generated here by JS -->
+                            <div class="mohu-qr">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 45 45"><path fill="var(--card-qr-bg)" d="M0 0h45v45H0z"/><path fill="var(--card-qr-fg)" d="M7 7h7v7H7zm1 1v5h5V8zm23 0h7v7h-7zm1 1v5h5V8zM7 29h7v7H7zm1 1v5h5v-5z"/><path fill="var(--card-qr-fg)" d="M6 6h9v9H6zM5 5v11h11V5zm24 0h9v9h-9zM28 5v11h11V5zM6 28h9v9H6zM5 27v11h11V27z"/><path fill="var(--card-qr-fg)" d="M19 19h3v3h-3zm-2 2v-3h3v-2H17v3h-2v3h3v2h-3v2h2v-2h3v2h2v-3h-2v-2zm-2-2v-2h2v-2h-2V9h3v2h2v2h-2v3h2v-2h2v3h-3v-2h-2v2h-2v2h2zm10-5h2v2h-2zM9 19h2v2H9zm16 0h2v2h-2zM9 22h2v2H9zm-2-5h3v2H7zm18 3h3v2h-3zm-6-2h2v3h-2zm-2 2v-2h2v-2h-3v5h2v-3h-2v2h3v2h2v-3h2v-2h-3v2h-2v-3h-2zm-4 1h2v-2h-2zm2-2v-2h2v-2h-2V9h2v2h-2v3h3v-2h2v2h-3v2h2v-2h2v2h-2v2h-3v-2h-2zm-4 2h-2v2h2zm-2-2h2v2h-2v-2h-2v2h-2v-2h2v-2h2v2zm-2-2v2h-2v2h2v2h2v-2h2v-2h-2v-2h-2zm-2-3v2h2v-2zm2-2h-2v2h-2v2h2v-2h2v2h2v-2h2v-2h-2v2h-2v-2zm-3-2h2v3h-2zm-2 2v-2h2v-2h-3v5h2v-3h-2v2h3v2h2v-3h2v-2h-3v2h-2v-3h-2zm13 8h-2v-2h2v-2h-2v-2h-2v2h-2v2h2v2h-2v2h2v-2h2v2zm-4-4h-2v2h2zm2 2v-2h2v-2h-2v-2h-2v2h2v2h-2v2h2zm-4 2v-2h-2v2zm-2-2h2v2h-2v-2h-2v2h-2v-2h2v-2h2v2zm-2-2v2h-2v2h2v2h2v-2h2v-2h-2v-2h-2zm12-5h-2v-2h2zm-3-2h2v2h2v2h-2v-2h-2v-2zm1-2h2v2h-2zm8 8h-2v2h2zm-2-3h3v2h-3zm-2-2v-2h2v2zm2-3h-2v2h-2v-2h2v-2h-2v-2h-2v2h2v2h-2v-3h2v-2h2v2h2v2h-2zm4-2h2v2h-2zm-2-2h-2v2h2v-2h2v2h2v-2h-2v-2h-2v2zm2 2h2v2h-2zm0 2h-2v2h2v-2h2v2h2v-2h-2v-2h-2v2zm-12 7h3v2h-3zm-2-3h2v2h-2zm-2 2h2v2h-2zm-2-2h2v2h-2zm10 2h2v2h-2zm-2-2h2v2h-2zm-2 2h2v2h-2zm0-2h-2v2h2z"/></svg>
                             </div>
                             <div class="mohu-card-details">
+                                <div class="mohu-card-id">d0a663f6-b055-40e8-b3d5-399236cb6b94</div>
                                 <div class="mohu-card-name">Epubly.hu Támogatás</div>
                             </div>
                         </div>

@@ -1,42 +1,39 @@
 # Változási napló
 
-## [0.13.1-beta] - 2024-07-29
-
-### Jelentős Javítások
-- **KRITIKUS HIBAJAVÍTÁS (STABILITÁS):** Kijavítva a "csendes hibát", ahol az alkalmazás hibaüzenet nélkül megállt a töltőképernyőn.
-  - Az indítási folyamat mostantól egy robusztus hibakezelő blokkban fut, amely bármilyen hiba esetén egyértelmű üzenetet jelenít meg a felhasználónak a töltőképernyőn.
-  - Az adatbázis-kapcsolat (IndexedDB) kezelése stabilabbá vált, hogy megelőzze a más böngészőfülek által okozott esetleges blokkolásokat és lefagyásokat.
-- **KÓD TISZTÍTÁSA:** A felesleges `index.tsx` fájl véglegesen eltávolítva.
-
-## [0.13.0-beta] - 2024-07-29
-- **HIBAJAVÍTÁS:** Kijavítva egy kritikus hiba, amely az alkalmazás indulásakor "Cannot read properties of null (reading 'style')" üzenettel leállást okozott. Az alkalmazás mostantól stabilan betölt.
-- **ÚJ FUNKCIÓ: Jegyzetekhez fűzött kommentárok:**
-  - Mostantól minden kiemeléshez lehetőség van egyéni szöveges megjegyzés hozzáadására.
-  - A "Jegyzetek" oldalsávon minden kiemelésnél egy komment ikon jelenik meg, amivel a megjegyzés szerkeszthető és menthető.
-- **ÚJ FUNKCIÓ: Adatok Exportálása és Importálása:**
-  - A "Névjegy & Támogatás" ablakban egy új "Adatkezelés" szekció jelent meg.
-  - **Exportálás:** Egy gombnyomással az összes könyv, beállítás és jegyzet lementhető egyetlen `.json` biztonsági mentés fájlba.
-  - **Importálás:** Lehetőség van egy korábbi mentésfájl visszatöltésére, amely felülírja a jelenlegi adatokat. Ez tökéletes eszköz a böngésző-gyorsítótár törlése utáni visszaállításhoz vagy eszközváltáshoz.
-
-## [0.12.0-beta] - 2024-07-28
-- **Kiemelő Rendszer Teljes Újraírása:** Valósághű kiemelő, szűrés és átkategorizálás.
-- **Professzionális és Biztonságos Támogatói Kártya:** Elegáns dizájn és adatvédelmi szempontból biztonságos, dinamikus QR kód generálás.
-- **Személyre Szabható Terminál Téma:** Egyetlen, színválasztóval beállítható neonszín.
-- **Precíz Belső Navigáció:** Pontos ugrás a lábjegyzetekhez és "Vissza az előző helyre" gomb.
-- **Felhasználói Felület Tisztítása:** Felesleges haladásjelző eltávolítva az olvasó nézetből.
-
-## [0.11.0-beta] - 2024-07-28
-- **"Terminál" Téma:** A "Mátrix" téma neve "Terminál"-ra változott és stílusa az egész alkalmazásra kiterjedt.
-- **"Folytatás" Gomb:** A könyvtárban az "Olvasás" gomb "Folytatás"-ra változik, ha a könyv már meg van kezdve.
-- **Támogatói Kártya Frissítés:** Új, bankkártya-szerű dizájn és frissített támogatói szöveg.
-
 ## [0.10.9-beta] - 2024-07-27
-- **Navigáció és Állapotkezelés:** Pontos "Vissza" gomb bevezetése belső linkek után, olvasási pozíció megjegyzése.
-- **Haladáskövetés:** Pontosabb, könyv-szintű haladásjelzés.
-- **Képkezelés:** Képek nagyítása (lightbox).
+
+### Jelentős Javítások és Új Funkciók
+- **Témakezelés és Stílus:**
+  - Teljes, konzisztens színpaletták lettek bevezetve minden témához (Világos, Sötét, Szépia, Mátrix), amelyek a gombokra és menükre is kiterjednek.
+  - A "Mátrix" téma mostantól az olvasófelület teljes szövegtörzsére is érvényesül.
+  - A felhasználók mostantól egyedileg felülbírálhatják a betű- és háttérszínt, a beállítások elmentődnek.
+- **Tipográfia:**
+  - Bővült a választható betűtípusok listája (pl. Georgia, Open Sans, Times New Roman).
+  - Új csúszka a betűk vastagságának (font-weight) állításához.
+- **Navigáció és Állapotkezelés:**
+  - A "Vissza" gomb mostantól pontosan arra a sorra ugrik vissza, ahonnan egy belső linkre kattintottunk. Csak ilyen esetekben jelenik meg.
+  - Az alkalmazás megjegyzi az utolsó olvasási pozíciót (fejezet és görgetési helyzet), és kilépés után onnan folytatja a könyvet.
+- **Haladáskövetés:**
+  - A fejlécben lévő százalékos kijelző és a folyamatjelző sáv mostantól a teljes könyvön belüli pontos pozíciót tükrözi, kiküszöbölve a fejezetváltáskor tapasztalt pontatlanságokat.
+  - A fejezetcím kijelzése a fejlécben reszponzívabb lett.
+- **Képkezelés:**
+  - A könyvben lévő képekre kattintva azok nagyítható, teljes képernyős nézetben (lightbox) jelennek meg.
+  - A képek méretezése független lett a szöveg margóinak állításától, így mindig konzisztens méretűek.
 
 ## [0.6.0-beta] - 2024-05-24
-- **Tipográfia és Témák:** Betűtípusok, igazítás, sorköz, háttértextúrák bevezetése.
+
+### Kritikus Javítások
+- **ePub Constructor Hiba:** Javítva a `TypeError: window.ePub is not a constructor` hiba, amely a "Single File" környezetben jelentkezett. A script betöltése és inicializálása mostantól szigorúbban ellenőrzött.
+
+### Új Funkciók (Beállítások)
+- **Tipográfia:** Választható betűtípusok (Inter, Merriweather, Roboto Mono), sorkizárt igazítás opció, sorköz és betűköz állítás.
+- **Téma és Minták:** Egyedi színválasztók mellett mostantól háttér textúrák (papír, vonalas, zaj) is bekapcsolhatók.
+- **Kétoldalas Nézet:** Új "2 Oldal" opció a lapozáshoz, amely kényszeríti a könyv dupla oldalas megjelenítését (főleg asztali nézetben hasznos).
+- **Egyoldalas Nézet:** Választható görgetés vagy lapozás az egyoldalas nézethez.
+
+### UX Javítások
+- **Navigáció:** Megnövelt, láthatatlan érzékeny területek (jobb/bal 15%) a könnyebb lapozáshoz.
+- **Billentyűzet:** Nyíl gombokkal való lapozás támogatása.
 
 ## [0.5.0-beta] - 2024-05-24
 *Single File Architecture bevezetése.*
