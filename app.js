@@ -2,179 +2,342 @@ import { version } from './version.js';
 
 const Epubly = {
     state: {
-        book: null,
-        rendition: null,
-        isZenMode: false,
+        zip: null,
         currentBookId: null,
+        currentChapterIndex: 0,
+        spine: [], // Array of { id, href, fullPath }
+        manifest: {}, // Map id -> { href, type, fullPath }
+        toc: [], // Array of { label, href, fullPath }
+        rootPath: '', // e.g., "OPS/"
         activeBookSessionStart: null,
+        metadata: {}
     },
-    dom: {},
 
-    reader: {
-        async loadBook(bookData, bookId) {
-            // Save stats for previous book if exists
-            if (Epubly.state.book && Epubly.state.currentBookId) {
-                this.updateSessionStats();
-                try { Epubly.state.book.destroy(); } catch(e) {}
-            }
+    // --- CUSTOM NATIVE ENGINE ---
+    engine: {
+        async loadBook(arrayBuffer, bookId) {
+            Epubly.ui.showLoader("Könyv kibontása...");
             
-            // Clean DOM
-            const viewer = document.getElementById('viewer');
-            viewer.innerHTML = '';
-            
-            // Reset state
-            Epubly.state.book = null;
-            Epubly.state.rendition = null;
-            Epubly.state.currentBookId = null;
-            Epubly.state.activeBookSessionStart = null;
-
-            if(!bookData) return; // Just unloading
+            // Reset State
+            Epubly.state.zip = null;
+            Epubly.state.spine = [];
+            Epubly.state.manifest = {};
+            Epubly.state.currentChapterIndex = 0;
+            Epubly.state.currentBookId = bookId;
+            Epubly.state.activeBookSessionStart = Date.now();
 
             try {
-                // IMPORTANT: Show reader view FIRST to ensure container has dimensions
-                Epubly.ui.showReaderView(false); 
+                // 1. Unzip
+                if (!window.JSZip) throw new Error("JSZip könyvtár hiányzik.");
+                Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
 
-                const settings = Epubly.settings.get();
-                // FORCE SCROLLED MODE FOR PERFORMANCE BY DEFAULT
-                const isScrolled = settings.readingFlow !== 'paginated'; // Default is scrolled now
+                // 2. Find Root File (OPF) from META-INF/container.xml
+                const containerXml = await Epubly.state.zip.file("META-INF/container.xml").async("string");
+                const parser = new DOMParser();
+                const containerDoc = parser.parseFromString(containerXml, "application/xml");
+                const rootfile = containerDoc.querySelector("rootfile");
+                if(!rootfile) throw new Error("Hibás EPUB: Nincs rootfile.");
+                
+                const fullOpfPath = rootfile.getAttribute("full-path");
+                // Store the directory of the OPF to resolve relative paths later
+                const lastSlash = fullOpfPath.lastIndexOf('/');
+                Epubly.state.rootPath = lastSlash !== -1 ? fullOpfPath.substring(0, lastSlash + 1) : '';
 
-                // Ensure ePub is available
-                if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be. Ellenőrizd az internetkapcsolatot.");
+                // 3. Parse OPF
+                Epubly.ui.showLoader("Struktúra elemzése...");
+                const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
+                const opfDoc = parser.parseFromString(opfXml, "application/xml");
 
-                // Initialize book
-                Epubly.state.book = window.ePub(bookData);
-                await Epubly.state.book.ready; // Wait for parsing to finish
+                // Parse Manifest
+                const manifestItems = opfDoc.getElementsByTagName("item");
+                for (let item of manifestItems) {
+                    const id = item.getAttribute("id");
+                    const href = item.getAttribute("href");
+                    const mediaType = item.getAttribute("media-type");
+                    Epubly.state.manifest[id] = {
+                        href: href,
+                        type: mediaType,
+                        // Relative to root
+                        fullPath: Epubly.state.rootPath + href
+                    };
+                }
 
-                // Get metadata safely
-                let metaTitle = "Névtelen Könyv";
-                try {
-                    if(Epubly.state.book.package && Epubly.state.book.package.metadata) {
-                        metaTitle = Epubly.state.book.package.metadata.title;
+                // Parse Spine
+                const spineItems = opfDoc.getElementsByTagName("itemref");
+                for (let item of spineItems) {
+                    const idref = item.getAttribute("idref");
+                    const manifestItem = Epubly.state.manifest[idref];
+                    if (manifestItem) {
+                        Epubly.state.spine.push({
+                            id: idref,
+                            href: manifestItem.href,
+                            fullPath: manifestItem.fullPath
+                        });
                     }
-                } catch(e) {}
-                Epubly.ui.updateHeaderTitle(metaTitle);
+                }
 
-                // --- PERFORMANCE CONFIGURATION ---
-                // We use 'continuous' manager for instant scrolling (like FlowReader)
-                // We use 'scrolled' flow to avoid expensive page calculations
-                Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
-                    manager: "continuous", // Optimized for scrolling
-                    flow: "scrolled",      // No pagination calculation = 10x speed
-                    width: "100%", 
-                    height: "100%",
-                    snap: false
-                });
+                // Get Metadata (Title)
+                const titleElem = opfDoc.getElementsByTagName("dc:title")[0];
+                const title = titleElem ? titleElem.textContent : "Ismeretlen Könyv";
+                Epubly.ui.updateHeaderTitle(title);
 
-                // Update UI class for scrolling
-                viewer.classList.add('scrolled'); // Always force scrolled class structure for now
+                // 4. Load saved position
+                const savedCfi = Epubly.storage.getLocation(bookId);
+                // Simple integer index for now
+                if(savedCfi) {
+                    const idx = parseInt(savedCfi);
+                    if(!isNaN(idx) && idx < Epubly.state.spine.length) {
+                        Epubly.state.currentChapterIndex = idx;
+                    }
+                }
+
+                // 5. Render First Chapter
+                await this.renderChapter(Epubly.state.currentChapterIndex);
                 
-                // Hide nav zones if scrolled
-                const navZones = document.querySelectorAll('.nav-zone');
-                navZones.forEach(nz => nz.style.display = 'none'); // Disable click zones in scroll mode
-
-                // Restore location
-                const location = Epubly.storage.getLocation(bookId);
-                
-                // Display!
-                await Epubly.state.rendition.display(location || undefined);
-
-                // Setup session tracking
-                Epubly.state.currentBookId = bookId;
-                Epubly.state.activeBookSessionStart = Date.now();
-                Epubly.storage.saveLastOpenedBook(bookId);
-                
-                // Load TOC (safely)
-                try {
-                    const navigation = await Epubly.state.book.loaded.navigation;
-                    Epubly.toc.generate(navigation.toc);
-                } catch(e) { console.warn("TOC load failed", e); }
-
-                this.applySettings(settings);
-
-                // Events
-                Epubly.state.rendition.on("displayed", l => {
-                    Epubly.ui.hideLoader(); // Hide loader immediately after first render
-                    // Epubly.toc.updateActive(l.start.href); // Can be expensive in continuous mode, opt-in
-                });
-                
-                // Track progress and time on relocation
-                Epubly.state.rendition.on("relocated", location => {
-                    Epubly.storage.saveLocation(bookId, location.start.cfi);
-                    this.updateSessionStats(location);
-                    // Update active TOC item loosely
-                    if(location.start.href) Epubly.toc.updateActive(location.start.href);
-                });
-
-            } catch (error) {
-                console.error("Error loading EPUB:", error);
+                Epubly.ui.showReaderView();
                 Epubly.ui.hideLoader();
-                alert("Hiba a könyv megnyitása közben: " + error.message);
+
+                // 6. Try to parse TOC (for Sidebar)
+                this.parseTOC(opfDoc);
+
+            } catch (e) {
+                console.error("Native Engine Error:", e);
+                alert("Hiba a könyv betöltésekor: " + e.message);
+                Epubly.ui.hideLoader();
                 Epubly.ui.showLibraryView();
             }
         },
-        updateSessionStats(location) {
-            if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
-            
-            const now = Date.now();
-            const duration = now - Epubly.state.activeBookSessionStart;
-            // Update start time to now to avoid double counting if called multiple times
-            Epubly.state.activeBookSessionStart = now;
 
-            // Calculate percentage if location provided
-            let percentage = null;
-            if(location && location.start && typeof location.start.percentage === 'number') {
-                percentage = location.start.percentage;
+        async renderChapter(index) {
+            Epubly.ui.showLoader("Fejezet betöltése...");
+            
+            if (index < 0 || index >= Epubly.state.spine.length) {
+                Epubly.ui.hideLoader();
+                return;
             }
 
-            Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, percentage);
-        },
-        nextPage() {
-            // In continuous/scrolled mode, we scroll instead of paging
-            const viewer = document.getElementById('viewer');
-            if(viewer) viewer.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
-        },
-        prevPage() {
-            const viewer = document.getElementById('viewer');
-            if(viewer) viewer.scrollBy({ top: -(window.innerHeight * 0.8), behavior: 'smooth' });
-        },
-        applySettings(settings) {
-            if (!Epubly.state.rendition) return;
+            const chapterItem = Epubly.state.spine[index];
+            const file = Epubly.state.zip.file(chapterItem.fullPath);
             
-            // Apply themes.default
-            const rules = {
-                'body': { 
-                    'color': `${settings.textColor} !important`, 
-                    'background': `${settings.bgColor} !important`,
-                    'font-family': `${settings.fontFamily} !important`,
-                    'font-size': `${settings.fontSize}% !important`,
-                    'line-height': `${settings.lineHeight} !important`,
-                    'padding': `0 ${settings.margin}% !important`, // Horizontal margin
-                    'padding-top': '20px !important',
-                    'padding-bottom': '20px !important',
-                    'max-width': '900px !important', // Optimize reading width
-                    'margin': '0 auto !important'
-                },
-                'p': {
-                    'font-family': `${settings.fontFamily} !important`,
-                    'font-size': '1em !important',
-                    'line-height': `${settings.lineHeight} !important`,
-                    'text-align': `${settings.textAlign} !important`,
-                    'color': `${settings.textColor} !important`
-                },
-                'a': {
-                    'color': `${settings.textColor} !important`
-                },
-                'img': {
-                    'max-width': '100% !important',
-                    'height': 'auto !important'
+            if (!file) {
+                document.getElementById('viewer-content').innerHTML = "<p style='color:red'>Hiba: A fájl nem található a ZIP-ben: " + chapterItem.fullPath + "</p>";
+                Epubly.ui.hideLoader();
+                return;
+            }
+
+            // Load HTML string
+            let htmlContent = await file.async("string");
+
+            // Clean content using DOMParser
+            const parser = new DOMParser();
+            // Using 'text/html' is more forgiving than 'application/xhtml+xml'
+            const doc = parser.parseFromString(htmlContent, "text/html");
+
+            // --- IMAGE HANDLING (The crucial part) ---
+            // Find all images and replace src with ObjectURLs from Zip blobs
+            const images = doc.getElementsByTagName("img");
+            // Also svg images
+            const svgImages = doc.getElementsByTagName("image");
+            
+            const processImage = async (img) => {
+                const src = img.getAttribute("src") || img.getAttribute("href") || img.getAttribute("xlink:href");
+                if (!src) return;
+                
+                // Resolve path relative to current chapter
+                const chapterDir = chapterItem.fullPath.substring(0, chapterItem.fullPath.lastIndexOf('/') + 1);
+                // Basic path resolution (handling ../)
+                const resolvedPath = this.resolvePath(chapterDir, src);
+                
+                const imgFile = Epubly.state.zip.file(resolvedPath);
+                if (imgFile) {
+                    const blob = await imgFile.async("blob");
+                    const url = URL.createObjectURL(blob);
+                    img.setAttribute("src", url);
+                    // For SVG image tag
+                    if(img.tagName.toLowerCase() === 'image') img.setAttribute("href", url);
                 }
             };
 
-            Epubly.state.rendition.themes.default(rules);
+            const promises = [];
+            for (let img of images) promises.push(processImage(img));
+            for (let img of svgImages) promises.push(processImage(img));
+            await Promise.all(promises);
 
-            // Global background
-            document.getElementById('reader-main').style.backgroundColor = settings.bgColor;
+            // Extract body content
+            const bodyContent = doc.body.innerHTML;
             
+            const viewerContent = document.getElementById('viewer-content');
+            viewerContent.innerHTML = bodyContent;
+
+            // Scroll to top
+            document.getElementById('viewer').scrollTop = 0;
+
+            // Update Navigation UI
+            this.updateNavigationUI(index);
+            
+            // Apply Settings
+            Epubly.reader.applySettings(Epubly.settings.get());
+
+            // Save location
+            Epubly.storage.saveLocation(Epubly.state.currentBookId, index);
+            Epubly.state.currentChapterIndex = index;
+
+            Epubly.ui.hideLoader();
+        },
+
+        resolvePath(base, relative) {
+            const stack = base.split("/");
+            stack.pop(); // Remove empty trailing or filename
+            const parts = relative.split("/");
+            for (let i = 0; i < parts.length; i++) {
+                if (parts[i] === ".") continue;
+                if (parts[i] === "..") stack.pop();
+                else stack.push(parts[i]);
+            }
+            return stack.join("/");
+        },
+
+        updateNavigationUI(index) {
+            const container = document.getElementById('viewer-nav-controls');
+            if(!container) return;
+
+            const total = Epubly.state.spine.length;
+            let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">`;
+            
+            if(index > 0) {
+                html += `<button class="chapter-nav-btn" onclick="Epubly.engine.prevChapter()">&#8592; Előző fejezet</button>`;
+            } else {
+                html += `<div></div>`;
+            }
+
+            html += `<span style="color:var(--text-muted); font-size:0.8rem;">${index + 1} / ${total}</span>`;
+
+            if(index < total - 1) {
+                html += `<button class="chapter-nav-btn" onclick="Epubly.engine.nextChapter()">Következő fejezet &#8594;</button>`;
+            } else {
+                html += `<div></div>`;
+            }
+            
+            html += `</div>`;
+            container.innerHTML = html;
+        },
+
+        prevChapter() {
+            this.renderChapter(Epubly.state.currentChapterIndex - 1);
+        },
+
+        nextChapter() {
+            this.renderChapter(Epubly.state.currentChapterIndex + 1);
+        },
+
+        async parseTOC(opfDoc) {
+            // Very basic TOC parsing (NCX or Nav)
+            // 1. Try manifest for .ncx
+            let tocId = opfDoc.getElementsByTagName("spine")[0].getAttribute("toc");
+            let tocPath = "";
+            
+            if(tocId && Epubly.state.manifest[tocId]) {
+                tocPath = Epubly.state.manifest[tocId].fullPath;
+            } else {
+                // Fallback: look for "nav" property
+                for(let key in Epubly.state.manifest) {
+                    if(Epubly.state.manifest[key].href.indexOf("toc") > -1) {
+                        tocPath = Epubly.state.manifest[key].fullPath;
+                        break;
+                    }
+                }
+            }
+
+            if(!tocPath) {
+                Epubly.toc.generate([]);
+                return;
+            }
+
+            try {
+                const tocXml = await Epubly.state.zip.file(tocPath).async("string");
+                const parser = new DOMParser();
+                const tocDoc = parser.parseFromString(tocXml, "application/xml");
+                
+                const navPoints = tocDoc.getElementsByTagName("navPoint");
+                const tocItems = [];
+
+                for(let point of navPoints) {
+                    const label = point.getElementsByTagName("text")[0]?.textContent;
+                    const content = point.getElementsByTagName("content")[0]?.getAttribute("src");
+                    
+                    if(label && content) {
+                        // Find spine index for this href
+                        // content might include hash (chapter.html#id)
+                        const cleanHref = content.split('#')[0];
+                        // We need to resolve full path to match manifest
+                        const tocDir = tocPath.substring(0, tocPath.lastIndexOf('/') + 1);
+                        const fullHref = this.resolvePath(tocDir, cleanHref);
+
+                        // Find index in spine
+                        let spineIdx = -1;
+                        Epubly.state.spine.forEach((s, idx) => {
+                            if(s.fullPath === fullHref) spineIdx = idx;
+                        });
+
+                        if(spineIdx !== -1) {
+                            tocItems.push({ label: label, index: spineIdx });
+                        }
+                    }
+                }
+                Epubly.toc.generate(tocItems);
+
+            } catch(e) {
+                console.warn("TOC parse failed", e);
+                Epubly.toc.generate([]);
+            }
+        }
+    },
+
+    reader: {
+        // Wrapper for legacy calls, redirected to engine
+        async loadBook(bookData, bookId) {
+            return Epubly.engine.loadBook(bookData, bookId);
+        },
+        updateSessionStats() {
+            // Stats logic remains mostly the same, simplified
+            if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
+            const now = Date.now();
+            const duration = now - Epubly.state.activeBookSessionStart;
+            Epubly.state.activeBookSessionStart = now;
+            
+            // Calc progress based on chapter index
+            let progress = 0;
+            if(Epubly.state.spine.length > 0) {
+                progress = Epubly.state.currentChapterIndex / Epubly.state.spine.length;
+            }
+            Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, progress);
+        },
+        nextPage() { Epubly.engine.nextChapter(); },
+        prevPage() { Epubly.engine.prevChapter(); },
+        
+        applySettings(settings) {
+            const viewer = document.getElementById('viewer-content');
+            if(!viewer) return;
+
+            // Apply Typography
+            viewer.style.fontFamily = settings.fontFamily;
+            viewer.style.fontSize = settings.fontSize + "%";
+            viewer.style.lineHeight = settings.lineHeight;
+            viewer.style.textAlign = settings.textAlign;
+            viewer.style.letterSpacing = settings.letterSpacing + "px";
+            
+            // Width constraint
+            // Map margin-range (0-35) or width (300-1200) to max-width
+            // If the old slider is used, it's small, if new one, it's pixels
+            let mw = settings.margin;
+            if(mw < 100) mw = 800; // default fallback if old setting
+            viewer.style.maxWidth = mw + "px";
+
+            // Colors
+            viewer.style.color = settings.textColor;
+            document.getElementById('reader-main').style.backgroundColor = settings.bgColor;
+            document.body.style.backgroundColor = settings.bgColor; // Global bg for overscroll
+
             // Pattern
             const overlay = document.getElementById('pattern-overlay');
             if (settings.pattern === 'paper') {
@@ -199,82 +362,41 @@ const Epubly = {
             const tocList = document.getElementById('toc-list');
             if(!tocList) return;
             tocList.innerHTML = '';
+            
             if (!tocItems || tocItems.length === 0) {
                 tocList.innerHTML = '<li><span style="color:var(--text-muted); padding:8px; display:block;">Nincs tartalomjegyzék.</span></li>';
                 return;
             }
-            const fragment = document.createDocumentFragment();
             
-            const createLink = (item) => {
+            const fragment = document.createDocumentFragment();
+            tocItems.forEach(item => {
+                const li = document.createElement('li');
                 const a = document.createElement('a');
-                a.textContent = item.label ? item.label.trim() : "Névtelen fejezet";
-                a.href = item.href;
+                a.textContent = item.label || "Fejezet " + (item.index + 1);
                 a.style.display = "block";
                 a.style.padding = "8px";
                 a.style.color = "var(--text-muted)";
                 a.style.textDecoration = "none";
                 a.style.cursor = "pointer";
                 a.style.borderRadius = "4px";
-
-                a.addEventListener('mouseenter', () => { a.style.color = "var(--text)"; a.style.backgroundColor = "var(--surface-alt)"; });
-                a.addEventListener('mouseleave', () => { 
-                    if(!a.classList.contains('active')) {
-                        a.style.color = "var(--text-muted)"; a.style.backgroundColor = "transparent"; 
-                    }
-                });
                 
-                a.addEventListener('click', (e) => { 
-                    e.preventDefault(); 
-                    Epubly.state.rendition.display(item.href); 
+                a.onclick = () => {
+                    Epubly.engine.renderChapter(item.index);
                     if(window.innerWidth < 800) {
                         document.getElementById('reader-sidebar-left').classList.remove('visible');
                     }
-                });
-                return a;
-            };
+                };
+                
+                // Highlight active
+                if(item.index === Epubly.state.currentChapterIndex) {
+                    a.style.color = "var(--brand)";
+                    a.style.fontWeight = "bold";
+                }
 
-            tocItems.forEach(item => {
-                const li = document.createElement('li');
-                li.appendChild(createLink(item));
+                li.appendChild(a);
                 fragment.appendChild(li);
             });
             tocList.appendChild(fragment);
-        },
-        updateActive(currentHref) {
-            // Simplified loose matching for performance
-            const tocList = document.getElementById('toc-list');
-            if(!tocList) return;
-            const links = tocList.querySelectorAll('a');
-            let found = false;
-            
-            // Only update if not already active to save DOM ops
-            links.forEach(link => {
-                const linkHref = link.getAttribute('href');
-                if(!linkHref) return;
-                
-                const cleanCurrent = currentHref.split('#')[0];
-                const cleanLink = linkHref.split('#')[0];
-
-                const isActive = cleanCurrent === cleanLink;
-                
-                if (isActive) {
-                    if(!link.classList.contains('active')) {
-                        // Clear old active
-                        const old = tocList.querySelector('.active');
-                        if(old) {
-                            old.classList.remove('active');
-                            old.style.color = "var(--text-muted)";
-                            old.style.fontWeight = "normal";
-                        }
-                        
-                        link.classList.add('active');
-                        link.style.color = "var(--brand)";
-                        link.style.fontWeight = "bold";
-                        link.scrollIntoView({block: "center", behavior: "smooth"});
-                    }
-                    found = true;
-                }
-            });
         }
     },
 
@@ -295,9 +417,7 @@ const Epubly = {
                 books.forEach(book => {
                     const card = document.createElement('div');
                     card.className = 'book-card';
-                    // Cover fallback
                     const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%23222"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
-                    
                     const safeTitle = book.metadata.title || "Ismeretlen cím";
                     const safeCreator = book.metadata.creator || "Ismeretlen szerző";
 
@@ -329,23 +449,21 @@ const Epubly = {
 
             bindInput('font-size-range', 'fontSize');
             bindInput('line-height-range', 'lineHeight');
-            bindInput('letter-spacing-range', 'letterSpacing');
+            // bindInput('letter-spacing-range', 'letterSpacing');
             bindInput('margin-range', 'margin');
             bindInput('bg-color-picker', 'bgColor');
             bindInput('text-color-picker', 'textColor');
             
-            const bindToggleGroup = (groupId, key, needsReload) => {
+            const bindToggleGroup = (groupId, key) => {
                 const group = document.getElementById(groupId);
                 if(!group) return;
                 group.querySelectorAll('.toggle-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        this.handleUpdate(key, btn.dataset.val, false, needsReload);
+                        this.handleUpdate(key, btn.dataset.val);
                     });
                 });
             }
 
-            // Note: 'readingFlow' is now essentially ignored or forced to scrolled in code, but UI preserved
-            bindToggleGroup('layout-toggle-group', 'readingFlow', true);
             bindToggleGroup('align-toggle-group', 'textAlign');
             bindToggleGroup('theme-toggle-group', 'theme');
             
@@ -361,9 +479,8 @@ const Epubly = {
 
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', letterSpacing: '0', margin: '15', // Increased default margin for scrolling
-                readingFlow: 'scrolled', theme: 'oled',
-                textAlign: 'left', fontFamily: "'Inter', sans-serif",
+                fontSize: '100', lineHeight: '1.6', letterSpacing: '0', margin: '800',
+                theme: 'oled', textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 textColor: '#EDEDED', bgColor: '#000000', pattern: 'none'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
@@ -379,14 +496,12 @@ const Epubly = {
             const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
-            setVal('letter-spacing-range', s.letterSpacing);
             setVal('margin-range', s.margin);
             setVal('text-color-picker', s.textColor);
             setVal('bg-color-picker', s.bgColor);
             setVal('font-family-select', s.fontFamily);
             setVal('pattern-select', s.pattern);
 
-            // Update toggle buttons active state
             const updateToggle = (groupId, val) => {
                 const g = document.getElementById(groupId);
                 if(g) {
@@ -395,17 +510,16 @@ const Epubly = {
                     });
                 }
             };
-            updateToggle('layout-toggle-group', s.readingFlow);
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
 
             Epubly.reader.applySettings(s);
         },
 
-        handleUpdate(key, value, isCustomTheme = false, requiresReload = false) {
+        handleUpdate(key, value) {
             const s = this.get();
             
-            // Special case for presets
+            // Preset handling
             if(key === 'theme') {
                 const presets = {
                     oled: { textColor: '#EDEDED', bgColor: '#000000' },
@@ -415,7 +529,6 @@ const Epubly = {
                 if(presets[value]) {
                     s.textColor = presets[value].textColor;
                     s.bgColor = presets[value].bgColor;
-                    // Update pickers
                     const tcp = document.getElementById('text-color-picker'); if(tcp) tcp.value = s.textColor;
                     const bcp = document.getElementById('bg-color-picker'); if(bcp) bcp.value = s.bgColor;
                 }
@@ -423,16 +536,7 @@ const Epubly = {
             
             s[key] = value;
             this.save(s);
-            this.load(); // Refresh UI states
-
-            if (requiresReload && Epubly.state.currentBookId) {
-                // In continuous mode, full reload is rarely needed for style changes, 
-                // but if we switch flow (which we disabled for now), we would need it.
-                // Re-applying settings is usually enough.
-                Epubly.reader.applySettings(s);
-            } else {
-                Epubly.reader.applySettings(s);
-            }
+            this.load();
         }
     },
 
@@ -442,16 +546,14 @@ const Epubly = {
             async init() {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
-                    // Keep version 4 to maintain data
                     const request = indexedDB.open('EpublyDB', 4);
-                    request.onerror = e => reject("IndexedDB error: " + e.target.error);
+                    request.onerror = e => reject("IndexedDB error");
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
-                        if (db.objectStoreNames.contains('books')) {
-                            db.deleteObjectStore('books');
+                        if (!db.objectStoreNames.contains('books')) {
+                            db.createObjectStore('books', { keyPath: 'id' });
                         }
-                        db.createObjectStore('books', { keyPath: 'id' });
                     };
                 });
             },
@@ -506,112 +608,64 @@ const Epubly = {
                 });
             }
         },
-        async getCoverBase64(coverUrl) {
-            if(!coverUrl) return null;
-            try {
-                const response = await fetch(coverUrl);
-                const blob = await response.blob();
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.readAsDataURL(blob);
-                });
-            } catch(e) {
-                console.warn("Cover fetch failed", e);
-                return null;
-            }
-        },
-        // *** COMPLETELY REWRITTEN IMPORT FUNCTION ***
-        async importBook(arrayBuffer, bookId, isDefault = false) {
-            let tempBook = null;
-            try {
-                if (!window.ePub) throw new Error("Az ePub.js könyvtár nincs betöltve.");
-                
-                // Initialize book with the buffer
-                tempBook = window.ePub(arrayBuffer);
-                
-                // Wait for the book to be ready (parsing spine, container, etc)
-                await tempBook.ready;
-
-                // Robust Metadata Extraction
-                let rawMetadata = {};
-                try {
-                    // Try the standard way first (modern epub.js)
-                    rawMetadata = await tempBook.loaded.metadata; 
-                } catch (metaError) {
-                    console.warn("Metadata promise failed, trying fallback...", metaError);
-                    // Fallback to internal properties if promise fails
-                    if(tempBook.package && tempBook.package.metadata) {
-                        rawMetadata = tempBook.package.metadata;
-                    }
-                }
-
-                // Normalize metadata to ensure no 'undefined' errors
-                const safeMeta = rawMetadata || {};
-
-                const finalMetadata = {
-                    title: safeMeta.title || 'Névtelen Könyv',
-                    creator: safeMeta.creator || 'Ismeretlen Szerző',
-                    publisher: safeMeta.publisher || '',
-                    pubdate: safeMeta.pubdate || '',
-                    description: safeMeta.description || 'Nincs leírás.',
-                    coverUrl: null
-                };
-
-                // Cover Extraction
-                try {
-                    const coverUrl = await tempBook.coverUrl();
-                    if(coverUrl) {
-                        finalMetadata.coverUrl = await this.getCoverBase64(coverUrl);
-                    }
-                } catch (coverErr) {
-                    console.warn("No cover found or extraction failed:", coverErr);
-                }
-
-                // ID Generation
-                const finalId = isDefault ? bookId : `${Date.now()}`;
-                
-                // Construct Record
-                const bookRecord = {
-                    id: finalId, 
-                    data: arrayBuffer,
-                    metadata: finalMetadata,
-                    stats: {
-                        totalTime: 0,
-                        progress: 0,
-                        lastRead: Date.now()
-                    }
-                };
-                
-                // Persist
-                await this.db.saveBook(bookRecord);
-                return bookRecord;
-
-            } catch (err) {
-                console.error("Critical Import Error:", err);
-                throw new Error("Sikertelen importálás: " + (err.message || "Ismeretlen hiba"));
-            } finally {
-                // Always clean up resources
-                if (tempBook) {
-                    try { tempBook.destroy(); } catch(e) {}
-                }
-            }
-        },
         async handleFileUpload(file) {
             Epubly.ui.showLoader('Feldolgozás...');
             Epubly.ui.hideModal('import-modal');
             
             try {
+                // Parse basics with JSZip just to get cover/metadata for library view
                 const arrayBuffer = await file.arrayBuffer();
-                await this.importBook(arrayBuffer);
+                const zip = await JSZip.loadAsync(arrayBuffer);
                 
-                // Allow DB to settle
+                // --- QUICK METADATA EXTRACTION ---
+                const containerXml = await zip.file("META-INF/container.xml").async("string");
+                const parser = new DOMParser();
+                const containerDoc = parser.parseFromString(containerXml, "application/xml");
+                const fullOpfPath = containerDoc.querySelector("rootfile").getAttribute("full-path");
+                const opfXml = await zip.file(fullOpfPath).async("string");
+                const opfDoc = parser.parseFromString(opfXml, "application/xml");
+                
+                const title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || "Névtelen";
+                const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen";
+                
+                // Cover extraction (simplified)
+                let coverUrl = null;
+                const rootPath = fullOpfPath.includes('/') ? fullOpfPath.substring(0, fullOpfPath.lastIndexOf('/') + 1) : '';
+                // Look for item with properties="cover-image"
+                let coverItem = opfDoc.querySelector("item[properties~='cover-image']");
+                // Fallback: search id="cover"
+                if (!coverItem) coverItem = opfDoc.querySelector("item[id='cover']");
+                
+                if (coverItem) {
+                    const href = coverItem.getAttribute("href");
+                    const coverFile = zip.file(rootPath + href);
+                    if(coverFile) {
+                        const blob = await coverFile.async("blob");
+                        coverUrl = await new Promise(r => {
+                            const reader = new FileReader();
+                            reader.onload = () => r(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                    }
+                }
+
+                const bookRecord = {
+                    id: `${Date.now()}`,
+                    data: arrayBuffer,
+                    metadata: { title, creator: author, coverUrl },
+                    stats: { totalTime: 0, progress: 0, lastRead: Date.now() }
+                };
+
+                await this.db.saveBook(bookRecord);
+                
                 setTimeout(async () => {
                     await Epubly.library.render();
                     Epubly.ui.hideLoader();
                 }, 200);
+
             } catch (error) {
-                alert(error.message);
+                console.error(error);
+                alert("Hiba: " + error.message);
                 Epubly.ui.hideLoader();
             }
         },
@@ -619,31 +673,19 @@ const Epubly = {
             try {
                 const book = await this.db.getBook(bookId);
                 if(book) {
-                    // Ensure stats object exists
                     if(!book.stats) book.stats = { totalTime: 0, progress: 0, lastRead: Date.now() };
-                    
-                    // Sanity check delta (e.g., max 24 hours to prevent glitches)
-                    if(durationDelta > 0 && durationDelta < 86400000) { 
-                        book.stats.totalTime += durationDelta;
-                    }
-                    
-                    if(percentage !== null && percentage !== undefined && !isNaN(percentage)) {
-                        book.stats.progress = percentage;
-                    }
-                    
+                    if(durationDelta > 0 && durationDelta < 86400000) book.stats.totalTime += durationDelta;
+                    if(percentage !== null) book.stats.progress = percentage;
                     book.stats.lastRead = Date.now();
                     await this.db.saveBook(book);
                 }
-            } catch(e) { console.warn("Stats update failed", e); }
+            } catch(e) {}
         },
-        saveLastOpenedBook(bookId) { if (bookId) localStorage.setItem('epubly-lastBookId', bookId); },
-        getLastOpenedBook() { return localStorage.getItem('epubly-lastBookId'); },
-        saveLocation(bookId, cfi) { if (bookId && cfi) localStorage.setItem(`epubly-location-${bookId}`, cfi); },
-        getLocation(bookId) { return localStorage.getItem(`epubly-location-${bookId}`); },
+        getLocation(bookId) { return localStorage.getItem(`epubly-loc-${bookId}`); },
+        saveLocation(bookId, loc) { localStorage.setItem(`epubly-loc-${bookId}`, loc); },
         async clearAllBooks() {
-            if (confirm("Biztosan törölni szeretnéd az összes könyvet?")) {
+            if (confirm("Minden törölve lesz. Folytatod?")) {
                 await Epubly.storage.db.clearBooks();
-                localStorage.removeItem('epubly-lastBookId');
                 location.reload();
             }
         }
@@ -651,99 +693,42 @@ const Epubly = {
 
     ui: {
         init() {
-            // Bind Nav Clicks (These now just scroll up/down in continuous mode)
-            document.getElementById('nav-prev').addEventListener('click', () => Epubly.reader.prevPage());
-            document.getElementById('nav-next').addEventListener('click', () => Epubly.reader.nextPage());
-            
-            // Sidebar Close
             document.getElementById('btn-close-sidebar').addEventListener('click', () => {
                 document.getElementById('reader-sidebar-left').classList.remove('visible');
             });
 
-            // Brand Logo Navigation - Returns to Library
             document.getElementById('app-logo-btn').addEventListener('click', () => {
-                // If currently reading, update stats before closing
-                if(Epubly.state.book && Epubly.state.currentBookId) {
-                    Epubly.reader.updateSessionStats();
-                    Epubly.reader.loadBook(null); // Unload/Destroy current
-                }
+                Epubly.reader.updateSessionStats();
                 Epubly.ui.showLibraryView();
             });
 
-            // Import Drop Zone & File Input
             const fileInput = document.getElementById('epub-file');
-            const dropZone = document.getElementById('import-drop-zone');
-            
-            if(fileInput && dropZone) {
-                // Standard file input change
+            if(fileInput) {
                 fileInput.addEventListener('change', (e) => {
                     if(e.target.files.length > 0) {
                         Epubly.storage.handleFileUpload(e.target.files[0]);
                         e.target.value = '';
                     }
                 });
-
-                // Drag & Drop Events
-                dropZone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.add('hover');
-                });
-                
-                dropZone.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.remove('hover');
-                });
-
-                dropZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.remove('hover');
-                    
-                    if (e.dataTransfer.files.length > 0) {
-                        const file = e.dataTransfer.files[0];
-                        if (file.name.toLowerCase().endsWith('.epub')) {
-                            Epubly.storage.handleFileUpload(file);
-                        } else {
-                            alert("Csak .epub kiterjesztésű fájlokat importálhatsz!");
-                        }
-                    }
-                });
             }
 
-            // Modal Close Buttons
             document.querySelectorAll('.modal-close').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.target.closest('.modal').classList.remove('visible');
                 });
             });
-
-            // Modal Click Outside to Close
+            
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.addEventListener('click', (e) => {
-                    if(e.target === modal) {
-                        modal.classList.remove('visible');
-                    }
+                    if(e.target === modal) modal.classList.remove('visible');
                 });
-            });
-
-            // Keyboard Navigation
-            document.addEventListener('keydown', e => {
-                if(Epubly.state.currentBookId && document.getElementById('reader-view').classList.contains('active')) {
-                     if (e.key === 'ArrowLeft') Epubly.reader.prevPage();
-                     if (e.key === 'ArrowRight') Epubly.reader.nextPage();
-                }
             });
         },
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
         showLoader(msg) { 
-            const l = document.getElementById('loader');
-            l.classList.remove('hidden');
+            document.getElementById('loader').classList.remove('hidden');
             if(msg) document.getElementById('loader-msg').textContent = msg;
-            document.getElementById('loader-error').style.display = 'none';
-            document.getElementById('retry-btn').style.display = 'none';
         },
         hideLoader() { document.getElementById('loader').classList.add('hidden'); },
         
@@ -751,25 +736,20 @@ const Epubly = {
             document.getElementById('header-title-text').textContent = title;
         },
 
-        showReaderView(updateTitle = true) {
+        showReaderView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
             
-            // Reader Header Actions
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
-                <button class="btn btn-secondary" onclick="Epubly.reader.updateSessionStats(); Epubly.reader.loadBook(null); Epubly.ui.showLibraryView()">Vissza</button>
-                <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.add('visible')" title="Tartalomjegyzék">
+                <button class="btn btn-secondary" onclick="Epubly.reader.updateSessionStats(); Epubly.ui.showLibraryView()">Vissza</button>
+                <button class="icon-btn" onclick="document.getElementById('reader-sidebar-left').classList.add('visible')" title="Tartalom">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
-            if(updateTitle) {
-                const metaTitle = Epubly.state.book && Epubly.state.book.package ? Epubly.state.book.package.metadata.title : 'Olvasó';
-                this.updateHeaderTitle(metaTitle);
-            }
         },
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -777,12 +757,11 @@ const Epubly = {
             
             this.updateHeaderTitle('Könyvtár');
             
-            // Library Header Actions
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
 
@@ -792,7 +771,7 @@ const Epubly = {
             document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
             document.getElementById('detail-title').textContent = book.metadata.title;
             document.getElementById('detail-author').textContent = book.metadata.creator;
-            document.getElementById('detail-desc').innerHTML = book.metadata.description || 'Nincs leírás.';
+            document.getElementById('detail-desc').innerHTML = "Leírás nem elérhető.";
             
             // Stats calculation
             const stats = book.stats || { totalTime: 0, progress: 0 };
@@ -800,7 +779,6 @@ const Epubly = {
             const hours = Math.floor(minutes / 60);
             const mins = minutes % 60;
             const timeStr = hours > 0 ? `${hours}ó ${mins}p` : `${mins}p`;
-            
             const progressVal = Math.round((stats.progress || 0) * 100);
             
             document.getElementById('detail-stats-time').textContent = timeStr;
@@ -808,14 +786,8 @@ const Epubly = {
 
             document.getElementById('btn-read-book').onclick = async () => {
                 this.hideModal('book-details-modal');
-                this.showLoader('Könyv megnyitása...');
-                try {
-                    await Epubly.reader.loadBook(book.data, book.id);
-                    // showReaderView is called inside loadBook to ensure timing
-                } catch(e) { 
-                    alert(e.message); 
-                    this.hideLoader();
-                } 
+                // Use Native Engine
+                Epubly.engine.loadBook(book.data, book.id);
             };
 
             document.getElementById('btn-delete-book').onclick = async () => {
@@ -839,15 +811,10 @@ const Epubly = {
             this.settings.init();
             await this.storage.db.init();
             
-            // Explicitly show library view to render header buttons on startup
             this.ui.showLibraryView();
+            this.ui.hideLoader();
             
-            // Small delay to ensure UI updates
-            setTimeout(() => {
-                this.ui.hideLoader();
-            }, 100);
-            
-            console.log(`Epubly v${version} Initialized.`);
+            console.log(`Epubly v${version} Native Engine Initialized.`);
         } catch (error) {
             console.error("Fatal init error:", error);
             this.ui.showLoader("Hiba történt!");
@@ -859,23 +826,14 @@ const Epubly = {
 
 window.Epubly = Epubly;
 
-/**
- * BOOTSTRAP LOADER
- * Simplified to rely on HTML script tags first.
- */
 const DependencyLoader = {
     async boot() {
-        // Simple message
         document.getElementById('loader-msg').textContent = "Inicializálás...";
-        
-        // 1. Check if libraries are already present (loaded via HTML script tags)
-        if (window.JSZip && window.ePub) {
+        if (window.JSZip) {
             Epubly.init();
             return;
         }
-
-        // 2. If not found, show error
-        const msg = "Nem sikerült betölteni a komponenseket. Kérlek, ellenőrizd az internetkapcsolatot.";
+        const msg = "A JSZip könyvtár nem töltődött be.";
         document.getElementById('loader-msg').textContent = "Hiba";
         document.getElementById('loader-error').textContent = msg;
         document.getElementById('loader-error').style.display = 'block';
@@ -883,5 +841,4 @@ const DependencyLoader = {
     }
 };
 
-// Start boot sequence
 DependencyLoader.boot();

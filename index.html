@@ -18,7 +18,7 @@
     
     <!-- DEPENDENCIES (CDN FIRST STRATEGY) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <!-- Removed epub.js reliance, using native implementation -->
 </head>
 <body>
 
@@ -75,10 +75,15 @@
         <!-- Main Content -->
         <div id="reader-main">
             <div id="pattern-overlay"></div>
-            <div id="viewer"></div>
-            <!-- Click zones (Nav arrows via click) -->
-            <div class="nav-zone left" id="nav-prev" title="Előző oldal"></div>
-            <div class="nav-zone right" id="nav-next" title="Következő oldal"></div>
+            <!-- Native Viewer Container -->
+            <div id="viewer">
+                <div id="viewer-content"></div>
+                <div style="padding: 20px; text-align: center;">
+                    <div id="viewer-nav-controls">
+                        <!-- Navigation will be injected here -->
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -141,23 +146,6 @@
             
             <div style="padding-right: 4px;">
                 
-                <!-- Layout Settings -->
-                <div class="settings-section">
-                    <h3 style="margin-bottom:12px; color:var(--brand);">Elrendezés</h3>
-                    <div class="settings-row">
-                        <label>Olvasási mód</label>
-                        <div class="toggle-group" id="layout-toggle-group">
-                            <button class="toggle-btn" data-val="scrolled">Görgetés</button>
-                            <button class="toggle-btn" data-val="paginated">Lapozás</button>
-                            <button class="toggle-btn" data-val="spread">2 Oldal</button>
-                        </div>
-                    </div>
-                    <div class="settings-row">
-                        <label title="Oldalmargó növelése (keskenyebb szöveg)">Margó (szélesség)</label>
-                        <input type="range" id="margin-range" min="0" max="35" step="1">
-                    </div>
-                </div>
-
                 <!-- Typography Settings -->
                 <div class="settings-section">
                     <h3 style="margin-bottom:12px; color:var(--brand);">Tipográfia</h3>
@@ -189,8 +177,8 @@
                         <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1">
                     </div>
                     <div class="settings-row">
-                        <label>Betűköz</label>
-                        <input type="range" id="letter-spacing-range" min="-1" max="3" step="0.5">
+                        <label>Szélesség</label>
+                        <input type="range" id="margin-range" min="300" max="1200" step="50" title="Olvasó ablak szélessége">
                     </div>
                 </div>
 
