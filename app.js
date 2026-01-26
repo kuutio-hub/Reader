@@ -567,9 +567,8 @@ const Epubly = {
 window.Epubly = Epubly;
 
 /**
- * SMART DEPENDENCY LOADER
- * Attempts to load local files first. If they are missing or empty (mock files),
- * it detects the failure and falls back to CDN.
+ * BOOTSTRAP LOADER
+ * Checks if libraries loaded via HTML tags. If not, attempts to load from CDN.
  */
 const DependencyLoader = {
     loadScript(src) {
@@ -589,33 +588,30 @@ const DependencyLoader = {
     },
 
     async boot() {
-        // 1. Try Local Files
-        this.updateStatus('Helyi fájlok keresése...');
+        // 1. Check if libraries are already present (loaded from local files via <script> tags)
+        if (window.JSZip && window.ePub) {
+            console.log("Libraries loaded from local source.");
+            Epubly.init();
+            return;
+        }
+
+        // 2. If not found, try CDN as fallback
+        this.updateStatus('Helyi fájlok nem találhatók. Letöltés...');
         
-        // Load JSZip (Required for ePub)
-        await this.loadScript('js/libs/jszip.min.js');
-        
-        // Check if JSZip is valid
         if (typeof window.JSZip === 'undefined') {
-            this.updateStatus('Helyi JSZip nem található. Váltás CDN-re...');
             await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js');
         }
 
-        // Load ePub.js
-        await this.loadScript('js/libs/epub.min.js');
-
-        // Check if ePub is valid
         if (typeof window.ePub === 'undefined') {
-             this.updateStatus('Helyi ePub motor nem található. Váltás CDN-re...');
-             await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js');
+             await this.loadScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
         }
 
-        // Final Check
+        // 3. Final Check
         if (window.JSZip && window.ePub) {
             this.updateStatus('Motor kész. Indítás...');
             Epubly.init();
         } else {
-            const msg = "Kritikus hiba: Nem sikerült betölteni a könyvtárakat (Helyi és CDN is sikertelen). Ellenőrizd az internetkapcsolatot!";
+            const msg = "Kritikus hiba: Nem sikerült betölteni a könyvtárakat. Ellenőrizd a 'js/libs/' mappát vagy az internetkapcsolatot!";
             document.getElementById('loader-msg').textContent = "Hiba";
             document.getElementById('loader-error').textContent = msg;
             document.getElementById('loader-error').style.display = 'block';
@@ -624,5 +620,5 @@ const DependencyLoader = {
     }
 };
 
-// Start the smart loader
+// Start boot sequence
 DependencyLoader.boot();
