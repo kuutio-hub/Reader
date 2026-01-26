@@ -804,7 +804,8 @@ const Epubly = {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
                     const request = indexedDB.open('EpublyDB', 4);
-                    request.onerror = e => reject("IndexedDB error");
+                    request.onerror = e => reject("Hiba az adatbázis megnyitásakor.");
+                    request.onblocked = e => reject("Az adatbázis zárolva van. Kérjük, zárja be az alkalmazás többi példányát, majd frissítse az oldalt.");
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
@@ -1233,43 +1234,45 @@ const Epubly = {
     },
     
     async init() {
-        try {
-            if(!this.ui || !this.library || !this.settings || !this.storage) {
-                throw new Error("Initialization failed: Modules missing.");
-            }
-
-            this.ui.init();
-            this.settings.init();
-            this.lightbox.init();
-            await this.storage.db.init();
-            
-            this.ui.showLibraryView();
-            this.ui.hideLoader();
-            
-            console.log(`Epubly v${version} Initialized.`);
-        } catch (error) {
-            console.error("Fatal init error:", error);
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('loader-error').textContent = error.message;
-            document.getElementById('loader-error').style.display = 'block';
+        if (!window.JSZip) {
+            throw new Error("A működéshez szükséges JSZip könyvtár nem töltődött be.");
         }
+        if(!this.ui || !this.library || !this.settings || !this.storage) {
+            throw new Error("Alkalmazás modulok hiányoznak. Az indítás sikertelen.");
+        }
+
+        this.ui.init();
+        this.settings.init();
+        this.lightbox.init();
+        await this.storage.db.init();
+        
+        this.ui.showLibraryView();
+        this.ui.hideLoader();
+        
+        console.log(`Epubly v${version} Initialized.`);
     }
 };
 
 window.Epubly = Epubly;
 
-const DependencyLoader = {
-    async boot() {
-        if (window.JSZip) {
-            Epubly.init();
-            return;
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await Epubly.init();
+    } catch (error) {
+        console.error("Fatal init error:", error);
+        const loader = document.getElementById('loader');
+        const errorDiv = document.getElementById('loader-error');
+        const msgDiv = document.getElementById('loader-msg');
+        const spinner = document.querySelector('#loader .spinner');
+        const retryBtn = document.getElementById('retry-btn');
+        
+        if (loader) loader.classList.remove('hidden');
+        if (errorDiv) {
+            errorDiv.textContent = `Hiba történt az alkalmazás indításakor: ${error.message}`;
+            errorDiv.style.display = 'block';
         }
-        const msg = "A JSZip könyvtár nem töltődött be.";
-        console.error(msg);
-        document.getElementById('loader-error').textContent = msg;
-        document.getElementById('loader-error').style.display = 'block';
-        document.getElementById('retry-btn').style.display = 'block';
+        if (msgDiv) msgDiv.style.display = 'none';
+        if (spinner) spinner.style.display = 'none';
+        if (retryBtn) retryBtn.style.display = 'block';
     }
-};
-
-DependencyLoader.boot();
+});

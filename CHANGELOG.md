@@ -1,5 +1,12 @@
 # Változási napló
 
+## [0.12.0-beta] - 2024-07-29
+
+### Kritikus Javítások
+- **STABILITÁS:** Kijavítva egy kritikus hiba, amely miatt az alkalmazás hibaüzenet nélkül megállt a töltőképernyőn ("csendes hiba").
+  - Az indítási folyamat mostantól egy robusztus hibakezelőben fut, amely bármilyen hiba esetén egyértelmű üzenetet és újratöltési lehetőséget jelenít meg a felhasználónak.
+  - Az adatbázis-kapcsolat (IndexedDB) kezelése stabilabbá vált, hogy megelőzze a más böngészőfülek által okozott esetleges blokkolásokat és lefagyásokat.
+
 ## [0.10.9-beta] - 2024-07-27
 
 ### Jelentős Javítások és Új Funkciók
@@ -30,10 +37,6 @@
 - **Téma és Minták:** Egyedi színválasztók mellett mostantól háttér textúrák (papír, vonalas, zaj) is bekapcsolhatók.
 - **Kétoldalas Nézet:** Új "2 Oldal" opció a lapozáshoz, amely kényszeríti a könyv dupla oldalas megjelenítését (főleg asztali nézetben hasznos).
 - **Egyoldalas Nézet:** Választható görgetés vagy lapozás az egyoldalas nézethez.
-
-### UX Javítások
-- **Navigáció:** Megnövelt, láthatatlan érzékeny területek (jobb/bal 15%) a könnyebb lapozáshoz.
-- **Billentyűzet:** Nyíl gombokkal való lapozás támogatása.
 
 ## [0.5.0-beta] - 2024-05-24
 *Single File Architecture bevezetése.*
