@@ -3,7 +3,6 @@ import { version } from './version.js';
 // --- DEBUGGER MODULE ---
 const Debug = {
     init() {
-        // Simple console override if needed, stripped down for prod feeling
         window.onerror = (msg, url, line) => {
             console.error(`Epubly Error: ${msg} (${url}:${line})`);
         };
@@ -26,15 +25,16 @@ const Epubly = {
         observer: null,
         isLoadingNext: false,
         highlights: {},
-        activeSidebar: null // 'toc' or 'settings'
+        activeSidebar: null,
+        globalTheme: 'dark' // 'dark' or 'light'
     },
 
-    // --- ENGINE: Core Logic ---
+    // --- ENGINE ---
     engine: {
         async loadBook(arrayBuffer, bookId) {
-            Epubly.ui.showLoader(); // No text, just spinner
+            Epubly.ui.showLoader();
             
-            // Reset
+            // Reset state
             Epubly.state.zip = null;
             Epubly.state.spine = [];
             Epubly.state.manifest = {};
@@ -95,10 +95,10 @@ const Epubly = {
                 const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen Szerző";
                 Epubly.state.metadata = { title, author };
                 
-                // Initial Header Update (will be refined by observer)
-                Epubly.ui.updateHeaderInfo(title, "");
+                // Set Header
+                Epubly.ui.updateHeaderInfo(title, author, "");
 
-                // Start Position
+                // Resume Position
                 let startIdx = 0;
                 const savedCfi = Epubly.storage.getLocation(bookId);
                 if(savedCfi) {
@@ -115,7 +115,6 @@ const Epubly = {
 
                 this.parseTOC(opfDoc);
                 
-                // Done
                 Epubly.ui.hideLoader();
 
             } catch (e) {
@@ -138,6 +137,16 @@ const Epubly = {
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlContent, "text/html");
 
+            // --- CRITICAL VISIBILITY FIX ---
+            // 1. Remove style tags from the chapter content to prevent overriding app styles
+            doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
+            
+            // 2. Remove inline style attributes from ALL elements to enforce app theme
+            doc.querySelectorAll('*').forEach(el => {
+                el.removeAttribute('style'); // Brutal, but ensures visibility
+                el.removeAttribute('class'); // Optional: remove classes if they carry bad styles
+            });
+
             // Images replacement
             const images = doc.querySelectorAll("img, image");
             const processImage = async (img) => {
@@ -155,17 +164,21 @@ const Epubly = {
             };
             await Promise.all(Array.from(images).map(processImage));
 
-            // Container
             const chapterContainer = document.createElement('div');
             chapterContainer.className = 'chapter-container';
             chapterContainer.dataset.index = index;
-            // Removed raw chapter output from here, handled in header
-            chapterContainer.innerHTML = doc.body.innerHTML;
+            
+            if (doc.body) {
+                chapterContainer.innerHTML = doc.body.innerHTML;
+            } else {
+                // Fallback if doc parsing failed strangely
+                chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
+            }
 
             document.getElementById('viewer-content').appendChild(chapterContainer);
             Epubly.state.renderedChapters.add(index);
             
-            // Apply Settings Immediately
+            // Re-apply settings to ensure new content picks up styles
             Epubly.reader.applySettings(Epubly.settings.get());
             Epubly.highlights.apply(index, chapterContainer);
         },
@@ -190,16 +203,14 @@ const Epubly = {
                         const idx = parseInt(entry.target.dataset.index);
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx);
                         
-                        // Update Header: Title - ChapterName
                         let chapterName = "Fejezet " + (idx + 1);
+                        // Try to get first header
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
                         
-                        // Update UI
-                        Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, chapterName);
+                        // Update Header
+                        Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.ui.updateProgress(idx, Epubly.state.spine.length);
-                        
-                        // Highlight TOC item
                         Epubly.toc.highlight(idx);
                     }
                 });
@@ -207,6 +218,7 @@ const Epubly = {
 
             document.querySelectorAll('.chapter-container').forEach(el => Epubly.state.observer.observe(el));
             
+            // Watch for new chapters added via scroll
             const containerObserver = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     mutation.addedNodes.forEach((node) => {
@@ -221,7 +233,7 @@ const Epubly = {
 
         async handleScroll(e) {
             const viewer = e.target;
-            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 400) {
+            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
                 if(Epubly.state.isLoadingNext) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
                 const lastIdx = renderedIndices[renderedIndices.length - 1];
@@ -273,7 +285,7 @@ const Epubly = {
         }
     },
 
-    // --- SEARCH MODULE ---
+    // --- SEARCH ---
     search: {
         async run(query) {
             if(!Epubly.state.zip || !query || query.length < 3) return;
@@ -304,7 +316,7 @@ const Epubly = {
                         item.className = 'search-result-item';
                         item.innerHTML = `
                             <div style="font-weight:bold; font-size:0.8rem; color:var(--brand);">Fejezet ${i + 1}</div>
-                            <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), match => `<span style="color:var(--text); background:rgba(212,175,55,0.3);">${match}</span>`)}...</div>
+                            <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), match => `<span style="background:rgba(212,175,55,0.3); color:inherit;">${match}</span>`)}...</div>
                         `;
                         item.style.marginBottom = "10px";
                         item.style.padding = "10px";
@@ -336,6 +348,7 @@ const Epubly = {
             const img = document.getElementById('lightbox-img');
             const close = document.querySelector('.lightbox-close');
             
+            // Delegate event on viewer
             document.getElementById('viewer-content').addEventListener('click', (e) => {
                 if(e.target.tagName === 'IMG') {
                     img.src = e.target.src;
@@ -409,6 +422,7 @@ const Epubly = {
         }
     },
 
+    // --- READER SETTINGS ---
     reader: {
         updateSessionStats() {
             if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
@@ -427,7 +441,6 @@ const Epubly = {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
-            // Set styles on the viewer container
             viewer.style.fontFamily = settings.fontFamily;
             viewer.style.fontSize = settings.fontSize + "%";
             viewer.style.lineHeight = settings.lineHeight;
@@ -436,7 +449,7 @@ const Epubly = {
             viewer.style.paddingLeft = pad;
             viewer.style.paddingRight = pad;
             
-            // Critical: Force text color on all children to fix visibility issues
+            // Dynamic Styles to enforce visibility regardless of theme
             const styleId = 'epubly-dynamic-styles';
             let styleTag = document.getElementById(styleId);
             if (!styleTag) {
@@ -445,20 +458,17 @@ const Epubly = {
                 document.head.appendChild(styleTag);
             }
             
-            // !IMPORTANT styles to force visibility and theme compliance
+            // Enforce colors based on GLOBAL THEME, not just settings
+            // But since body handles the global vars, we just need to ensure inheritance
             styleTag.textContent = `
-                #viewer-content, #viewer-content * {
-                    color: ${settings.textColor} !important;
+                .chapter-container, .chapter-container * {
+                    color: inherit !important;
                     background-color: transparent !important;
-                }
-                body, #reader-main {
-                    background-color: ${settings.bgColor};
                 }
                 .highlighted-text {
                     background-color: rgba(212, 175, 55, 0.4) !important;
-                    color: #fff !important;
+                    color: inherit !important;
                 }
-                /* Hide images if they fail or are weirdly sized, or style them */
                 img { max-width: 100%; height: auto; }
             `;
         }
@@ -485,7 +495,7 @@ const Epubly = {
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(item.index);
-                    Epubly.ui.toggleSidebar('sidebar-toc'); // Close Sidebar
+                    Epubly.ui.toggleSidebar('sidebar-toc');
                 };
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -514,8 +524,6 @@ const Epubly = {
             bindInput('font-size-range', 'fontSize');
             bindInput('line-height-range', 'lineHeight');
             bindInput('margin-range', 'margin');
-            bindInput('bg-color-picker', 'bgColor'); // Hidden but kept logic
-            bindInput('text-color-picker', 'textColor'); // Hidden but kept logic
             
             const bindToggleGroup = (groupId, key) => {
                 const group = document.getElementById(groupId);
@@ -527,17 +535,17 @@ const Epubly = {
                 });
             }
             bindToggleGroup('align-toggle-group', 'textAlign');
-            bindToggleGroup('theme-toggle-group', 'theme');
+            
             const fontSelect = document.getElementById('font-family-select');
             if(fontSelect) fontSelect.addEventListener('change', (e) => this.handleUpdate('fontFamily', e.target.value));
+            
             const clearBtn = document.getElementById('btn-clear-cache');
             if(clearBtn) clearBtn.addEventListener('click', Epubly.storage.clearAllBooks);
         },
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '15',
-                theme: 'oled', textAlign: 'left', fontFamily: "'Inter', sans-serif",
-                textColor: '#F2F2F7', bgColor: '#000000'
+                textAlign: 'left', fontFamily: "'Inter', sans-serif"
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
             return { ...defaults, ...saved };
@@ -549,31 +557,17 @@ const Epubly = {
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
             setVal('margin-range', s.margin);
-            // setVal('text-color-picker', s.textColor);
-            // setVal('bg-color-picker', s.bgColor);
             setVal('font-family-select', s.fontFamily);
             const updateToggle = (groupId, val) => {
                 const g = document.getElementById(groupId);
                 if(g) g.querySelectorAll('.toggle-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === val); });
             };
             updateToggle('align-toggle-group', s.textAlign);
-            updateToggle('theme-toggle-group', s.theme);
             Epubly.reader.applySettings(s);
         },
         handleUpdate(key, value) {
             const s = this.get();
             s[key] = value;
-            if(key === 'theme') {
-                const presets = {
-                    oled: { textColor: '#F2F2F7', bgColor: '#000000' },
-                    sepia: { textColor: '#5b4636', bgColor: '#fbf0d9' },
-                    light: { textColor: '#111111', bgColor: '#ffffff' },
-                };
-                if(presets[value]) {
-                    s.textColor = presets[value].textColor;
-                    s.bgColor = presets[value].bgColor;
-                }
-            }
             this.save(s);
             this.load();
         }
@@ -755,7 +749,7 @@ const Epubly = {
 
     ui: {
         init() {
-            // Sidebar Close Buttons
+            // Sidebar buttons
             document.querySelectorAll('.close-sidebar').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const targetId = e.currentTarget.dataset.target;
@@ -787,7 +781,6 @@ const Epubly = {
                 });
             });
 
-            // Highlight Menu Listener
             document.addEventListener('selectionchange', () => {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
@@ -810,50 +803,65 @@ const Epubly = {
                 Epubly.search.run(val);
             };
             
-            // Global Click to close sidebar
             document.addEventListener('click', (e) => {
                 const sidebars = document.querySelectorAll('.sidebar.visible');
                 sidebars.forEach(sidebar => {
-                    // Check if click is outside sidebar AND not on a toggle button
                     if (!sidebar.contains(e.target) && !e.target.closest('.toggle-sidebar-btn')) {
                         sidebar.classList.remove('visible');
                     }
                 });
             });
 
+            // Global Theme Toggle
+            const themeBtn = document.getElementById('btn-theme-toggle');
+            const storedTheme = localStorage.getItem('epubly-theme') || 'dark';
+            if (storedTheme === 'light') this.setTheme('light');
+            
+            themeBtn.addEventListener('click', () => {
+                const current = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+                this.setTheme(current === 'light' ? 'dark' : 'light');
+            });
+
             // Footer Year
             document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
+        },
+        
+        setTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.add('theme-light');
+            } else {
+                document.body.classList.remove('theme-light');
+            }
+            localStorage.setItem('epubly-theme', theme);
+            // Re-apply reader setting to enforce visibility in new theme
+            Epubly.reader.applySettings(Epubly.settings.get());
         },
         
         toggleSidebar(id) {
             const sidebar = document.getElementById(id);
             if(!sidebar) return;
-            
             const isVisible = sidebar.classList.contains('visible');
-            
-            // Close all sidebars first
             document.querySelectorAll('.sidebar').forEach(el => el.classList.remove('visible'));
-            
-            // Toggle requested one
-            if (!isVisible) {
-                sidebar.classList.add('visible');
-            }
+            if (!isVisible) sidebar.classList.add('visible');
         },
 
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
         
         showLoader() { 
-            const l = document.getElementById('loader');
-            l.classList.remove('hidden');
-            // Reset message
+            document.getElementById('loader').classList.remove('hidden');
             document.getElementById('loader-msg').textContent = "Betöltés...";
         },
         hideLoader() { document.getElementById('loader').classList.add('hidden'); },
         
-        updateHeaderInfo(title, chapter) {
-            document.getElementById('header-title-text').textContent = title;
-            document.getElementById('header-chapter-text').textContent = chapter;
+        updateHeaderInfo(title, author, chapter) {
+            document.getElementById('header-author').textContent = author || "";
+            document.getElementById('header-title').textContent = title || "";
+            document.getElementById('header-chapter').textContent = chapter ? `(${chapter})` : "";
+            
+            // Toggle separator
+            const sep = document.querySelector('.info-sep');
+            if (sep) sep.style.display = author ? 'inline' : 'none';
         },
         updateProgress(current, total) {
             const ind = document.getElementById('progress-indicator');
@@ -866,10 +874,6 @@ const Epubly = {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
             
-            // SWAPPED BUTTONS: TOC Left (now Right per prompt correction logic? No, prompt said swap TOC and Settings)
-            // Original: Search, Settings, TOC.
-            // New Request: Swap Settings and TOC.
-            // Result: Search, TOC, Settings.
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <div id="progress-indicator">0%</div>
@@ -887,13 +891,13 @@ const Epubly = {
         showLibraryView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('library-view').classList.add('active');
-            this.updateHeaderInfo('Könyvtár', '');
+            
+            // Clean Header info for Library
+            this.updateHeaderInfo("Könyvtár", "", "");
+            
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
-                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
-                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                </button>
             `;
             Epubly.library.render();
         },
@@ -927,8 +931,6 @@ const Epubly = {
     
     async init() {
         try {
-            console.log("Epubly initializing...");
-            
             if(!this.ui || !this.library || !this.settings || !this.storage) {
                 throw new Error("Initialization failed: Modules missing.");
             }

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Epubly</title>
     
-    <!-- Favicon (Custom Gold Book Logo) -->
+    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='%23D4AF37' stroke='%233A2F14' stroke-width='2'/%3E%3Cpath d='M50 25 L50 90' stroke='%233A2F14' stroke-width='2'/%3E%3C/svg%3E">
 
     <!-- Fonts -->
@@ -21,7 +21,7 @@
 </head>
 <body>
 
-    <!-- GLOBAL LOADER OVERLAY -->
+    <!-- GLOBAL LOADER -->
     <div id="loader">
         <div class="spinner"></div>
         <p id="loader-msg" style="color:var(--text-muted); font-size: 0.9rem; margin-top: 10px;">Betöltés...</p>
@@ -29,7 +29,7 @@
         <button id="retry-btn" class="btn btn-secondary" style="display:none; margin-top:20px;" onclick="location.reload()">Újratöltés</button>
     </div>
 
-    <!-- LIGHTBOX -->
+    <!-- LIGHTBOX (Default hidden via CSS) -->
     <div id="lightbox">
         <button class="lightbox-close icon-btn" style="position:absolute; top:20px; right:20px; font-size:2rem; color:white;">&times;</button>
         <img id="lightbox-img" src="" alt="Nagyított kép">
@@ -47,15 +47,34 @@
             
             <div class="view-separator"></div>
             
-            <div class="view-info-container">
-                <span class="view-title-label" id="header-title-text">Könyvtár</span>
-                <span class="view-chapter-label" id="header-chapter-text"></span>
+            <!-- NEW FORMAT: Author: Title (Chapter) -->
+            <div class="view-info-container" id="header-info-area">
+                <span class="info-author" id="header-author"></span>
+                <span class="info-sep">:</span>
+                <span class="info-title" id="header-title">Könyvtár</span>
+                <span class="info-chapter" id="header-chapter"></span>
             </div>
         </div>
 
         <div class="top-actions" id="top-actions-container">
-            <!-- Buttons injected by JS -->
+            <!-- Buttons injected by JS (Search, TOC, Settings) -->
         </div>
+        
+        <!-- Global Theme Toggle (Always present) -->
+        <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="theme-icon">
+                <!-- Sun Icon -->
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+        </button>
     </header>
 
     <!-- LIBRARY VIEW -->
@@ -65,20 +84,16 @@
 
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
-        
-        <!-- Main Content -->
         <div id="reader-main">
-            <!-- Native Viewer Container -->
             <div id="viewer">
                 <div id="viewer-content">
-                    <!-- Chapters will be appended here -->
+                    <!-- Chapters -->
                 </div>
                 <div id="scroll-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted);">
                     <div class="spinner" style="width:20px; height:20px; border-width:2px; margin:0 auto 5px auto;"></div>
                 </div>
             </div>
             
-            <!-- Highlight Menu -->
             <div id="highlight-menu" class="glow-effect" style="position: absolute; background: var(--bg-glass); border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 8px; padding: 6px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;">
                 <button class="icon-btn" id="btn-highlight-save" title="Kijelölés" style="color:var(--brand);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
@@ -86,7 +101,7 @@
             </div>
         </div>
 
-        <!-- Right Sidebar 1: TOC -->
+        <!-- Sidebar TOC -->
         <aside id="sidebar-toc" class="sidebar">
             <div class="sidebar-header">
                 <h3>TARTALOM</h3>
@@ -97,25 +112,22 @@
             </div>
         </aside>
 
-        <!-- Right Sidebar 2: Settings (Converted from Modal) -->
+        <!-- Sidebar Settings -->
         <aside id="sidebar-settings" class="sidebar">
             <div class="sidebar-header">
-                <h3>BEÁLLÍTÁSOK</h3>
+                <h3>OLVASÁSI BEÁLLÍTÁSOK</h3>
                 <button class="icon-btn close-sidebar" data-target="sidebar-settings">&times;</button>
             </div>
             <div class="sidebar-content">
                 <div class="settings-group">
-                    <h4>TIPOGRÁFIA</h4>
+                    <h4>BETŰTÍPUS</h4>
                     <div class="setting-item">
-                        <label>Betűtípus</label>
-                        <div class="toggle-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:4px; background:none;">
-                             <select id="font-family-select" style="grid-column: 1/-1; padding: 8px; background: var(--surface-alt); color: white; border: 1px solid var(--border); border-radius: var(--radius-s);">
-                                <option value="'Inter', sans-serif">Modern (Sans)</option>
-                                <option value="'Merriweather', serif">Klasszikus (Serif)</option>
-                                <option value="'Lora', serif">Elegáns (Serif)</option>
-                                <option value="'Roboto Mono', monospace">Kód (Mono)</option>
-                            </select>
-                        </div>
+                         <select id="font-family-select" style="width:100%; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s);">
+                            <option value="'Inter', sans-serif">Modern (Inter)</option>
+                            <option value="'Merriweather', serif">Klasszikus (Merriweather)</option>
+                            <option value="'Lora', serif">Elegáns (Lora)</option>
+                            <option value="'Roboto Mono', monospace">Kód (Mono)</option>
+                        </select>
                     </div>
                     <div class="setting-item">
                         <label>Igazítás</label>
@@ -138,67 +150,43 @@
                     </div>
                 </div>
 
-                <div class="settings-group">
-                    <h4>MEGJELENÉS</h4>
-                    <div class="setting-item">
-                        <div class="toggle-group" id="theme-toggle-group" style="flex-wrap: wrap; gap: 4px; background: transparent;">
-                            <button class="toggle-btn active" data-val="oled" style="background: #000; color:#fff; border:1px solid #333;">OLED</button>
-                            <button class="toggle-btn" data-val="sepia" style="background: #fbf0d9; color:#5b4636;">Szépia</button>
-                            <button class="toggle-btn" data-val="light" style="background: #ffffff; color:#000;">Világos</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
                     <button class="btn btn-danger" id="btn-clear-cache" style="width:100%;">
-                        Összes adat törlése
+                        Gyári visszaállítás (Reset)
                     </button>
                 </div>
             </div>
         </aside>
-
     </section>
 
-    <!-- MODALS -->
-
-    <!-- Book Details Modal (Redesigned) -->
+    <!-- Modal: Details -->
     <div id="book-details-modal" class="modal">
         <div class="modal-content">
             <div class="book-detail-layout">
-                <!-- Left Column -->
                 <div class="detail-left-col">
                     <div class="book-detail-cover">
                         <img id="detail-cover-img" src="">
                     </div>
-                    
                     <div class="detail-meta">
-                        <h2 id="detail-title">Cím</h2>
-                        <p id="detail-author">Szerző</p>
+                        <h2 id="detail-title"></h2>
+                        <p id="detail-author"></p>
                     </div>
-
                     <div class="detail-stats">
                         <div class="stat-box">
-                            <span class="stat-val" id="detail-stats-time">0p</span>
-                            <span class="stat-lbl">Idő</span>
+                            <span class="stat-val" id="detail-stats-time">-</span>
+                            <span class="stat-lbl">Olvasva</span>
                         </div>
                         <div class="stat-box">
                             <span class="stat-val" id="detail-stats-prog">0%</span>
                             <span class="stat-lbl">Haladás</span>
                         </div>
                     </div>
-
                     <div class="detail-actions">
-                        <button id="btn-read-book" class="btn btn-primary" style="width:100%;">
-                            OLVASÁS
-                        </button>
-                        <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">
-                            TÖRLÉS
-                        </button>
-                        <button class="btn btn-secondary modal-close" style="width:100%;">BEZÁRÁS</button>
+                        <button id="btn-read-book" class="btn btn-primary" style="width:100%;">OLVASÁS</button>
+                        <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">TÖRLÉS</button>
+                        <button class="btn btn-secondary modal-close" style="width:100%; margin-top:8px;">BEZÁRÁS</button>
                     </div>
                 </div>
-
-                <!-- Right Column (Full description) -->
                 <div class="detail-right-col">
                     <div id="detail-desc" class="book-desc"></div>
                 </div>
@@ -206,33 +194,33 @@
         </div>
     </div>
 
-    <!-- Search Modal -->
+    <!-- Modal: Search -->
     <div id="search-modal" class="modal">
-        <div class="modal-content" style="height: 70vh; max-width: 600px; padding: 20px; display: block;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+        <div class="modal-content" style="height: 70vh; max-width: 600px; padding: 20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:10px;">
                 <h3 style="color:var(--text);">Keresés</h3>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
             <div class="search-input-wrapper" style="display:flex; gap:10px; margin-bottom:15px;">
-                <input type="text" id="search-input" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:white;" placeholder="Keresett szó...">
-                <button class="btn btn-primary" id="btn-do-search">Mehet</button>
+                <input type="text" id="search-input" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-alt); color:var(--text);" placeholder="Írd be a keresett szót...">
+                <button class="btn btn-primary" id="btn-do-search">Keresés</button>
             </div>
-            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés... <span id="search-progress"></span></div>
-            <div id="search-results" class="search-results" style="overflow-y:auto; max-height: calc(100% - 100px);">
-                <p style="color:var(--text-muted); text-align:center; padding:20px;">Írj be valamit a kereséshez.</p>
+            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés folyamatban... <span id="search-progress"></span></div>
+            <div id="search-results" class="search-results" style="overflow-y:auto; flex:1;">
+                <p style="color:var(--text-muted); text-align:center; padding:20px;">A találatok itt jelennek meg.</p>
             </div>
         </div>
     </div>
 
-    <!-- Import Modal -->
+    <!-- Modal: Import -->
     <div id="import-modal" class="modal">
-        <div class="modal-content" style="max-width:500px; padding: 30px; display:block;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
-                <h3>Könyv Importálása</h3>
+        <div class="modal-content" style="max-width:500px; padding: 30px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                <h3>Könyv Hozzáadása</h3>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
             <div id="import-drop-zone" class="drop-zone">
-                <p style="margin-bottom:15px;">Húzd ide az EPUB fájlt.</p>
+                <p style="margin-bottom:15px; color:var(--text);">Húzd ide az EPUB fájlt.</p>
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
                 <button class="btn btn-primary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása</button>
             </div>
@@ -244,7 +232,6 @@
         <span id="footer-year"></span>
     </footer>
 
-    <!-- APP LOGIC & LOADER -->
     <script type="module" src="app.js"></script>
 </body>
 </html>
