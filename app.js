@@ -13,14 +13,19 @@ const Epubly = {
         async loadBook(bookData, bookId) {
             if (Epubly.state.book) {
                 if (Epubly.tts) Epubly.tts.stop();
-                Epubly.state.book.destroy();
+                try { Epubly.state.book.destroy(); } catch(e) {}
             }
             
             try {
                 const settings = Epubly.settings.get();
                 const isScrolled = settings.readingFlow === 'scrolled';
 
-                Epubly.state.book = new window.ePub(bookData);
+                // Ensure ePub is available
+                if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be.");
+
+                Epubly.state.book = window.ePub(bookData);
+                await Epubly.state.book.ready; // Wait for parsing to finish
+
                 Epubly.state.rendition = Epubly.state.book.renderTo("viewer", {
                     width: "100%", height: "100%",
                     flow: isScrolled ? "scrolled-doc" : "paginated",
@@ -39,8 +44,9 @@ const Epubly = {
                 Epubly.storage.saveLastOpenedBook(bookId);
                 Epubly.state.currentBookId = bookId;
                 
-                await Epubly.state.book.ready;
-                Epubly.toc.generate(Epubly.state.book.navigation.toc);
+                // Load TOC
+                const navigation = await Epubly.state.book.loaded.navigation;
+                Epubly.toc.generate(navigation.toc);
                 this.applySettings(settings);
 
                 Epubly.state.rendition.on("displayed", l => Epubly.toc.updateActive(l.start.href));
@@ -51,7 +57,7 @@ const Epubly = {
                 if (Epubly.tts) Epubly.tts.init();
             } catch (error) {
                 console.error("Error loading EPUB:", error);
-                throw new Error("Hiba a könyv feldolgozása közben.");
+                throw new Error("Hiba a könyv megnyitása közben: " + error.message);
             }
         },
         nextPage() {
@@ -63,14 +69,11 @@ const Epubly = {
             Epubly.state.rendition?.prev();
         },
         applySettings(settings) {
-            if (!Epubly.state.rendition || !Epubly.state.book.isOpen) return;
+            if (!Epubly.state.rendition) return;
             const themes = Epubly.state.rendition.themes;
             themes.fontSize(`${settings.fontSize}%`);
-            // EPUB.js padding override needs care, sometimes it breaks layout. Removed direct padding override for now.
             themes.override("line-height", settings.lineHeight);
             themes.override("letter-spacing", `${settings.letterSpacing}px`);
-            
-            // Text Align
             themes.override("text-align", settings.textAlign);
 
             themes.register("custom", { 
@@ -420,7 +423,14 @@ const Epubly = {
         async importBook(arrayBuffer, bookId, isDefault = false) {
             let tempBook = null;
             try {
-                tempBook = new window.ePub(arrayBuffer);
+                if (!window.ePub) throw new Error("Az ePub.js könyvtár nincs betöltve.");
+                
+                // Use window.ePub() directly, not new window.ePub()
+                tempBook = window.ePub(arrayBuffer);
+                
+                // Critical: Wait for book to be ready before accessing metadata
+                await tempBook.ready;
+
                 const metadata = await tempBook.loaded.metadata;
                 
                 // Safe cover extraction
@@ -448,18 +458,23 @@ const Epubly = {
                 await this.db.saveBook(bookRecord);
                 return bookRecord;
             } catch (err) {
-                console.error("Error parsing EPUB:", err);
-                throw new Error("A könyv fájl sérült vagy nem támogatott formátum.");
+                console.error("Import Error:", err);
+                throw new Error("Sikertelen importálás: " + (err.message || "Ismeretlen hiba"));
             } finally {
-                if (tempBook) tempBook.destroy();
+                if (tempBook) {
+                    try { tempBook.destroy(); } catch(e) {}
+                }
             }
         },
         async handleFileUpload(file) {
             Epubly.ui.showLoader('Feldolgozás...');
+            // Hide modal explicitly to prevent it getting stuck
+            Epubly.ui.hideModal('import-modal');
+            
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 await this.importBook(arrayBuffer);
-                Epubly.ui.hideModal('import-modal');
+                
                 // Force a slight delay to ensure DB transaction is complete before reading back
                 setTimeout(async () => {
                     await Epubly.library.render();
@@ -468,6 +483,8 @@ const Epubly = {
             } catch (error) {
                 alert(error.message);
                 Epubly.ui.hideLoader();
+                // If failed, maybe show modal again? Or let user click import again.
+                // For now, let's keep it closed so they see the error.
             }
         },
         saveLastOpenedBook(bookId) { if (bookId) localStorage.setItem('epubly-lastBookId', bookId); },
@@ -543,7 +560,7 @@ const Epubly = {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
             const headerTitle = document.getElementById('header-title');
@@ -559,7 +576,7 @@ const Epubly = {
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
 
