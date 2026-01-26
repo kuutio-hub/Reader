@@ -1,6 +1,6 @@
 # Változási napló
 
-## [1.0.0] - 2024-05-24
+## [0.5.0-beta] - 2024-05-24
 
 ### Átépítés (Refactor)
 
@@ -15,7 +15,7 @@
 
 ### Javítva (Fixed)
 
-- **Verziószám Láthatósága:** A verziószám (`1.0.0`) egy `fixed` pozíciójú láblécbe került, így mindig látható.
+- **Verziószám Láthatósága:** A verziószám (`0.5.0-beta`) egy `fixed` pozíciójú láblécbe került, így mindig látható.
 - **Navigáció:** A menük és gombok logikája egyszerűsödött. A TOC (tartalomjegyzék) csak olvasás közben érhető el, a bal oldali sávból.
 
 ## [0.4.0] - 2024-05-24
