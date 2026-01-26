@@ -16,9 +16,9 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
     
-    <!-- DEPENDENCIES (Offline First) -->
-    <script src="js/libs/jszip.min.js"></script>
-    <script src="js/libs/epub.min.js"></script>
+    <!-- DEPENDENCIES (CDN FIRST STRATEGY) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
 </head>
 <body>
 
@@ -33,7 +33,7 @@
 
     <!-- HEADER -->
     <header id="topbar">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="logo-container" id="brand-logo" title="Vissza a könyvtárba">
             <!-- Brand Logo -->
             <svg width="28" height="28" viewBox="0 0 100 100" class="brand-icon">
                 <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
@@ -86,6 +86,18 @@
                     <button class="icon-btn modal-close" style="align-self: flex-end;">&times;</button>
                     <h2 id="detail-title" style="margin-bottom:4px;">Cím</h2>
                     <p id="detail-author" style="color:var(--brand); margin-bottom:12px;">Szerző</p>
+                    
+                    <div class="book-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Olvasott idő</span>
+                            <span class="stat-value" id="detail-stats-time">0p</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Haladás</span>
+                            <span class="stat-value" id="detail-stats-prog">0%</span>
+                        </div>
+                    </div>
+
                     <div id="detail-desc" class="book-desc"></div>
                     <div style="margin-top:auto; display:flex; gap:12px; padding-top:16px;">
                         <button id="btn-read-book" class="btn btn-primary" style="flex:1;">Olvasás</button>
@@ -103,7 +115,8 @@
                 <h2>Könyv importálása</h2>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
-            <div style="padding: 24px; border: 2px dashed var(--border); text-align:center;">
+            <div id="import-drop-zone" class="drop-zone">
+                <p>Húzd ide az EPUB fájlt, vagy kattints a tallózáshoz.</p>
                 <!-- Fixed: Ensure input has id="epub-file" -->
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
                 <button class="btn btn-secondary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása (.epub)</button>

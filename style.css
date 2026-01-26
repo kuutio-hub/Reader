@@ -32,7 +32,9 @@ body {
     padding: 0 var(--space-5); background: var(--bg-elevated); border-bottom: 1px solid var(--border);
     z-index: 100;
 }
-.logo { font-weight: 700; font-size: 1.2rem; color: var(--brand); letter-spacing: -0.5px; }
+.logo-container { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+.logo-container:hover .logo { filter: brightness(1.2); }
+.logo { font-weight: 700; font-size: 1.2rem; color: var(--brand); letter-spacing: -0.5px; transition: var(--transition); }
 .view-title { color: var(--text-muted); font-size: 0.9rem; border-left: 1px solid var(--border); padding-left: 12px; margin-left: 12px; }
 .top-actions { display: flex; gap: var(--space-3); align-items: center; }
 
@@ -118,7 +120,16 @@ body {
 .book-detail-layout { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-5); }
 .book-detail-cover { width: 100%; aspect-ratio: 2/3; background: var(--surface-alt); border-radius: var(--radius-m); overflow: hidden; }
 .book-detail-cover img { width: 100%; height: 100%; object-fit: cover; }
-.book-desc { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; max-height: 200px; overflow-y: auto; margin: var(--space-4) 0; padding-right: var(--space-2); }
+.book-desc { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; max-height: 150px; overflow-y: auto; margin: var(--space-4) 0; padding-right: var(--space-2); }
+.book-stats { display: flex; gap: 20px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+.stat-item { display: flex; flex-direction: column; }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 1.1rem; font-weight: 600; color: var(--brand); }
+
+/* Import Drop Zone */
+.drop-zone { padding: 40px 24px; border: 2px dashed var(--border); border-radius: var(--radius-m); text-align: center; transition: all 0.2s; background: var(--surface-alt); }
+.drop-zone.hover { border-color: var(--brand); background: var(--brand-soft); }
+.drop-zone p { margin-bottom: 16px; color: var(--text-muted); }
 
 /* Settings Form Elements */
 .settings-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }

@@ -6,22 +6,32 @@ const Epubly = {
         rendition: null,
         isZenMode: false,
         currentBookId: null,
+        activeBookSessionStart: null,
     },
     dom: {},
 
     reader: {
         async loadBook(bookData, bookId) {
-            if (Epubly.state.book) {
-                if (Epubly.tts) Epubly.tts.stop();
+            // Save stats for previous book if exists
+            if (Epubly.state.book && Epubly.state.currentBookId) {
+                this.updateSessionStats();
                 try { Epubly.state.book.destroy(); } catch(e) {}
             }
             
+            // Reset state
+            Epubly.state.book = null;
+            Epubly.state.rendition = null;
+            Epubly.state.currentBookId = null;
+            Epubly.state.activeBookSessionStart = null;
+
+            if(!bookData) return; // Just unloading
+
             try {
                 const settings = Epubly.settings.get();
                 const isScrolled = settings.readingFlow === 'scrolled';
 
                 // Ensure ePub is available
-                if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be.");
+                if (!window.ePub) throw new Error("Az ePub.js könyvtár nem töltődött be. Ellenőrizd az internetkapcsolatot.");
 
                 Epubly.state.book = window.ePub(bookData);
                 await Epubly.state.book.ready; // Wait for parsing to finish
@@ -38,34 +48,56 @@ const Epubly = {
                 const navZones = document.querySelectorAll('.nav-zone');
                 navZones.forEach(nz => nz.style.display = isScrolled ? 'none' : 'block');
 
+                // Restore location
                 const location = Epubly.storage.getLocation(bookId);
                 await Epubly.state.rendition.display(location || undefined);
 
-                Epubly.storage.saveLastOpenedBook(bookId);
+                // Setup session tracking
                 Epubly.state.currentBookId = bookId;
+                Epubly.state.activeBookSessionStart = Date.now();
+                Epubly.storage.saveLastOpenedBook(bookId);
                 
                 // Load TOC
                 const navigation = await Epubly.state.book.loaded.navigation;
                 Epubly.toc.generate(navigation.toc);
                 this.applySettings(settings);
 
-                Epubly.state.rendition.on("displayed", l => Epubly.toc.updateActive(l.start.href));
+                // Events
+                Epubly.state.rendition.on("displayed", l => {
+                    Epubly.toc.updateActive(l.start.href);
+                });
+                
+                // Track progress and time on relocation
                 Epubly.state.rendition.on("relocated", location => {
                     Epubly.storage.saveLocation(bookId, location.start.cfi);
+                    this.updateSessionStats(location);
                 });
 
-                if (Epubly.tts) Epubly.tts.init();
             } catch (error) {
                 console.error("Error loading EPUB:", error);
                 throw new Error("Hiba a könyv megnyitása közben: " + error.message);
             }
         },
+        updateSessionStats(location) {
+            if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
+            
+            const now = Date.now();
+            const duration = now - Epubly.state.activeBookSessionStart;
+            // Update start time to now to avoid double counting
+            Epubly.state.activeBookSessionStart = now;
+
+            // Calculate percentage if location provided
+            let percentage = null;
+            if(location && location.start) {
+                percentage = location.start.percentage;
+            }
+
+            Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, percentage);
+        },
         nextPage() {
-            if (Epubly.tts) Epubly.tts.stop();
             Epubly.state.rendition?.next();
         },
         prevPage() {
-            if (Epubly.tts) Epubly.tts.stop();
             Epubly.state.rendition?.prev();
         },
         applySettings(settings) {
@@ -342,13 +374,12 @@ const Epubly = {
             async init() {
                 return new Promise((resolve, reject) => {
                     if (this._db) return resolve(this._db);
-                    // BUMP VERSION TO 3 TO FORCE UPGRADE AND FIX SCHEMA
-                    const request = indexedDB.open('EpublyDB', 3);
+                    // VERSION 4
+                    const request = indexedDB.open('EpublyDB', 4);
                     request.onerror = e => reject("IndexedDB error");
                     request.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
                     request.onupgradeneeded = e => {
                         const db = e.target.result;
-                        // Wipe old store to ensure correct keyPath
                         if (db.objectStoreNames.contains('books')) {
                             db.deleteObjectStore('books');
                         }
@@ -407,7 +438,6 @@ const Epubly = {
                 });
             }
         },
-        // Helper to convert blob/url to base64 for persistence
         async getCoverBase64(coverUrl) {
             if(!coverUrl) return null;
             try {
@@ -428,22 +458,21 @@ const Epubly = {
             try {
                 if (!window.ePub) throw new Error("Az ePub.js könyvtár nincs betöltve.");
                 
-                // Use window.ePub() directly, not new window.ePub()
                 tempBook = window.ePub(arrayBuffer);
-                
-                // Critical: Wait for book to be ready before accessing metadata
                 await tempBook.ready;
 
-                const metadata = await tempBook.loaded.metadata;
-                
-                // Safe cover extraction
+                // Robust metadata extraction using package.metadata
+                // fallback to loaded.metadata only if needed, but safe access is key
+                let metadata = {};
+                try {
+                    metadata = tempBook.package ? tempBook.package.metadata : {};
+                } catch(e) { console.warn("Meta extract fail", e); }
+
                 let coverBase64 = null;
                 try {
                     const coverUrl = await tempBook.coverUrl();
                     coverBase64 = await this.getCoverBase64(coverUrl);
-                } catch (coverErr) {
-                    console.warn("Could not extract cover:", coverErr);
-                }
+                } catch (coverErr) { console.warn("No cover found"); }
 
                 const finalId = isDefault ? bookId : `${Date.now()}`;
                 const bookRecord = {
@@ -455,6 +484,11 @@ const Epubly = {
                         pubdate: metadata.pubdate, 
                         coverUrl: coverBase64, 
                         description: metadata.description
+                    },
+                    stats: {
+                        totalTime: 0,
+                        progress: 0,
+                        lastRead: Date.now()
                     }
                 };
                 
@@ -471,14 +505,12 @@ const Epubly = {
         },
         async handleFileUpload(file) {
             Epubly.ui.showLoader('Feldolgozás...');
-            // Hide modal explicitly to prevent it getting stuck
             Epubly.ui.hideModal('import-modal');
             
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 await this.importBook(arrayBuffer);
                 
-                // Force a slight delay to ensure DB transaction is complete before reading back
                 setTimeout(async () => {
                     await Epubly.library.render();
                     Epubly.ui.hideLoader();
@@ -486,9 +518,24 @@ const Epubly = {
             } catch (error) {
                 alert(error.message);
                 Epubly.ui.hideLoader();
-                // If failed, maybe show modal again? Or let user click import again.
-                // For now, let's keep it closed so they see the error.
             }
+        },
+        async updateBookStats(bookId, durationDelta, percentage) {
+            try {
+                const book = await this.db.getBook(bookId);
+                if(book) {
+                    if(!book.stats) book.stats = { totalTime: 0, progress: 0, lastRead: Date.now() };
+                    
+                    if(durationDelta > 0 && durationDelta < 86400000) { // Sanity check < 24h
+                        book.stats.totalTime += durationDelta;
+                    }
+                    if(percentage !== null && percentage !== undefined) {
+                        book.stats.progress = percentage;
+                    }
+                    book.stats.lastRead = Date.now();
+                    await this.db.saveBook(book);
+                }
+            } catch(e) { console.warn("Stats update failed", e); }
         },
         saveLastOpenedBook(bookId) { if (bookId) localStorage.setItem('epubly-lastBookId', bookId); },
         getLastOpenedBook() { return localStorage.getItem('epubly-lastBookId'); },
@@ -514,14 +561,47 @@ const Epubly = {
                 document.getElementById('reader-sidebar-left').classList.remove('visible');
             });
 
-            // Bind File Input for Import
+            // Brand Logo Navigation
+            document.getElementById('brand-logo').addEventListener('click', () => {
+                // If reading, close book first
+                if(Epubly.state.book) {
+                    Epubly.reader.loadBook(null); // Unload current
+                }
+                Epubly.ui.showLibraryView();
+            });
+
+            // Import Drop Zone & File Input
             const fileInput = document.getElementById('epub-file');
-            if(fileInput) {
+            const dropZone = document.getElementById('import-drop-zone');
+            
+            if(fileInput && dropZone) {
                 fileInput.addEventListener('change', (e) => {
                     if(e.target.files.length > 0) {
                         Epubly.storage.handleFileUpload(e.target.files[0]);
-                        // Reset input so same file can be selected again if needed
                         e.target.value = '';
+                    }
+                });
+
+                // Drag & Drop
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('hover');
+                });
+                
+                dropZone.addEventListener('dragleave', (e) => {
+                    dropZone.classList.remove('hover');
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('hover');
+                    if (e.dataTransfer.files.length > 0) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.name.toLowerCase().endsWith('.epub')) {
+                            Epubly.storage.handleFileUpload(file);
+                        } else {
+                            alert("Csak .epub fájlokat importálhatsz!");
+                        }
                     }
                 });
             }
@@ -591,6 +671,18 @@ const Epubly = {
             document.getElementById('detail-author').textContent = book.metadata.creator;
             document.getElementById('detail-desc').innerHTML = book.metadata.description || 'Nincs leírás.';
             
+            // Stats calculation
+            const stats = book.stats || { totalTime: 0, progress: 0 };
+            const minutes = Math.floor(stats.totalTime / 1000 / 60);
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            const timeStr = hours > 0 ? `${hours}ó ${mins}p` : `${mins}p`;
+            
+            const progressVal = Math.round((stats.progress || 0) * 100);
+            
+            document.getElementById('detail-stats-time').textContent = timeStr;
+            document.getElementById('detail-stats-prog').textContent = `${progressVal}%`;
+
             document.getElementById('btn-read-book').onclick = async () => {
                 this.hideModal('book-details-modal');
                 this.showLoader('Könyv megnyitása...');
@@ -643,54 +735,25 @@ window.Epubly = Epubly;
 
 /**
  * BOOTSTRAP LOADER
+ * Simplified to rely on HTML script tags first.
  */
 const DependencyLoader = {
-    loadScript(src) {
-        return new Promise((resolve) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
-            document.head.appendChild(script);
-        });
-    },
-
-    updateStatus(msg) {
-        const el = document.getElementById('loader-status');
-        if(el) el.textContent = msg;
-        console.log(`Loader: ${msg}`);
-    },
-
     async boot() {
         // Simple message
         document.getElementById('loader-msg').textContent = "Inicializálás...";
-        this.updateStatus(""); 
-
-        // 1. Check if libraries are already present
+        
+        // 1. Check if libraries are already present (loaded via HTML script tags)
         if (window.JSZip && window.ePub) {
             Epubly.init();
             return;
         }
 
-        // 2. If not found, try CDN
-        if (typeof window.JSZip === 'undefined') {
-            await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js');
-        }
-
-        if (typeof window.ePub === 'undefined') {
-             await this.loadScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
-        }
-
-        // 3. Final Check
-        if (window.JSZip && window.ePub) {
-            Epubly.init();
-        } else {
-            const msg = "Nem sikerült betölteni a komponenseket.";
-            document.getElementById('loader-msg').textContent = "Hiba";
-            document.getElementById('loader-error').textContent = msg;
-            document.getElementById('loader-error').style.display = 'block';
-            document.getElementById('retry-btn').style.display = 'block';
-        }
+        // 2. If not found, show error
+        const msg = "Nem sikerült betölteni a komponenseket. Kérlek, ellenőrizd az internetkapcsolatot.";
+        document.getElementById('loader-msg').textContent = "Hiba";
+        document.getElementById('loader-error').textContent = msg;
+        document.getElementById('loader-error').style.display = 'block';
+        document.getElementById('retry-btn').style.display = 'block';
     }
 };
 
