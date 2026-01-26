@@ -1,6 +1,5 @@
 
 /**
  * Project version control file.
- * Conforms to MAJOR.MINOR.PATCH semantic versioning.
  */
-export const version = '0.9.95-native-scroll';
+export const version = '0.9.99-beta-feature-pack';

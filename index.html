@@ -30,27 +30,36 @@
         <button id="retry-btn" class="btn btn-secondary" style="display:none; margin-top:20px;" onclick="location.reload()">Újratöltés</button>
     </div>
 
+    <!-- LIGHTBOX -->
+    <div id="lightbox">
+        <button class="lightbox-close">&times;</button>
+        <img id="lightbox-img" src="" alt="Nagyított kép">
+    </div>
+
+    <!-- DEBUGGER -->
+    <div id="debugger">
+        <div class="debug-header">
+            <span>Rendszer Napló</span>
+            <button onclick="document.getElementById('debugger').classList.remove('visible')" style="background:none;border:none;color:currentColor;cursor:pointer;">&times;</button>
+        </div>
+        <div class="debug-content" id="debug-log"></div>
+    </div>
+
     <!-- HEADER -->
     <header id="topbar">
         <div class="header-left">
-            <!-- Clickable Logo -->
             <div class="logo-btn" id="app-logo-btn" title="Vissza a könyvtárba">
                 <svg width="28" height="28" viewBox="0 0 100 100" class="logo-icon">
                     <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
                 </svg>
                 <span class="logo-text">Epubly.hu</span>
             </div>
-            
             <div class="view-separator"></div>
-            
-            <!-- Metadata in Header -->
             <span class="view-title-label" id="header-title-text">Könyvtár</span>
             <span class="view-subtitle" id="header-subtitle-text"></span>
         </div>
 
-        <div class="top-actions" id="top-actions-container">
-            <!-- Buttons injected by JS -->
-        </div>
+        <div class="top-actions" id="top-actions-container"></div>
     </header>
 
     <!-- LIBRARY VIEW -->
@@ -84,6 +93,13 @@
                     <div class="spinner" style="width:20px; height:20px; border-width:2px; margin:0 auto 10px auto;"></div>
                     Betöltés...
                 </div>
+            </div>
+            
+            <!-- Highlight Menu -->
+            <div id="highlight-menu">
+                <button class="icon-btn" id="btn-highlight-save" title="Kijelölés mentése">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </button>
             </div>
         </div>
     </section>
@@ -121,6 +137,25 @@
         </div>
     </div>
 
+    <!-- Search Modal -->
+    <div id="search-modal" class="modal">
+        <div class="modal-content" style="height: 80vh;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+                <h2>Keresés</h2>
+                <button class="icon-btn modal-close">&times;</button>
+            </div>
+            <div class="search-input-wrapper">
+                <input type="text" id="search-input" class="search-input" placeholder="Keresés a könyvben...">
+                <button class="btn btn-primary" id="btn-do-search">Keresés</button>
+            </div>
+            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés folyamatban... <span id="search-progress"></span></div>
+            <div id="search-results" class="search-results">
+                <!-- Results go here -->
+                <p style="color:var(--text-muted); text-align:center; padding:20px;">Írj be valamit a kereséshez.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Import -->
     <div id="import-modal" class="modal">
         <div class="modal-content">
@@ -145,8 +180,6 @@
             </div>
             
             <div style="padding-right: 4px;">
-                
-                <!-- Typography Settings -->
                 <div class="settings-section">
                     <h3 style="margin-bottom:12px; color:var(--brand);">Tipográfia</h3>
                     <div class="settings-row">
@@ -182,7 +215,6 @@
                     </div>
                 </div>
 
-                <!-- Appearance Settings -->
                 <div class="settings-section">
                     <h3 style="margin-bottom:12px; color:var(--brand);">Megjelenés</h3>
                     <div class="settings-row">
@@ -195,7 +227,6 @@
                         </div>
                     </div>
                     
-                    <!-- Hidden Custom Settings -->
                     <div id="custom-theme-container" style="display:none; padding: 10px; background: var(--bg-elevated); border-radius: 8px; margin-bottom: 12px;">
                         <div class="settings-row">
                             <label>Háttérszín</label>
@@ -215,6 +246,13 @@
                             <option value="lines">Vonalas</option>
                             <option value="noise">Zaj</option>
                         </select>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3 style="margin-bottom:12px; color:var(--brand);">Fejlesztői</h3>
+                    <div class="settings-row">
+                        <button class="btn btn-secondary" style="width:100%" onclick="document.getElementById('debugger').classList.toggle('visible'); document.querySelector('.modal-close').click();">Napló Megnyitása</button>
                     </div>
                 </div>
             </div>
