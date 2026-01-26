@@ -26,13 +26,13 @@ const Epubly = {
         observer: null,
         isLoadingNext: false,
         highlights: {},
-        sidebarOpen: false
+        activeSidebar: null // 'toc' or 'settings'
     },
 
     // --- ENGINE: Core Logic ---
     engine: {
         async loadBook(arrayBuffer, bookId) {
-            Epubly.ui.showLoader("Könyv feldolgozása...");
+            Epubly.ui.showLoader(); // No text, just spinner
             
             // Reset
             Epubly.state.zip = null;
@@ -63,7 +63,6 @@ const Epubly = {
                 Epubly.state.rootPath = lastSlash !== -1 ? fullOpfPath.substring(0, lastSlash + 1) : '';
 
                 // Parse OPF
-                Epubly.ui.showLoader("Metaadatok...");
                 const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
                 const opfDoc = parser.parseFromString(opfXml, "application/xml");
 
@@ -114,8 +113,10 @@ const Epubly = {
                 this.initObservers();
                 document.getElementById('viewer').onscroll = this.handleScroll.bind(this);
 
-                Epubly.ui.hideLoader();
                 this.parseTOC(opfDoc);
+                
+                // Done
+                Epubly.ui.hideLoader();
 
             } catch (e) {
                 console.error("Engine Error:", e);
@@ -190,7 +191,6 @@ const Epubly = {
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx);
                         
                         // Update Header: Title - ChapterName
-                        // We try to find a heading in the chapter
                         let chapterName = "Fejezet " + (idx + 1);
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
@@ -303,9 +303,14 @@ const Epubly = {
                         const item = document.createElement('div');
                         item.className = 'search-result-item';
                         item.innerHTML = `
-                            <div class="search-result-chapter">Fejezet ${i + 1}</div>
-                            <div class="search-result-text">...${snippet.replace(new RegExp(query, 'gi'), match => `<span class="search-highlight">${match}</span>`)}...</div>
+                            <div style="font-weight:bold; font-size:0.8rem; color:var(--brand);">Fejezet ${i + 1}</div>
+                            <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), match => `<span style="color:var(--text); background:rgba(212,175,55,0.3);">${match}</span>`)}...</div>
                         `;
+                        item.style.marginBottom = "10px";
+                        item.style.padding = "10px";
+                        item.style.cursor = "pointer";
+                        item.style.borderBottom = "1px solid var(--border)";
+                        
                         item.onclick = () => {
                             Epubly.ui.hideModal('search-modal');
                             document.getElementById('viewer-content').innerHTML = '';
@@ -440,6 +445,7 @@ const Epubly = {
                 document.head.appendChild(styleTag);
             }
             
+            // !IMPORTANT styles to force visibility and theme compliance
             styleTag.textContent = `
                 #viewer-content, #viewer-content * {
                     color: ${settings.textColor} !important;
@@ -448,6 +454,12 @@ const Epubly = {
                 body, #reader-main {
                     background-color: ${settings.bgColor};
                 }
+                .highlighted-text {
+                    background-color: rgba(212, 175, 55, 0.4) !important;
+                    color: #fff !important;
+                }
+                /* Hide images if they fail or are weirdly sized, or style them */
+                img { max-width: 100%; height: auto; }
             `;
         }
     },
@@ -466,13 +478,6 @@ const Epubly = {
                 const li = document.createElement('li');
                 const a = document.createElement('a');
                 a.textContent = item.label || "Fejezet " + (item.index + 1);
-                a.style.display = "block";
-                a.style.padding = "8px 12px";
-                a.style.color = "var(--text-muted)";
-                a.style.textDecoration = "none";
-                a.style.cursor = "pointer";
-                a.style.borderRadius = "4px";
-                a.style.fontSize = "0.9rem";
                 a.dataset.idx = item.index;
                 a.className = "toc-link";
                 
@@ -480,7 +485,7 @@ const Epubly = {
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(item.index);
-                    Epubly.ui.toggleSidebar(); // Auto Close
+                    Epubly.ui.toggleSidebar('sidebar-toc'); // Close Sidebar
                 };
                 li.appendChild(a);
                 fragment.appendChild(li);
@@ -490,12 +495,10 @@ const Epubly = {
         highlight(idx) {
             document.querySelectorAll('.toc-link').forEach(el => {
                 if(parseInt(el.dataset.idx) === idx) {
-                    el.style.color = "var(--brand)";
-                    el.style.fontWeight = "bold";
+                    el.classList.add('active');
                     el.scrollIntoView({ block: "center", behavior: "smooth" });
                 } else {
-                    el.style.color = "var(--text-muted)";
-                    el.style.fontWeight = "normal";
+                    el.classList.remove('active');
                 }
             });
         }
@@ -511,8 +514,8 @@ const Epubly = {
             bindInput('font-size-range', 'fontSize');
             bindInput('line-height-range', 'lineHeight');
             bindInput('margin-range', 'margin');
-            bindInput('bg-color-picker', 'bgColor');
-            bindInput('text-color-picker', 'textColor');
+            bindInput('bg-color-picker', 'bgColor'); // Hidden but kept logic
+            bindInput('text-color-picker', 'textColor'); // Hidden but kept logic
             
             const bindToggleGroup = (groupId, key) => {
                 const group = document.getElementById(groupId);
@@ -534,7 +537,7 @@ const Epubly = {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', margin: '15',
                 theme: 'oled', textAlign: 'left', fontFamily: "'Inter', sans-serif",
-                textColor: '#F0F0F0', bgColor: '#050505'
+                textColor: '#F2F2F7', bgColor: '#000000'
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
             return { ...defaults, ...saved };
@@ -546,8 +549,8 @@ const Epubly = {
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
             setVal('margin-range', s.margin);
-            setVal('text-color-picker', s.textColor);
-            setVal('bg-color-picker', s.bgColor);
+            // setVal('text-color-picker', s.textColor);
+            // setVal('bg-color-picker', s.bgColor);
             setVal('font-family-select', s.fontFamily);
             const updateToggle = (groupId, val) => {
                 const g = document.getElementById(groupId);
@@ -555,26 +558,20 @@ const Epubly = {
             };
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
-            const customContainer = document.getElementById('custom-theme-container');
-            if(customContainer) customContainer.style.display = s.theme === 'custom' ? 'block' : 'none';
             Epubly.reader.applySettings(s);
         },
         handleUpdate(key, value) {
             const s = this.get();
             s[key] = value;
             if(key === 'theme') {
-                const customContainer = document.getElementById('custom-theme-container');
-                if(customContainer) customContainer.style.display = value === 'custom' ? 'block' : 'none';
                 const presets = {
-                    oled: { textColor: '#F0F0F0', bgColor: '#000000' },
+                    oled: { textColor: '#F2F2F7', bgColor: '#000000' },
                     sepia: { textColor: '#5b4636', bgColor: '#fbf0d9' },
                     light: { textColor: '#111111', bgColor: '#ffffff' },
                 };
                 if(presets[value]) {
                     s.textColor = presets[value].textColor;
                     s.bgColor = presets[value].bgColor;
-                    const tcp = document.getElementById('text-color-picker'); if(tcp) tcp.value = s.textColor;
-                    const bcp = document.getElementById('bg-color-picker'); if(bcp) bcp.value = s.bgColor;
                 }
             }
             this.save(s);
@@ -651,7 +648,7 @@ const Epubly = {
             }
         },
         async handleFileUpload(file) {
-            Epubly.ui.showLoader('Feldolgozás...');
+            Epubly.ui.showLoader();
             Epubly.ui.hideModal('import-modal');
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -735,8 +732,8 @@ const Epubly = {
                 }
                 books.forEach(book => {
                     const card = document.createElement('div');
-                    card.className = 'book-card glow-effect';
-                    const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%23222"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
+                    card.className = 'book-card';
+                    const coverSrc = book.metadata.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150" viewBox="0 0 100 150"><rect width="100" height="150" fill="%232c2c2e"/><text x="50" y="75" fill="%23555" font-family="sans-serif" font-size="12" text-anchor="middle">Nincs borító</text></svg>';
                     const safeTitle = book.metadata.title || "Ismeretlen cím";
                     const safeCreator = book.metadata.creator || "Ismeretlen szerző";
                     card.innerHTML = `
@@ -758,9 +755,14 @@ const Epubly = {
 
     ui: {
         init() {
-            document.getElementById('btn-close-sidebar').addEventListener('click', () => {
-                Epubly.ui.toggleSidebar();
+            // Sidebar Close Buttons
+            document.querySelectorAll('.close-sidebar').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const targetId = e.currentTarget.dataset.target;
+                    Epubly.ui.toggleSidebar(targetId);
+                });
             });
+
             document.getElementById('app-logo-btn').addEventListener('click', () => {
                 Epubly.reader.updateSessionStats();
                 Epubly.ui.showLibraryView();
@@ -810,29 +812,45 @@ const Epubly = {
             
             // Global Click to close sidebar
             document.addEventListener('click', (e) => {
-                const sidebar = document.getElementById('reader-sidebar-right');
-                const btn = document.getElementById('btn-toggle-sidebar');
-                if(Epubly.state.sidebarOpen && sidebar && !sidebar.contains(e.target) && (!btn || !btn.contains(e.target))) {
-                    Epubly.ui.toggleSidebar();
-                }
+                const sidebars = document.querySelectorAll('.sidebar.visible');
+                sidebars.forEach(sidebar => {
+                    // Check if click is outside sidebar AND not on a toggle button
+                    if (!sidebar.contains(e.target) && !e.target.closest('.toggle-sidebar-btn')) {
+                        sidebar.classList.remove('visible');
+                    }
+                });
             });
+
+            // Footer Year
+            document.getElementById('footer-year').textContent = `Epubly.hu v${version} © ${new Date().getFullYear()} Minden jog fenntartva.`;
         },
-        toggleSidebar() {
-            const sb = document.getElementById('reader-sidebar-right');
-            Epubly.state.sidebarOpen = !Epubly.state.sidebarOpen;
-            if(Epubly.state.sidebarOpen) {
-                sb.classList.add('visible');
-            } else {
-                sb.classList.remove('visible');
+        
+        toggleSidebar(id) {
+            const sidebar = document.getElementById(id);
+            if(!sidebar) return;
+            
+            const isVisible = sidebar.classList.contains('visible');
+            
+            // Close all sidebars first
+            document.querySelectorAll('.sidebar').forEach(el => el.classList.remove('visible'));
+            
+            // Toggle requested one
+            if (!isVisible) {
+                sidebar.classList.add('visible');
             }
         },
+
         showModal(id) { document.getElementById(id).classList.add('visible'); },
         hideModal(id) { document.getElementById(id).classList.remove('visible'); },
-        showLoader(msg) { 
-            document.getElementById('loader').classList.remove('hidden');
-            if(msg) document.getElementById('loader-msg').textContent = msg;
+        
+        showLoader() { 
+            const l = document.getElementById('loader');
+            l.classList.remove('hidden');
+            // Reset message
+            document.getElementById('loader-msg').textContent = "Betöltés...";
         },
         hideLoader() { document.getElementById('loader').classList.add('hidden'); },
+        
         updateHeaderInfo(title, chapter) {
             document.getElementById('header-title-text').textContent = title;
             document.getElementById('header-chapter-text').textContent = chapter;
@@ -847,17 +865,22 @@ const Epubly = {
         showReaderView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view').classList.add('active');
+            
+            // SWAPPED BUTTONS: TOC Left (now Right per prompt correction logic? No, prompt said swap TOC and Settings)
+            // Original: Search, Settings, TOC.
+            // New Request: Swap Settings and TOC.
+            // Result: Search, TOC, Settings.
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <div id="progress-indicator">0%</div>
                 <button class="icon-btn" onclick="Epubly.ui.showModal('search-modal')" title="Keresés">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
-                <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                </button>
-                <button class="icon-btn" id="btn-toggle-sidebar" onclick="Epubly.ui.toggleSidebar()" title="Tartalom">
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-toc')" title="Tartalom">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
         },
@@ -868,7 +891,7 @@ const Epubly = {
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
                 <button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>
-                <button class="icon-btn" onclick="Epubly.ui.showModal('settings-modal')" title="Beállítások">
+                <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
             `;
@@ -878,7 +901,7 @@ const Epubly = {
             document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
             document.getElementById('detail-title').textContent = book.metadata.title;
             document.getElementById('detail-author').textContent = book.metadata.creator;
-            document.getElementById('detail-desc').innerHTML = book.metadata.description || "Leírás nem elérhető.";
+            document.getElementById('detail-desc').textContent = book.metadata.description || "Leírás nem elérhető.";
             const stats = book.stats || { totalTime: 0, progress: 0 };
             const minutes = Math.floor(stats.totalTime / 1000 / 60);
             const hours = Math.floor(minutes / 60);

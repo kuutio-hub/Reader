@@ -2,8 +2,8 @@
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Epubly.hu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Epubly</title>
     
     <!-- Favicon (Custom Gold Book Logo) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='%23D4AF37' stroke='%233A2F14' stroke-width='2'/%3E%3Cpath d='M50 25 L50 90' stroke='%233A2F14' stroke-width='2'/%3E%3C/svg%3E">
@@ -11,7 +11,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
     
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
@@ -21,10 +21,10 @@
 </head>
 <body>
 
-    <!-- GLOBAL LOADER -->
+    <!-- GLOBAL LOADER OVERLAY -->
     <div id="loader">
         <div class="spinner"></div>
-        <p id="loader-msg" style="color:var(--brand); font-weight:600;">Rendszer Indítása...</p>
+        <p id="loader-msg" style="color:var(--text-muted); font-size: 0.9rem; margin-top: 10px;">Betöltés...</p>
         <div id="loader-error" style="display:none; color: var(--danger); margin-top: 10px; max-width: 300px; text-align: center;"></div>
         <button id="retry-btn" class="btn btn-secondary" style="display:none; margin-top:20px;" onclick="location.reload()">Újratöltés</button>
     </div>
@@ -39,7 +39,7 @@
     <header id="topbar">
         <div class="header-left">
             <div class="logo-btn" id="app-logo-btn" title="Vissza a könyvtárba">
-                <svg width="28" height="28" viewBox="0 0 100 100" class="logo-icon">
+                <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon">
                     <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
                 </svg>
                 <span class="logo-text">Epubly</span>
@@ -73,28 +73,87 @@
                 <div id="viewer-content">
                     <!-- Chapters will be appended here -->
                 </div>
-                <div id="scroll-loader" style="text-align:center; padding: 30px; display:none; color:var(--brand);">
-                    <div class="spinner" style="width:24px; height:24px; border-width:2px; margin:0 auto 10px auto;"></div>
-                    Betöltés...
+                <div id="scroll-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted);">
+                    <div class="spinner" style="width:20px; height:20px; border-width:2px; margin:0 auto 5px auto;"></div>
                 </div>
             </div>
             
             <!-- Highlight Menu -->
-            <div id="highlight-menu" class="glow-effect" style="position: absolute; background: var(--bg-elevated); border: 1px solid var(--brand); border-radius: 8px; display: flex; gap: 8px; padding: 8px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;">
-                <button class="icon-btn" id="btn-highlight-save" title="Kijelölés mentése" style="color:var(--brand);">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <div id="highlight-menu" class="glow-effect" style="position: absolute; background: var(--bg-glass); border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 8px; padding: 6px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;">
+                <button class="icon-btn" id="btn-highlight-save" title="Kijelölés" style="color:var(--brand);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                 </button>
             </div>
         </div>
 
-        <!-- Right Sidebar (TOC) -->
-        <aside id="reader-sidebar-right">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="color:var(--brand);">Tartalom</h3>
-                <button class="icon-btn" id="btn-close-sidebar">&times;</button>
+        <!-- Right Sidebar 1: TOC -->
+        <aside id="sidebar-toc" class="sidebar">
+            <div class="sidebar-header">
+                <h3>TARTALOM</h3>
+                <button class="icon-btn close-sidebar" data-target="sidebar-toc">&times;</button>
             </div>
-            <div style="flex:1; overflow-y:auto; padding: 10px;">
-                <ul id="toc-list" style="list-style:none;"></ul>
+            <div class="sidebar-content">
+                <ul id="toc-list"></ul>
+            </div>
+        </aside>
+
+        <!-- Right Sidebar 2: Settings (Converted from Modal) -->
+        <aside id="sidebar-settings" class="sidebar">
+            <div class="sidebar-header">
+                <h3>BEÁLLÍTÁSOK</h3>
+                <button class="icon-btn close-sidebar" data-target="sidebar-settings">&times;</button>
+            </div>
+            <div class="sidebar-content">
+                <div class="settings-group">
+                    <h4>TIPOGRÁFIA</h4>
+                    <div class="setting-item">
+                        <label>Betűtípus</label>
+                        <div class="toggle-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:4px; background:none;">
+                             <select id="font-family-select" style="grid-column: 1/-1; padding: 8px; background: var(--surface-alt); color: white; border: 1px solid var(--border); border-radius: var(--radius-s);">
+                                <option value="'Inter', sans-serif">Modern (Sans)</option>
+                                <option value="'Merriweather', serif">Klasszikus (Serif)</option>
+                                <option value="'Lora', serif">Elegáns (Serif)</option>
+                                <option value="'Roboto Mono', monospace">Kód (Mono)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Igazítás</label>
+                         <div class="toggle-group" id="align-toggle-group">
+                            <button class="toggle-btn" data-val="left">Balra</button>
+                            <button class="toggle-btn" data-val="justify">Sorkizárt</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Betűméret</label>
+                        <input type="range" id="font-size-range" min="80" max="250" step="10">
+                    </div>
+                     <div class="setting-item">
+                        <label>Sorköz</label>
+                        <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1">
+                    </div>
+                    <div class="setting-item">
+                        <label>Margó</label>
+                        <input type="range" id="margin-range" min="0" max="30" step="1">
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h4>MEGJELENÉS</h4>
+                    <div class="setting-item">
+                        <div class="toggle-group" id="theme-toggle-group" style="flex-wrap: wrap; gap: 4px; background: transparent;">
+                            <button class="toggle-btn active" data-val="oled" style="background: #000; color:#fff; border:1px solid #333;">OLED</button>
+                            <button class="toggle-btn" data-val="sepia" style="background: #fbf0d9; color:#5b4636;">Szépia</button>
+                            <button class="toggle-btn" data-val="light" style="background: #ffffff; color:#000;">Világos</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
+                    <button class="btn btn-danger" id="btn-clear-cache" style="width:100%;">
+                        Összes adat törlése
+                    </button>
+                </div>
             </div>
         </aside>
 
@@ -129,19 +188,18 @@
                     </div>
 
                     <div class="detail-actions">
-                        <button id="btn-read-book" class="btn btn-primary" style="width:100%; justify-content:center;">
+                        <button id="btn-read-book" class="btn btn-primary" style="width:100%;">
                             OLVASÁS
                         </button>
-                        <button id="btn-delete-book" class="btn btn-danger" style="width:100%; justify-content:center;">
+                        <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">
                             TÖRLÉS
                         </button>
-                        <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center;">BEZÁRÁS</button>
+                        <button class="btn btn-secondary modal-close" style="width:100%;">BEZÁRÁS</button>
                     </div>
                 </div>
 
-                <!-- Right Column -->
+                <!-- Right Column (Full description) -->
                 <div class="detail-right-col">
-                    <h3 style="color:var(--text-muted); margin-bottom:10px; font-size:0.9rem;">LEÍRÁS</h3>
                     <div id="detail-desc" class="book-desc"></div>
                 </div>
             </div>
@@ -150,17 +208,17 @@
 
     <!-- Search Modal -->
     <div id="search-modal" class="modal">
-        <div class="modal-content" style="height: 80vh; max-width: 600px;">
+        <div class="modal-content" style="height: 70vh; max-width: 600px; padding: 20px; display: block;">
             <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:10px;">
-                <h2 style="color:var(--brand);">Keresés</h2>
+                <h3 style="color:var(--text);">Keresés</h3>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
-            <div class="search-input-wrapper">
-                <input type="text" id="search-input" class="search-input" placeholder="Keress a könyvben...">
-                <button class="btn btn-primary" id="btn-do-search">Keresés</button>
+            <div class="search-input-wrapper" style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="text" id="search-input" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:white;" placeholder="Keresett szó...">
+                <button class="btn btn-primary" id="btn-do-search">Mehet</button>
             </div>
-            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés folyamatban... <span id="search-progress"></span></div>
-            <div id="search-results" class="search-results">
+            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés... <span id="search-progress"></span></div>
+            <div id="search-results" class="search-results" style="overflow-y:auto; max-height: calc(100% - 100px);">
                 <p style="color:var(--text-muted); text-align:center; padding:20px;">Írj be valamit a kereséshez.</p>
             </div>
         </div>
@@ -168,96 +226,22 @@
 
     <!-- Import Modal -->
     <div id="import-modal" class="modal">
-        <div class="modal-content" style="max-width:500px;">
+        <div class="modal-content" style="max-width:500px; padding: 30px; display:block;">
             <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
-                <h2>Könyv importálása</h2>
+                <h3>Könyv Importálása</h3>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
             <div id="import-drop-zone" class="drop-zone">
-                <p>Húzd ide az EPUB fájlt, vagy kattints a gombra.</p>
+                <p style="margin-bottom:15px;">Húzd ide az EPUB fájlt.</p>
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
-                <button class="btn btn-primary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása (.epub)</button>
+                <button class="btn btn-primary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása</button>
             </div>
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal">
-        <div class="modal-content" style="max-width:500px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:10px;">
-                <h2>Beállítások</h2>
-                <button class="icon-btn modal-close">&times;</button>
-            </div>
-            
-            <div style="padding-right: 4px;">
-                <div class="settings-section">
-                    <h3>Tipográfia</h3>
-                    <div class="settings-row">
-                        <label>Betűtípus</label>
-                        <select id="font-family-select">
-                            <option value="'Inter', sans-serif">Inter (Sans)</option>
-                            <option value="'Merriweather', serif">Merriweather (Serif)</option>
-                            <option value="'Lora', serif">Lora (Serif)</option>
-                            <option value="'Roboto Mono', monospace">Roboto Mono</option>
-                        </select>
-                    </div>
-                    <div class="settings-row">
-                        <label>Igazítás</label>
-                         <div class="toggle-group" id="align-toggle-group">
-                            <button class="toggle-btn" data-val="left">Balra</button>
-                            <button class="toggle-btn" data-val="justify">Sorkizárt</button>
-                        </div>
-                    </div>
-                    <div class="settings-row">
-                        <label>Betűméret</label>
-                        <input type="range" id="font-size-range" min="80" max="250" step="10">
-                    </div>
-                     <div class="settings-row">
-                        <label>Sorköz</label>
-                        <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1">
-                    </div>
-                    <div class="settings-row">
-                        <label>Margó</label>
-                        <input type="range" id="margin-range" min="0" max="30" step="1">
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Megjelenés</h3>
-                    <div class="settings-row">
-                        <label>Téma</label>
-                        <div class="toggle-group" id="theme-toggle-group">
-                            <button class="toggle-btn active" data-val="oled">Sötét</button>
-                            <button class="toggle-btn" data-val="sepia">Szépia</button>
-                            <button class="toggle-btn" data-val="light">Világos</button>
-                            <button class="toggle-btn" data-val="custom">Egyéni</button>
-                        </div>
-                    </div>
-                    
-                    <div id="custom-theme-container" style="display:none; padding: 15px; background: var(--bg-elevated); border-radius: 8px; margin-bottom: 12px; border:1px solid var(--border);">
-                        <div class="settings-row">
-                            <label>Háttér</label>
-                            <input type="color" id="bg-color-picker">
-                        </div>
-                        <div class="settings-row">
-                            <label>Szöveg</label>
-                            <input type="color" id="text-color-picker">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
-                <button class="btn btn-danger" id="btn-clear-cache" style="width:100%; justify-content:center;">
-                    Adatok Törlése & Reset
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Hardcoded Footer -->
+    <!-- Footer -->
     <footer id="app-footer">
-        <span>Epubly.hu v0.10.0-beta &copy; 2024 Minden jog fenntartva.</span>
+        <span id="footer-year"></span>
     </footer>
 
     <!-- APP LOGIC & LOADER -->
