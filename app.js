@@ -138,13 +138,10 @@ const Epubly = {
             const doc = parser.parseFromString(htmlContent, "text/html");
 
             // --- CRITICAL VISIBILITY FIX ---
-            // 1. Remove style tags from the chapter content to prevent overriding app styles
             doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
-            
-            // 2. Remove inline style attributes from ALL elements to enforce app theme
             doc.querySelectorAll('*').forEach(el => {
-                el.removeAttribute('style'); // Brutal, but ensures visibility
-                el.removeAttribute('class'); // Optional: remove classes if they carry bad styles
+                el.removeAttribute('style');
+                el.removeAttribute('class');
             });
 
             // Images replacement
@@ -171,14 +168,13 @@ const Epubly = {
             if (doc.body) {
                 chapterContainer.innerHTML = doc.body.innerHTML;
             } else {
-                // Fallback if doc parsing failed strangely
                 chapterContainer.innerText = "Hiba a fejezet megjelenítésekor.";
             }
 
             document.getElementById('viewer-content').appendChild(chapterContainer);
             Epubly.state.renderedChapters.add(index);
             
-            // Re-apply settings to ensure new content picks up styles
+            // Re-apply settings
             Epubly.reader.applySettings(Epubly.settings.get());
             Epubly.highlights.apply(index, chapterContainer);
         },
@@ -204,7 +200,6 @@ const Epubly = {
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx);
                         
                         let chapterName = "Fejezet " + (idx + 1);
-                        // Try to get first header
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         if(hTag && hTag.innerText.length < 50) chapterName = hTag.innerText;
                         
@@ -218,7 +213,6 @@ const Epubly = {
 
             document.querySelectorAll('.chapter-container').forEach(el => Epubly.state.observer.observe(el));
             
-            // Watch for new chapters added via scroll
             const containerObserver = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     mutation.addedNodes.forEach((node) => {
@@ -233,6 +227,15 @@ const Epubly = {
 
         async handleScroll(e) {
             const viewer = e.target;
+            
+            // Update Progress Bar based on pixel scroll
+            const scrolled = viewer.scrollTop;
+            const maxScroll = viewer.scrollHeight - viewer.clientHeight;
+            if(maxScroll > 0) {
+                const percent = (scrolled / maxScroll) * 100;
+                document.getElementById('reading-progress-fill').style.width = percent + "%";
+            }
+
             if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600) {
                 if(Epubly.state.isLoadingNext) return;
                 const renderedIndices = Array.from(Epubly.state.renderedChapters).sort((a,b) => a-b);
@@ -348,7 +351,6 @@ const Epubly = {
             const img = document.getElementById('lightbox-img');
             const close = document.querySelector('.lightbox-close');
             
-            // Delegate event on viewer
             document.getElementById('viewer-content').addEventListener('click', (e) => {
                 if(e.target.tagName === 'IMG') {
                     img.src = e.target.src;
@@ -445,11 +447,13 @@ const Epubly = {
             viewer.style.fontSize = settings.fontSize + "%";
             viewer.style.lineHeight = settings.lineHeight;
             viewer.style.textAlign = settings.textAlign;
+            
+            // Margin Logic: 0% = 0px padding. 40% setting = 40% padding left + 40% padding right.
             const pad = settings.margin + "%";
             viewer.style.paddingLeft = pad;
             viewer.style.paddingRight = pad;
             
-            // Dynamic Styles to enforce visibility regardless of theme
+            // Dynamic Styles
             const styleId = 'epubly-dynamic-styles';
             let styleTag = document.getElementById(styleId);
             if (!styleTag) {
@@ -458,8 +462,6 @@ const Epubly = {
                 document.head.appendChild(styleTag);
             }
             
-            // Enforce colors based on GLOBAL THEME, not just settings
-            // But since body handles the global vars, we just need to ensure inheritance
             styleTag.textContent = `
                 .chapter-container, .chapter-container * {
                     color: inherit !important;
@@ -506,7 +508,11 @@ const Epubly = {
             document.querySelectorAll('.toc-link').forEach(el => {
                 if(parseInt(el.dataset.idx) === idx) {
                     el.classList.add('active');
-                    el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    // Only scroll if sidebar is visible to avoid layout thrashing
+                    const sidebar = document.getElementById('sidebar-toc');
+                    if(sidebar.classList.contains('visible')) {
+                        el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }
                 } else {
                     el.classList.remove('active');
                 }
@@ -541,15 +547,15 @@ const Epubly = {
             
             const clearBtn = document.getElementById('btn-clear-cache');
             if(clearBtn) clearBtn.addEventListener('click', () => {
-                if(confirm("Ez visszaállítja a megjelenítési beállításokat alapértelmezettre (a könyvtár megmarad).")) {
+                if(confirm("Ez visszaállítja a megjelenítési beállításokat alapértelmezettre.")) {
                     localStorage.removeItem('epubly-settings');
-                    this.load(); // Reload defaults
+                    this.load(); 
                 }
             });
         },
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', margin: '10', // Safe default
+                fontSize: '100', lineHeight: '1.6', margin: '10',
                 textAlign: 'left', fontFamily: "'Inter', sans-serif"
             };
             const saved = JSON.parse(localStorage.getItem('epubly-settings')) || {};
@@ -574,7 +580,15 @@ const Epubly = {
             const s = this.get();
             s[key] = value;
             this.save(s);
-            this.load();
+            // Apply immediately
+            Epubly.reader.applySettings(s);
+            
+            // Update UI toggle visual state immediately if needed
+            if(key === 'textAlign') {
+                 document.querySelectorAll('#align-toggle-group .toggle-btn').forEach(b => { 
+                     b.classList.toggle('active', b.dataset.val === value); 
+                 });
+            }
         }
     },
 
@@ -838,7 +852,6 @@ const Epubly = {
                 document.body.classList.remove('theme-light');
             }
             localStorage.setItem('epubly-theme', theme);
-            // Re-apply reader setting to enforce visibility in new theme
             Epubly.reader.applySettings(Epubly.settings.get());
         },
         
@@ -864,7 +877,6 @@ const Epubly = {
             document.getElementById('header-title').textContent = title || "";
             document.getElementById('header-chapter').textContent = chapter ? `(${chapter})` : "";
             
-            // Toggle separator
             const sep = document.querySelector('.info-sep');
             if (sep) sep.style.display = author ? 'inline' : 'none';
         },
@@ -889,7 +901,18 @@ const Epubly = {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <button class="icon-btn toggle-sidebar-btn" onclick="Epubly.ui.toggleSidebar('sidebar-settings')" title="Beállítások">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <!-- New Apple Style Slider Icon -->
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="21" x2="4" y2="14"></line>
+                        <line x1="4" y1="10" x2="4" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="3"></line>
+                        <line x1="20" y1="21" x2="20" y2="16"></line>
+                        <line x1="20" y1="12" x2="20" y2="3"></line>
+                        <line x1="1" y1="14" x2="7" y2="14"></line>
+                        <line x1="9" y1="8" x2="15" y2="8"></line>
+                        <line x1="17" y1="16" x2="23" y2="16"></line>
+                    </svg>
                 </button>
             `;
         },
@@ -899,6 +922,8 @@ const Epubly = {
             
             // Clean Header info for Library
             this.updateHeaderInfo("Könyvtár", "", "");
+            // Reset progress bar
+            document.getElementById('reading-progress-fill').style.width = "0%";
             
             const actions = document.getElementById('top-actions-container');
             actions.innerHTML = `
@@ -910,7 +935,6 @@ const Epubly = {
             document.getElementById('detail-cover-img').src = book.metadata.coverUrl || '';
             document.getElementById('detail-title').textContent = book.metadata.title;
             document.getElementById('detail-author').textContent = book.metadata.creator;
-            // FIXED: Use innerHTML to render HTML tags in description
             document.getElementById('detail-desc').innerHTML = book.metadata.description || "Leírás nem elérhető.";
             const stats = book.stats || { totalTime: 0, progress: 0 };
             const minutes = Math.floor(stats.totalTime / 1000 / 60);

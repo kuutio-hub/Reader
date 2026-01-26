@@ -29,7 +29,7 @@
         <button id="retry-btn" class="btn btn-secondary" style="display:none; margin-top:20px;" onclick="location.reload()">Újratöltés</button>
     </div>
 
-    <!-- LIGHTBOX (Default hidden via CSS) -->
+    <!-- LIGHTBOX -->
     <div id="lightbox">
         <button class="lightbox-close icon-btn" style="position:absolute; top:20px; right:20px; font-size:2rem; color:white;">&times;</button>
         <img id="lightbox-img" src="" alt="Nagyított kép">
@@ -47,23 +47,21 @@
             
             <div class="view-separator"></div>
             
-            <!-- NEW FORMAT: Author: Title (Chapter) -->
             <div class="view-info-container" id="header-info-area">
                 <span class="info-author" id="header-author"></span>
-                <span class="info-sep">:</span>
+                <span class="info-sep" style="display:none;">:</span>
                 <span class="info-title" id="header-title">Könyvtár</span>
                 <span class="info-chapter" id="header-chapter"></span>
             </div>
         </div>
 
         <div class="top-actions" id="top-actions-container">
-            <!-- Buttons injected by JS (Search, TOC, Settings) -->
+            <!-- Buttons injected by JS -->
         </div>
         
-        <!-- Global Theme Toggle (Always present) -->
+        <!-- Global Theme Toggle -->
         <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="theme-icon">
-                <!-- Sun Icon -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="5"></circle>
                 <line x1="12" y1="1" x2="12" y2="3"></line>
                 <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -75,6 +73,11 @@
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </svg>
         </button>
+
+        <!-- Progress Bar (Thin Line) -->
+        <div id="reading-progress-bar">
+            <div id="reading-progress-fill"></div>
+        </div>
     </header>
 
     <!-- LIBRARY VIEW -->
@@ -115,18 +118,23 @@
         <!-- Sidebar Settings -->
         <aside id="sidebar-settings" class="sidebar">
             <div class="sidebar-header">
-                <h3>OLVASÁSI BEÁLLÍTÁSOK</h3>
+                <h3>BEÁLLÍTÁSOK</h3>
                 <button class="icon-btn close-sidebar" data-target="sidebar-settings">&times;</button>
             </div>
             <div class="sidebar-content">
                 <div class="settings-group">
-                    <h4>BETŰTÍPUS</h4>
+                    <h4>TIPOGRÁFIA</h4>
                     <div class="setting-item">
-                         <select id="font-family-select" style="width:100%; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s);">
-                            <option value="'Inter', sans-serif">Modern (Inter)</option>
-                            <option value="'Merriweather', serif">Klasszikus (Merriweather)</option>
-                            <option value="'Lora', serif">Elegáns (Lora)</option>
-                            <option value="'Roboto Mono', monospace">Kód (Mono)</option>
+                         <select id="font-family-select" style="width:100%; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); font-size: 0.95rem;">
+                            <option value="'Inter', sans-serif">Inter</option>
+                            <option value="'Merriweather', serif">Merriweather</option>
+                            <option value="'Lora', serif">Lora</option>
+                            <option value="'Roboto', sans-serif">Roboto</option>
+                            <option value="'Arial', sans-serif">Arial</option>
+                            <option value="'Verdana', sans-serif">Verdana</option>
+                            <option value="'Georgia', serif">Georgia</option>
+                            <option value="'Times New Roman', serif">Times New Roman</option>
+                            <option value="'Roboto Mono', monospace">Mono</option>
                         </select>
                     </div>
                     <div class="setting-item">
@@ -141,19 +149,20 @@
                         <input type="range" id="font-size-range" min="80" max="250" step="10">
                     </div>
                      <div class="setting-item">
+                        <!-- Wider Range: 0.8 to 3.0 -->
                         <label>Sorköz</label>
-                        <input type="range" id="line-height-range" min="1.0" max="2.5" step="0.1">
+                        <input type="range" id="line-height-range" min="0.8" max="3.0" step="0.1">
                     </div>
                     <div class="setting-item">
-                        <label>Margó (Szélesség)</label>
-                        <!-- SAFE MARGIN: Max 35% to prevent content disappearing -->
-                        <input type="range" id="margin-range" min="0" max="35" step="1">
+                        <!-- Margin: 0% to 40% (leaving 20% min text width) -->
+                        <label>Margó</label>
+                        <input type="range" id="margin-range" min="0" max="40" step="1">
                     </div>
                 </div>
 
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
                     <button class="btn btn-danger" id="btn-clear-cache" style="width:100%;">
-                        Gyári visszaállítás (Reset)
+                        Gyári visszaállítás
                     </button>
                 </div>
             </div>
