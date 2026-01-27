@@ -82,13 +82,61 @@ body {
 #viewer-content { user-select: text; -webkit-user-select: text; }
 
 /* --- PRINT STYLES --- */
+#print-container { display: none; }
+
 @media print {
-    @page { size: A4; margin: 2cm; }
-    body * { display: none !important; visibility: hidden !important; }
-    .mohu-print-area, .mohu-print-area * { display: block !important; visibility: visible !important; }
-    .mohu-card { background-color: #FFFFFF !important; background-image: none !important; position: absolute; left: 0; top: 0; width: 8.56cm; height: 5.398cm; border: 1px dashed #999 !important; box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .mohu-card-bg-text { color: #eee !important; }
-    .btn { display: none !important; }
+    @page { size: A4; margin: 0; }
+    body > *:not(#print-container) { display: none !important; }
+    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; height: 100%; overflow: visible; }
+    
+    #print-container {
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 210mm;
+        height: 297mm;
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: white;
+    }
+
+    .print-wrapper {
+        border: 1px dashed #ccc;
+        padding: 40px;
+        position: relative;
+    }
+    
+    /* Cut marks */
+    .print-wrapper::before, .print-wrapper::after {
+        content: ''; position: absolute; width: 20px; height: 20px; border-color: #000; border-style: solid;
+    }
+    .print-wrapper::before { top: -10px; left: -10px; border-width: 1px 0 0 1px; }
+    .print-wrapper::after { bottom: -10px; right: -10px; border-width: 0 1px 1px 0; }
+
+    /* Force the card appearance in print */
+    .mohu-card {
+        background-color: #1A1A1A !important;
+        background-image: linear-gradient(135deg, #2a2a2a 0%, #111111 60%, #181818 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid #333 !important;
+        box-shadow: none !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0 !important;
+    }
+    .mohu-card * { color: #FFFFFF !important; }
+    .mohu-card-bg-text { color: rgba(255,255,255,0.1) !important; }
+    .mohu-qr { background: #FFFFFF !important; }
+    .mohu-qr path { fill: #000000 !important; }
+    
+    .print-instructions {
+        margin-top: 40px;
+        font-family: 'Poppins', sans-serif;
+        color: #333;
+        text-align: center;
+    }
 }
 
 /* --- LOADER --- */
@@ -275,7 +323,7 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     position: absolute; 
     top: -10px; 
     right: -25px; 
-    font-size: 6.5rem; 
+    font-size: 4rem; /* Adjusted for longer text */
     font-weight: 900; 
     color: var(--card-text); 
     opacity: 0.05; 
@@ -286,9 +334,10 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
 }
 .mohu-card-logo { display: flex; align-items: center; gap: 8px; color: var(--card-text); font-weight: 700; z-index: 1; letter-spacing: 0.5px; }
 .mohu-card-logo .logo-icon { width: 24px; height: 24px; }
-.mohu-qr { background: #fff; padding: 6px; width: 90px; height: 90px; border-radius: 10px; display: flex; align-items: center; justify-content: center; position: absolute; right: 20px; bottom: 20px; z-index: 1; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+/* Fixed QR positioning */
+.mohu-qr { background: #fff; padding: 6px; width: 90px; height: 90px; border-radius: 10px; display: flex; align-items: center; justify-content: center; position: absolute; right: 20px; bottom: 20px; z-index: 2; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
 .mohu-qr svg { width: 100%; height: 100%; }
-.mohu-card-details { color: var(--card-text); text-align: left; z-index: 1; margin-top: auto; }
+.mohu-card-details { color: var(--card-text); text-align: left; z-index: 1; margin-top: auto; padding-right: 100px; /* Prevent text overlap with QR */ }
 .mohu-card-name { font-size: 1.1rem; font-weight: 600; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
 
 /* Floating Back Button */

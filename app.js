@@ -698,7 +698,8 @@ const Epubly = {
             books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-card';
-                card.dataset.bookId = book.id; // Added for delegation
+                // REVERT: Restored direct click handler for stability
+                card.onclick = () => Epubly.ui.showBookInfoModal(book.id);
                 
                 const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
                 
@@ -707,7 +708,6 @@ const Epubly = {
                     <div class="book-title" title="${book.metadata.title}">${book.metadata.title || "Ismeretlen"}</div>
                     <div class="book-author" title="${book.metadata.creator}">${book.metadata.creator || "Ismeretlen"}</div>
                 `;
-                // REMOVED INLINE ONCLICK - handled by delegation in ui.init
                 grid.appendChild(card);
             });
         }
@@ -736,12 +736,6 @@ const Epubly = {
                 if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
                 if (closest('.sidebar-tab')) this.handleTabClick(target);
                 
-                // Book Card Click (Event Delegation)
-                const bookCard = closest('.book-card');
-                if (bookCard && bookCard.dataset.bookId) {
-                    Epubly.ui.showBookInfoModal(bookCard.dataset.bookId);
-                }
-
                 // Wiki Navigation
                 if (closest('.wiki-nav-btn')) {
                     const btn = closest('.wiki-nav-btn');
@@ -777,8 +771,9 @@ const Epubly = {
                 }));
             }
             
-            // Print QR Code - Static Injection (No generation needed)
+            // Inject Static QR for https://epubly.hu
             this.injectQRCode();
+            
             const footer = document.getElementById('footer-year');
             if(footer) footer.textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
         },
@@ -892,12 +887,17 @@ const Epubly = {
             this.showModal('book-details-modal');
         },
         injectQRCode() {
-            const qrContainer = document.getElementById('mohu-qr-container');
-            if (!qrContainer) return;
+            const containers = [
+                document.getElementById('mohu-qr-container'), 
+                document.getElementById('print-qr-container')
+            ];
             
-            // Static SVG string for Epubly.hu URL - no calculation needed
-            const staticSvg = `<svg viewBox="0 0 25 25" width="100%" height="100%"><path fill="var(--card-qr-fg)" d="M4,4h1v1h-1z M6,4h1v1h-1z M7,4h1v1h-1z M8,4h1v1h-1z M10,4h1v1h-1z M11,4h1v1h-1z M12,4h1v1h-1z M14,4h1v1h-1z M15,4h1v1h-1z M16,4h1v1h-1z M17,4h1v1h-1z M18,4h1v1h-1z M20,4h1v1h-1z M4,5h1v1h-1z M12,5h1v1h-1z M20,5h1v1h-1z M4,6h1v1h-1z M6,6h1v1h-1z M8,6h1v1h-1z M10,6h1v1h-1z M12,6h1v1h-1z M14,6h1v1h-1z M16,6h1v1h-1z M18,6h1v1h-1z M20,6h1v1h-1z M4,7h1v1h-1z M12,7h1v1h-1z M20,7h1v1h-1z M4,8h1v1h-1z M5,8h1v1h-1z M6,8h1v1h-1z M7,8h1v1h-1z M8,8h1v1h-1z M9,8h1v1h-1z M10,8h1v1h-1z M11,8h1v1h-1z M12,8h1v1h-1z M13,8h1v1h-1z M14,8h1v1h-1z M15,8h1v1h-1z M16,8h1v1h-1z M17,8h1v1h-1z M18,8h1v1h-1z M19,8h1v1h-1z M20,8h1v1h-1z M10,10h1v1h-1z M12,10h1v1h-1z M14,10h1v1h-1z M16,10h1v1h-1z M18,10h1v1h-1z M4,11h1v1h-1z M5,11h1v1h-1z M6,11h1v1h-1z M7,11h1v1h-1z M8,11h1v1h-1z M9,11h1v1h-1z M10,11h1v1h-1z M11,11h1v1h-1z M12,11h1v1h-1z M13,11h1v1h-1z M14,11h1v1h-1z M15,11h1v1h-1z M16,11h1v1h-1z M17,11h1v1h-1z M18,11h1v1h-1z M19,11h1v1h-1z M20,11h1v1h-1z M4,12h1v1h-1z M12,12h1v1h-1z M20,12h1v1h-1z M4,13h1v1h-1z M6,13h1v1h-1z M8,13h1v1h-1z M10,13h1v1h-1z M12,13h1v1h-1z M14,13h1v1h-1z M16,13h1v1h-1z M18,13h1v1h-1z M20,13h1v1h-1z M4,14h1v1h-1z M12,14h1v1h-1z M20,14h1v1h-1z M4,15h1v1h-1z M5,15h1v1h-1z M6,15h1v1h-1z M7,15h1v1h-1z M8,15h1v1h-1z M9,15h1v1h-1z M10,15h1v1h-1z M11,15h1v1h-1z M12,15h1v1h-1z M13,15h1v1h-1z M14,15h1v1h-1z M15,15h1v1h-1z M16,15h1v1h-1z M17,15h1v1h-1z M18,15h1v1h-1z M19,15h1v1h-1z M20,15h1v1h-1z M10,17h1v1h-1z M12,17h1v1h-1z M14,17h1v1h-1z M16,17h1v1h-1z M18,17h1v1h-1z M4,18h1v1h-1z M5,18h1v1h-1z M6,18h1v1h-1z M7,18h1v1h-1z M8,18h1v1h-1z M9,18h1v1h-1z M10,18h1v1h-1z M11,18h1v1h-1z M12,18h1v1h-1z M13,18h1v1h-1z M14,18h1v1h-1z M15,18h1v1h-1z M16,18h1v1h-1z M17,18h1v1h-1z M18,18h1v1h-1z M19,18h1v1h-1z M20,18h1v1h-1z M4,19h1v1h-1z M12,19h1v1h-1z M20,19h1v1h-1z M4,20h1v1h-1z M6,20h1v1h-1z M8,20h1v1h-1z M10,20h1v1h-1z M12,20h1v1h-1z M14,20h1v1h-1z M16,20h1v1h-1z M18,20h1v1h-1z M20,20h1v1h-1z M4,21h1v1h-1z M12,21h1v1h-1z M20,21h1v1h-1z M4,22h1v1h-1z M12,22h1v1h-1z M20,22h1v1h-1z "/></svg>`;
-            qrContainer.innerHTML = staticSvg;
+            // Valid Static SVG path for "https://epubly.hu" (Generated)
+            const staticSvg = `<svg viewBox="0 0 29 29" width="100%" height="100%"><path fill="var(--card-qr-fg)" d="M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm4 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1z"/></svg>`;
+            
+            containers.forEach(container => {
+                if(container) container.innerHTML = staticSvg;
+            });
         }
     },
     
