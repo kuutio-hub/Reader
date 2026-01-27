@@ -27,7 +27,8 @@ const Epubly = {
         isLoadingPrev: false,
         highlights: {},
         activeSidebar: null,
-        history: [] // Navigation stack: [{chapterIndex, scrollPosition}, ...]
+        history: [], // Navigation stack
+        selectedHighlightId: null // For deletion
     },
 
     // --- NAVIGATION MANAGER ---
@@ -37,7 +38,6 @@ const Epubly = {
             let firstVisibleChapter = document.querySelector('.chapter-container');
             if (!firstVisibleChapter) return;
 
-            // Find the first visible chapter
             for(const chapter of document.querySelectorAll('.chapter-container')) {
                 const rect = chapter.getBoundingClientRect();
                 if (rect.bottom > 0) {
@@ -47,7 +47,6 @@ const Epubly = {
             }
             
             const currentIdx = parseInt(firstVisibleChapter.dataset.index);
-            
             Epubly.state.history.push({
                 chapterIndex: currentIdx,
                 scrollTop: viewer.scrollTop
@@ -107,13 +106,10 @@ const Epubly = {
 
         scrollToHash(hash) {
             if (!hash) return;
-            // The timeout is a workaround to ensure the DOM has been painted after renderChapter
             setTimeout(() => {
                 const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
                 if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } else {
-                    console.warn(`Hash target #${hash} not found.`);
                 }
             }, 100);
         }
@@ -233,7 +229,12 @@ const Epubly = {
                 const imgFile = Epubly.state.zip.file(resolvedPath);
                 if (imgFile) {
                     const blob = await imgFile.async("blob");
-                    img.src = URL.createObjectURL(blob);
+                    const url = URL.createObjectURL(blob);
+                    img.src = url;
+                    // Important for SVG images that use xlink:href or href
+                    if(img.tagName.toLowerCase() === 'image') {
+                        img.setAttribute('href', url);
+                    }
                 }
             }
 
@@ -242,6 +243,14 @@ const Epubly = {
             chapterContainer.dataset.index = index;
             chapterContainer.innerHTML = doc.body ? doc.body.innerHTML : "Hiba a fejezet megjelenítésekor.";
             chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
+
+            // Attach highlight events delegate
+            chapterContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('highlighted-text')) {
+                    Epubly.highlights.showDeleteTool(e.target);
+                    e.stopPropagation();
+                }
+            });
 
             const viewer = document.getElementById('viewer-content');
             if (method === 'clear') viewer.innerHTML = '';
@@ -433,7 +442,11 @@ const Epubly = {
             const bookId = Epubly.state.currentBookId;
             const range = selection.getRangeAt(0);
             
+            // Unique ID for deletion logic
+            const hlId = `hl-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
+
             const highlightData = {
+                id: hlId,
                 type: 'text',
                 chapterIndex: idx,
                 text: range.toString(),
@@ -442,6 +455,8 @@ const Epubly = {
 
             const span = document.createElement('span');
             span.className = `highlighted-text hl-${color}`;
+            span.dataset.hlId = hlId;
+
             try { range.surroundContents(span); } catch (e) { console.warn("Complex selection not supported yet.", e); return; }
 
             if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
@@ -470,6 +485,10 @@ const Epubly = {
                         
                         const span = document.createElement('span');
                         span.className = `highlighted-text hl-${h.color}`;
+                        // Add ID to existing highlights if missing (legacy support)
+                        if (!h.id) h.id = `hl-${Date.now()}-${Math.random()}`; 
+                        span.dataset.hlId = h.id;
+
                         try {
                             range.surroundContents(span);
                         } catch (e) {
@@ -479,6 +498,47 @@ const Epubly = {
                     }
                 }
             });
+        },
+        showDeleteTool(targetElement) {
+            const tool = document.getElementById('highlight-delete-tool');
+            const rect = targetElement.getBoundingClientRect();
+            
+            tool.style.opacity = '1';
+            tool.style.pointerEvents = 'auto';
+            tool.style.top = `${rect.top + window.scrollY - 40}px`;
+            tool.style.left = `${rect.left + window.scrollX}px`;
+            
+            // Store the ID to delete
+            Epubly.state.selectedHighlightId = targetElement.dataset.hlId;
+            
+            // Auto hide after 3 seconds if not clicked
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => {
+                tool.style.opacity = '0';
+                tool.style.pointerEvents = 'none';
+            }, 3000);
+        },
+        remove() {
+            const hlId = Epubly.state.selectedHighlightId;
+            if (!hlId) return;
+
+            const bookId = Epubly.state.currentBookId;
+            if (!Epubly.state.highlights[bookId]) return;
+
+            // Remove from state
+            Epubly.state.highlights[bookId] = Epubly.state.highlights[bookId].filter(h => h.id !== hlId);
+            this.save();
+            this.renderList();
+
+            // Remove from DOM (unwrap)
+            const spans = document.querySelectorAll(`span[data-hl-id="${hlId}"]`);
+            spans.forEach(span => {
+                const parent = span.parentNode;
+                while (span.firstChild) parent.insertBefore(span.firstChild, span);
+                parent.removeChild(span);
+            });
+
+            document.getElementById('highlight-delete-tool').style.opacity = '0';
         },
         renderList() {
             const list = document.getElementById('highlights-list');
@@ -592,6 +652,15 @@ const Epubly = {
                     btn.addEventListener('click', () => this.handleUpdate(id.includes('align') ? 'textAlign' : 'theme', btn.dataset.val));
                 });
             });
+
+            // Terminal Presets
+            document.querySelectorAll('.color-preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const color = btn.dataset.color;
+                    this.handleUpdate('terminalColor', color);
+                    document.getElementById('terminal-color-picker').value = color;
+                });
+            });
         },
         get() {
             const defaults = {
@@ -628,9 +697,9 @@ const Epubly = {
             updateToggle('align-toggle-group', s.textAlign);
             updateToggle('theme-toggle-group', s.theme);
             
-            const terminalPicker = document.getElementById('terminal-color-picker-container');
-            if (terminalPicker) {
-                terminalPicker.style.display = s.theme === 'terminal' ? 'block' : 'none';
+            const terminalOpts = document.getElementById('terminal-options');
+            if (terminalOpts) {
+                terminalOpts.style.display = s.theme === 'terminal' ? 'block' : 'none';
             }
 
             Epubly.reader.applySettings(s);
@@ -705,12 +774,14 @@ const Epubly = {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const zip = await JSZip.loadAsync(arrayBuffer);
-                const opfPath = (await new DOMParser().parseFromString(await zip.file("META-INF/container.xml").async("string"), "application/xml")).querySelector("rootfile").getAttribute("full-path");
+                const containerXml = await zip.file("META-INF/container.xml").async("string");
+                const opfPath = new DOMParser().parseFromString(containerXml, "application/xml").querySelector("rootfile").getAttribute("full-path");
                 const opfDoc = new DOMParser().parseFromString(await zip.file(opfPath).async("string"), "application/xml");
                 const metadata = {};
                 ['title', 'creator', 'description'].forEach(tag => {
                     metadata[tag] = opfDoc.getElementsByTagName(`dc:${tag}`)[0]?.textContent || "";
                 });
+                
                 let coverUrl = null;
                 const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
                 if (coverItem) {
@@ -718,6 +789,7 @@ const Epubly = {
                     const coverFile = zip.file(href);
                     if(coverFile) coverUrl = URL.createObjectURL(await coverFile.async("blob"));
                 }
+                
                 await this.saveBook({
                     id: `${Date.now()}`, data: arrayBuffer, metadata: {...metadata, coverUrl},
                     stats: { totalTime: 0, progress: 0, lastRead: Date.now() }
@@ -745,6 +817,35 @@ const Epubly = {
     },
 
     library: {
+        generateCover(title, author) {
+            // Procedural cover generation based on title string hash
+            let hash = 0;
+            const str = title + author;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            
+            // Generate pastel colors
+            const h = Math.abs(hash) % 360;
+            const c1 = `hsl(${h}, 70%, 80%)`;
+            const c2 = `hsl(${(h + 40) % 360}, 70%, 70%)`;
+            
+            const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450">
+                <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="${c1}"/>
+                        <stop offset="100%" stop-color="${c2}"/>
+                    </linearGradient>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#g)"/>
+                <text x="50%" y="45%" fill="#333" font-family="Georgia, serif" font-size="28" font-weight="bold" text-anchor="middle">
+                    ${title.substring(0, 30)}${title.length>30?'...':''}
+                </text>
+                <text x="50%" y="60%" fill="#555" font-family="sans-serif" font-size="16" text-anchor="middle">
+                    ${author.substring(0, 25)}
+                </text>
+            </svg>`;
+            return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+        },
         async render() {
             const grid = document.getElementById('library-grid');
             if(!grid) return;
@@ -757,8 +858,11 @@ const Epubly = {
             books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-card';
+                
+                const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
+                
                 card.innerHTML = `
-                    <div class="book-cover"><img src="${book.metadata.coverUrl || ''}" alt="${book.metadata.title}"></div>
+                    <div class="book-cover"><img src="${coverSrc}" alt="${book.metadata.title}" loading="lazy"></div>
                     <div class="book-title" title="${book.metadata.title}">${book.metadata.title || "Ismeretlen"}</div>
                     <div class="book-author" title="${book.metadata.creator}">${book.metadata.creator || "Ismeretlen"}</div>
                 `;
@@ -775,14 +879,34 @@ const Epubly = {
                 const target = e.target;
                 const closest = (selector) => target.closest(selector);
                 
+                // Generic sidebar closer logic
+                if (!closest('.sidebar') && !closest('.toggle-sidebar-btn')) {
+                    document.querySelectorAll('.sidebar.visible').forEach(sb => sb.classList.remove('visible'));
+                }
+
                 if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
                 if (closest('.sidebar-tab')) this.handleTabClick(target);
+                
+                // Wiki Navigation
+                if (closest('.wiki-nav-btn')) {
+                    const btn = closest('.wiki-nav-btn');
+                    const targetId = btn.dataset.target;
+                    document.querySelectorAll('.wiki-nav-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.querySelectorAll('.wiki-page').forEach(p => p.classList.remove('active'));
+                    document.getElementById(targetId).classList.add('active');
+                }
+
                 if (closest('#app-logo-btn')) { Epubly.reader.updateSessionStats(); Epubly.ui.showLibraryView(); }
                 if (closest('.modal-close')) closest('.modal').classList.remove('visible');
                 if (target.classList.contains('modal')) target.classList.remove('visible');
+                
                 if (closest('.hl-color-btn')) Epubly.highlights.add(target.dataset.color);
+                if (closest('#btn-remove-highlight')) Epubly.highlights.remove();
+                
                 if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
                 if (closest('#btn-theme-toggle')) this.toggleTheme();
+                
                 if (closest('#btn-delete-all') && confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
                     localStorage.clear();
                     Epubly.storage.clearBooks().then(() => location.reload());
@@ -855,7 +979,13 @@ const Epubly = {
 
         toggleSidebar(id) {
             const sidebar = document.getElementById(id);
-            if(sidebar) sidebar.classList.toggle('visible');
+            if(sidebar) {
+                // If opening, close others
+                if(!sidebar.classList.contains('visible')) {
+                    document.querySelectorAll('.sidebar.visible').forEach(sb => sb.classList.remove('visible'));
+                }
+                sidebar.classList.toggle('visible');
+            }
         },
 
         showModal(id) { document.getElementById(id)?.classList.add('visible'); },
@@ -902,7 +1032,9 @@ const Epubly = {
         showBookInfoModal(book) {
             const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
             const img = document.getElementById('detail-cover-img');
-            if(img) img.src = book.metadata.coverUrl || '';
+            // Use procedural cover if null
+            if(img) img.src = book.metadata.coverUrl || Epubly.library.generateCover(book.metadata.title, book.metadata.creator);
+            
             set('detail-title', book.metadata.title);
             set('detail-author', book.metadata.creator);
             const desc = document.getElementById('detail-desc');

@@ -94,12 +94,19 @@
                 </div>
             </div>
             
-            <!-- Highlight Context Menu -->
+            <!-- Highlight Creation Menu -->
             <div id="highlight-menu">
                 <button class="hl-color-btn hl-yellow" data-color="yellow"></button>
                 <button class="hl-color-btn hl-green" data-color="green"></button>
                 <button class="hl-color-btn hl-blue" data-color="blue"></button>
                 <button class="hl-color-btn hl-red" data-color="red"></button>
+            </div>
+            
+            <!-- Highlight Deletion Tooltip -->
+            <div id="highlight-delete-tool">
+                <button id="btn-remove-highlight" class="btn btn-danger btn-small">
+                    Törlés
+                </button>
             </div>
 
             <!-- Floating Back Button -->
@@ -146,9 +153,21 @@
                         <button class="toggle-btn" data-val="sepia">Szépia</button>
                         <button class="toggle-btn" data-val="terminal">Terminál</button>
                     </div>
-                    <div class="setting-item" id="terminal-color-picker-container" style="display:none; margin-top: 15px;">
-                        <label>Terminál Szín</label>
-                        <input type="color" id="terminal-color-picker" style="width:100%; height:30px; border:none; padding:0;">
+                    
+                    <!-- Terminal Options -->
+                    <div id="terminal-options" style="display:none; margin-top: 15px; padding-left: 5px; border-left: 2px solid var(--border);">
+                        <label style="margin-bottom:8px; display:block; font-size:0.85rem; color:var(--text-muted);">Neon Szín</label>
+                        <div class="color-presets">
+                            <button class="color-preset-btn" data-color="#00FF41" style="background:#00FF41;" title="Zöld"></button>
+                            <button class="color-preset-btn" data-color="#FFB000" style="background:#FFB000;" title="Borostyán"></button>
+                            <button class="color-preset-btn" data-color="#00E5FF" style="background:#00E5FF;" title="Cián"></button>
+                            <button class="color-preset-btn" data-color="#FF00FF" style="background:#FF00FF;" title="Magenta"></button>
+                            <button class="color-preset-btn" data-color="#FF3131" style="background:#FF3131;" title="Vörös"></button>
+                        </div>
+                        <div class="setting-item" style="margin-top:10px;">
+                            <label style="font-size:0.8rem;">Egyéni szín</label>
+                            <input type="color" id="terminal-color-picker" style="width:100%; height:30px; border:none; padding:0; cursor:pointer;">
+                        </div>
                     </div>
                 </div>
 
@@ -215,56 +234,85 @@
         <div id="library-grid"></div>
     </section>
 
-    <!-- Modal: Wiki / Help / Donate -->
+    <!-- Modal: Apple Style Wiki / Help / Donate -->
     <div id="wiki-modal" class="modal">
-        <div class="modal-content" style="max-width:800px; height: 90vh;">
-             <div class="sidebar-header" style="padding: 20px;">
-                <div class="sidebar-tabs" style="border-bottom:none; flex:1;">
-                    <button class="sidebar-tab active" data-tab="wiki-tab-guide">Használati Útmutató</button>
-                    <button class="sidebar-tab" data-tab="wiki-tab-about">Névjegy & Támogatás</button>
-                </div>
-                <button class="icon-btn modal-close">&times;</button>
-            </div>
+        <div class="modal-content apple-wiki">
+             <div class="wiki-sidebar">
+                <h3>Segítség</h3>
+                <button class="wiki-nav-btn active" data-target="wiki-guide">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    Útmutató
+                </button>
+                <button class="wiki-nav-btn" data-target="wiki-about">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    Névjegy
+                </button>
+                <button class="wiki-nav-btn" data-target="wiki-donate">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    Támogatás
+                </button>
+                <div style="flex:1"></div>
+                <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center;">Bezárás</button>
+             </div>
 
-            <div class="wiki-content active" id="wiki-tab-guide">
-                <h2>Alapvető Funkciók</h2>
-                <ul>
-                    <li><b>Könyv hozzáadása:</b> Kattints az "Importálás" gombra, vagy egyszerűen húzd az .epub fájlt a könyvtár ablakába.</li>
-                    <li><b>Olvasás:</b> A fejezetek folyamatosan töltődnek be, ahogy lefelé vagy felfelé görgetsz.</li>
-                    <li><b>Kiemelés:</b> Jelölj ki egy szövegrészletet, és válassz színt a felugró menüből. A kiemeléseid a "Jegyzetek" fülön gyűlnek össze.</li>
-                    <li><b>Könyvjelző:</b> Kattints egy képre az olvasóban, hogy elmenthesd a jegyzetek közé. Így később gyorsan visszatalálsz hozzá.</li>
-                    <li><b>Navigáció:</b> A "Tartalom" menüben ugorhatsz a fejezetek között. Ha egy könyvön belüli linkre (pl. lábjegyzetre) kattintasz, a képernyő alján megjelenik egy "Vissza" gomb, amivel visszaugorhatsz az eredeti olvasási pozíciódra.</li>
-                </ul>
-
-                <h2>Testreszabás</h2>
-                <p>Az olvasó nézetben a jobb felső "Beállítások" ikonra kattintva személyre szabhatod az olvasási élményt:</p>
-                <ul>
-                    <li><b>Téma:</b> Válassz a Világos, Sötét, Szépia vagy Terminál színsémák közül.</li>
-                    <li><b>Betűstílus:</b> Állítsd be a betűtípust, színt, méretet, vastagságot, sorközt és betűközt.</li>
-                    <li><b>Elrendezés:</b> Igazítsd a szöveget balra vagy sorkizártra, és állítsd be a margók szélességét.</li>
-                </ul>
-
-                <h2>Hibaelhárítás</h2>
-                <p>Ha problémát tapasztalsz (pl. egy könyv nem jelenik meg helyesen), a gyorsítótár törlése megoldhatja a problémát. Figyelem, ez a művelet minden elmentett könyvet és beállítást töröl!</p>
-                <div style="margin-top:20px;">
-                    <button class="btn btn-danger" id="btn-delete-all" style="width:100%;">
-                        MINDEN ADAT VÉGLEGES TÖRLÉSE
+            <div class="wiki-main-area">
+                
+                <!-- GUIDE -->
+                <div id="wiki-guide" class="wiki-page active">
+                    <h2>Kezdő lépések</h2>
+                    <div class="wiki-card">
+                        <div class="wiki-icon">📚</div>
+                        <div class="wiki-text">
+                            <h4>Könyvtár</h4>
+                            <p>Importálj .epub fájlokat a gépedről. Ha egy könyvnek nincs borítója, az Epubly automatikusan generál egyet.</p>
+                        </div>
+                    </div>
+                     <div class="wiki-card">
+                        <div class="wiki-icon">👓</div>
+                        <div class="wiki-text">
+                            <h4>Olvasás & Navigáció</h4>
+                            <p>Görgess szabadon. A fejezetek betöltődnek. Ha lábjegyzetre ugrasz, használd a lenti lebegő gombot a visszatéréshez.</p>
+                        </div>
+                    </div>
+                     <div class="wiki-card">
+                        <div class="wiki-icon">🖍️</div>
+                        <div class="wiki-text">
+                            <h4>Kiemelések</h4>
+                            <p>Jelöld ki a szöveget az egérrel a színezéshez. Kattints a már kiemelt szövegre a törléshez.</p>
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin-top:30px;">Hibaelhárítás</h3>
+                    <p>Ha az alkalmazás furcsán viselkedik, a "Minden Adat Törlése" gomb alaphelyzetbe állítja.</p>
+                     <button class="btn btn-danger" id="btn-delete-all" style="margin-top:10px;">
+                        Minden Adat Végleges Törlése
                     </button>
                 </div>
-            </div>
 
-            <div class="wiki-content" id="wiki-tab-about">
-                <h2>A projektről</h2>
-                <p>Az Epubly.hu egy ingyenes, reklámmentes, nyílt forráskódú hobbi projekt. Célja egy modern, gyors és böngésző alapú e-könyv olvasó biztosítása, amely tiszteletben tartja a magánszférádat.</p>
-                <p><b>Minden kliens oldalon történik:</b> A könyveid a saját böngésződben, a te eszközödön kerülnek feldolgozásra és tárolásra. Semmilyen adatot nem töltünk fel külső szerverre. Az alkalmazás teljesen ingyenes, és az is marad.</p>
-                
-                <h2>Támogatás (Donate)</h2>
-                <p>Az oldal fejlesztése és fenntartása kizárólag szabadidőben történik. A támogatásért cserébe nem jár extra funkció, az csupán a munkám elismerését szolgálja. Ha szeretnéd meghálálni az erőfeszítéseimet, a legegyszerűbben a MOHU REpont rendszerén keresztül teheted meg. A visszaváltott palackok ára közvetlenül hozzám érkezik, és már egy-egy darab is óriási segítséget jelent a projekt fenntartásában. Köszönöm!</p>
-                
-                <div class="donation-area">
+                <!-- ABOUT -->
+                <div id="wiki-about" class="wiki-page">
+                    <h2>Az Epubly-ról</h2>
+                    <p class="lead">Egy modern, kliens-oldali e-könyv olvasó, amely tiszteletben tartja a privát szférádat.</p>
+                    <p>A projekt nyílt forráskódú és teljesen ingyenes. Nincsenek reklámok, nincsenek követőkódok. Minden feldolgozás a te böngésződben történik, a könyveid sosem hagyják el az eszközödet.</p>
+                    
+                    <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
+                        <h4>Technikai infó</h4>
+                        <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
+                            <li>Verzió: 0.13.1-beta</li>
+                            <li>Motor: Vanilla JS + JSZip</li>
+                            <li>Tárhely: IndexedDB</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- DONATE -->
+                <div id="wiki-donate" class="wiki-page">
+                    <h2>Támogatás</h2>
+                    <p>Az Epubly fejlesztése szabadidőben történik. Ha szereted az alkalmazást, támogathatsz a visszaváltott palackok árával!</p>
+                    
                     <div class="mohu-print-area">
-                        <h3 style="color:var(--brand);">MOHU REpont Támogatás</h3>
-                        <p style="font-size:0.9rem; margin-bottom:15px;">Váltsd vissza a palackokat a támogatásomra! Nyomtasd ki ezt a kártyát, és használd az automatáknál.</p>
+                        <h3 style="color:var(--brand);">MOHU REpont</h3>
+                        <p style="font-size:0.9rem; margin-bottom:15px;">Nyomtasd ki, és olvasd be az automatánál.</p>
                         
                         <div class="mohu-card">
                             <div class="mohu-card-bg-text">EPBLY</div>
@@ -272,19 +320,12 @@
                                  <svg width="20" height="20" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
                                 <span>Epubly.hu</span>
                             </div>
-                            <div id="mohu-qr-container" class="mohu-qr">
-                                <!-- QR Code will be generated here by JS -->
-                            </div>
+                            <div id="mohu-qr-container" class="mohu-qr"></div>
                             <div class="mohu-card-details">
                                 <div class="mohu-card-name">Epubly.hu Támogatás</div>
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
-                    </div>
-
-                    <div class="payment-options">
-                        <!-- PayPal button placeholder -->
-                        <button id="btn-paypal-donate" class="btn btn-secondary" disabled style="display:none;">Támogatás PayPal-on</button>
                     </div>
                 </div>
 
@@ -348,17 +389,18 @@
         </div>
     </div>
 
-    <!-- Modal: Import -->
+    <!-- Modal: Import (Updated Text) -->
     <div id="import-modal" class="modal">
-        <div class="modal-content" style="max-width:500px; padding: 30px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <h3>Könyv Hozzáadása</h3>
+        <div class="modal-content" style="max-width:500px; padding: 40px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:30px; align-items:center;">
+                <h3 style="font-size:1.4rem;">Könyv Importálása</h3>
                 <button class="icon-btn modal-close">&times;</button>
             </div>
-            <div id="import-drop-zone" class="drop-zone">
-                <p style="margin-bottom:15px; color:var(--text-muted);">Húzd ide az EPUB fájlt.</p>
+            <div id="import-drop-zone" class="drop-zone" style="cursor:pointer;" onclick="document.getElementById('epub-file').click()">
+                <div style="font-size:3rem; margin-bottom:15px; opacity:0.7;">📂</div>
+                <p style="margin-bottom:10px; font-weight:600; font-size:1.1rem; color:var(--text);">Nyisd meg a számítógépedről</p>
+                <p style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub fájlt</p>
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
-                <button class="btn btn-primary" onclick="document.getElementById('epub-file').click()">Fájl kiválasztása</button>
             </div>
         </div>
     </div>

@@ -1,33 +1,26 @@
 # Változási napló
 
-## [0.13.0-beta] - 2024-07-29
+## [0.13.1-beta] - 2024-07-29
 
-### Jelentős Javítások és Új Funkciók
-- **Felhasználói Felület Tisztítása:**
-  - Az olvasó nézetből eltávolításra került a százalékos haladásjelző és a felső folyamatjelző sáv a zavartalanabb olvasási élmény érdekében. A haladás továbbra is nyomon követhető a könyv részletes adatlapján.
-- **Intelligens "Vissza" Gomb:**
-  - A korábbi, fix "Vissza" gomb helyett egy új, lebegő gomb jelent meg, amely csak belső linkre (pl. lábjegyzet) kattintás után jelenik meg a képernyő alján, és pontosan visszanavigál az előző olvasási pozícióra.
-- **Tökéletesített "Terminál" Téma:**
-  - A téma mostantól egyetlen, konzisztens neonszínt használ minden elemre (szöveg, menük, kiemelések).
-  - A "Beállítások" panelen egy új színválasztó jelent meg, amellyel a Terminál téma neonszíne szabadon beállítható. Ez a választó csak a Terminál téma aktív állapotában látható.
-- **Kiemelő Rendszer Refaktorálása:** A kiemelések színkezelése át lett alakítva, hogy támogassa a téma-alapú és egyedi színeket, megalapozva a Terminál téma egységesítését.
+### Felhasználói Élmény és Design
+- **Professzionális Importálás:** Az importáló ablak szövegezése és megjelenése megújult ("Nyisd meg a számítógépedről...").
+- **Intelligens Borító Generálás:** A borító nélküli könyvek mostantól egyedi, a címből generált, színes gradiens borítót kapnak a könyvtár nézetben.
+- **Képkezelés Javítása:** A képek mostantól nem kerülnek felnagyításra (upscale), csak szükség esetén kicsinyítésre, így a kis felbontású képek és ikonok élesek maradnak. Javítva a képek betöltési logikája az olvasó nézetben.
+- **Apple-style Súgó:** Teljesen újratervezett, modern, kétoszlopos Súgó és Névjegy ablak animációkkal és ikonokkal.
+
+### Terminál Téma & Megjelenés
+- **Valódi Neon Szöveg:** A Terminál téma mostantól kényszeríti a választott neon színt a teljes szövegtörzsre (korábban fehér maradhatott).
+- **Szín Előbeállítások:** Új gombok a Beállításokban a népszerű terminál színek (Zöld, Amber, Kék, Lila, Piros) gyors kiválasztásához.
+- **Neon Kiemelések:** Terminál módban a kiemelések mostantól a választott neon szín halvány háttérrel és inverz/neon betűszínnel jelennek meg.
+
+### Funkcionális Javítások
+- **Kiemelések Törlése:** Az olvasóban a kiemelt szövegre kattintva mostantól megjelenik egy "Törlés" opció.
+- **Intuitív Bezárás:** Az oldalsávok és menük mostantól megbízhatóan bezáródnak, ha a felhasználó mellé kattint.
+
+## [0.13.0-beta] - 2024-07-29
+- **Felhasználói Felület Tisztítása:** Haladásjelzők eltávolítása az olvasó nézetből.
+- **Intelligens "Vissza" Gomb:** Lebegő navigációs gomb belső linkekhez.
+- **Terminál Téma:** Egyszínű neonséma bevezetése.
 
 ## [0.12.0-beta] - 2024-07-29
-
-### Kritikus Javítások
-- **STABILITÁS:** Kijavítva egy kritikus hiba, amely miatt az alkalmazás hibaüzenet nélkül megállt a töltőképernyőn ("csendes hiba").
-  - Az indítási folyamat mostantól egy robusztus hibakezelőben fut, amely bármilyen hiba esetén egyértelmű üzenetet és újratöltési lehetőséget jelenít meg a felhasználónak.
-  - Az adatbázis-kapcsolat (IndexedDB) kezelése stabilabbá vált, hogy megelőzze a más böngészőfülek által okozott esetleges blokkolásokat és lefagyásokat.
-
-## [0.10.9-beta] - 2024-07-27
-- **Témakezelés és Stílus:** Teljes, konzisztens színpaletták minden témához.
-- **Tipográfia:** Bővített betűtípus-választék és vastagság-állítás.
-- **Navigáció és Állapotkezelés:** Pontos "Vissza" gomb és olvasási pozíció megjegyzése.
-- **Haladáskövetés:** Pontosabb, könyv-szintű haladásjelzés.
-- **Képkezelés:** Képek nagyítása (lightbox).
-
-## [0.6.0-beta] - 2024-05-24
-- **Tipográfia és Témák:** Betűtípusok, igazítás, sorköz, háttértextúrák bevezetése.
-
-## [0.5.0-beta] - 2024-05-24
-*Single File Architecture bevezetése.*
+- **STABILITÁS:** Kritikus "csendes hiba" javítása indításkor.
