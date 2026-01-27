@@ -913,18 +913,33 @@ const Epubly = {
         },
         injectQRCode() {
             const containers = [
-                document.getElementById('mohu-qr-container'), 
-                document.getElementById('print-qr-container'),
-                document.getElementById('mobile-qr-target')
+                { id: 'mohu-qr-container', size: 80 },
+                { id: 'print-qr-container', size: 90 },
+                { id: 'mobile-qr-target', size: 250 }
             ];
             
-            // Generated Base64 PNG for 'https://epubly.hu'
-            // Used to replace SVG paths to prevent "hallucinations" and ensure a valid scannable image.
-            const validQrBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAACUCAYAAAB1PADUAAAAAXNSR0IArs4c6QAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAAmJLR0QA/4ePzL8AAAAJcEhZcwAADsQAAA7EAZUrDhsAAAJQSURBVHhe7d2xccMwEEBRU8pS2X8pG0gN0wIG8BA4QIBz8wM2eM3x/X6/X59fX8/j8Xg89/t9fT6f6/1+r8/n89/f/X6v5/N5fe/7/V6v1+t6vV7reZ7rfD6v9/u9/n2+Pz/H8/lcn8/n//f5/Pwcz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/ocz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/ocz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/oc/wB20X6jHl+2LwAAAABJRU5ErkJggg==";
-            
-            containers.forEach(container => {
-                if(container) {
-                    container.innerHTML = `<img src="${validQrBase64}" alt="Epubly QR" style="width:100%; height:100%; display:block; image-rendering: pixelated;">`;
+            const url = "https://epubly.hu";
+
+            containers.forEach(item => {
+                const el = document.getElementById(item.id);
+                // Ensure element exists and QRCode library is loaded
+                if(el && window.QRCode) {
+                    el.innerHTML = ''; // Clear previous content (static/base64)
+                    try {
+                        new QRCode(el, {
+                            text: url,
+                            width: item.size,
+                            height: item.size,
+                            colorDark : "#000000",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.H
+                        });
+                        // Remove inline styles from generated img to allow CSS control if needed, 
+                        // though QRCodeJS usually handles it well.
+                    } catch (e) {
+                        console.error("QR Generation failed:", e);
+                        el.innerHTML = "QR Hiba";
+                    }
                 }
             });
         }
