@@ -28,7 +28,8 @@ const Epubly = {
         highlights: {},
         activeSidebar: null,
         history: [], // Navigation stack
-        selectedHighlightId: null // For deletion
+        selectedHighlightId: null, // For deletion in reader
+        ctxMenuHighlightId: null, // For sidebar context menu
     },
 
     // --- NAVIGATION MANAGER ---
@@ -231,7 +232,6 @@ const Epubly = {
                     const blob = await imgFile.async("blob");
                     const url = URL.createObjectURL(blob);
                     img.src = url;
-                    // Important for SVG images that use xlink:href or href
                     if(img.tagName.toLowerCase() === 'image') {
                         img.setAttribute('href', url);
                     }
@@ -518,6 +518,50 @@ const Epubly = {
                 tool.style.pointerEvents = 'none';
             }, 3000);
         },
+        showSidebarMenu(e, hlId, chapterIndex) {
+            e.stopPropagation();
+            const menu = document.getElementById('sidebar-context-menu');
+            menu.style.display = 'flex';
+            menu.style.top = `${e.clientY}px`;
+            menu.style.left = `${e.clientX}px`;
+            
+            Epubly.state.ctxMenuHighlightId = hlId;
+            
+            // Configure Jump Action
+            const jumpBtn = document.getElementById('ctx-jump-btn');
+            jumpBtn.onclick = () => {
+                menu.style.display = 'none';
+                this.jumpTo(chapterIndex, hlId);
+            };
+
+            // Configure Delete Action
+            const delBtn = document.getElementById('ctx-delete-btn');
+            delBtn.onclick = () => {
+                 menu.style.display = 'none';
+                 Epubly.state.selectedHighlightId = hlId; // Re-use delete logic
+                 this.remove();
+            };
+        },
+        async jumpTo(chapterIndex, hlId) {
+            // Close sidebar
+            Epubly.ui.toggleSidebar('sidebar-toc');
+            
+            document.getElementById('viewer-content').innerHTML = '';
+            Epubly.state.renderedChapters.clear();
+            await Epubly.engine.renderChapter(chapterIndex, 'clear');
+            
+            // Find the highlight element and center it
+            setTimeout(() => {
+                const el = document.querySelector(`span[data-hl-id="${hlId}"]`);
+                if(el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Optional: flash effect
+                    el.style.transition = '0.3s';
+                    el.style.transform = 'scale(1.1)';
+                    setTimeout(() => el.style.transform = 'scale(1)', 300);
+                }
+            }, 100);
+        },
         remove() {
             const hlId = Epubly.state.selectedHighlightId;
             if (!hlId) return;
@@ -563,10 +607,9 @@ const Epubly = {
                         <span>Fejezet: ${h.chapterIndex + 1}</span>
                     </div>
                 `;
-                item.onclick = () => {
-                    document.getElementById('viewer-content').innerHTML = '';
-                    Epubly.state.renderedChapters.clear();
-                    Epubly.engine.renderChapter(h.chapterIndex, 'clear');
+                // Add click handler for Context Menu
+                item.onclick = (e) => {
+                   this.showSidebarMenu(e, h.id, h.chapterIndex);
                 };
                 list.appendChild(item);
             });
@@ -883,6 +926,11 @@ const Epubly = {
                 if (!closest('.sidebar') && !closest('.toggle-sidebar-btn')) {
                     document.querySelectorAll('.sidebar.visible').forEach(sb => sb.classList.remove('visible'));
                 }
+                
+                // Context menu closer logic
+                if (!closest('#sidebar-context-menu')) {
+                    document.getElementById('sidebar-context-menu').style.display = 'none';
+                }
 
                 if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
                 if (closest('.sidebar-tab')) this.handleTabClick(target);
@@ -930,6 +978,10 @@ const Epubly = {
                 const sel = window.getSelection();
                 const menu = document.getElementById('highlight-menu');
                 if(!menu) return;
+                
+                // Don't show if context menu is open
+                if (document.getElementById('sidebar-context-menu').style.display === 'flex') return;
+
                 if(sel.isCollapsed || sel.toString().trim().length < 2) {
                     menu.style.opacity = '0'; menu.style.pointerEvents = 'none';
                 } else {

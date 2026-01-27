@@ -102,9 +102,21 @@
                 <button class="hl-color-btn hl-red" data-color="red"></button>
             </div>
             
-            <!-- Highlight Deletion Tooltip -->
+            <!-- Highlight Deletion Tooltip (Reader Context) -->
             <div id="highlight-delete-tool">
                 <button id="btn-remove-highlight" class="btn btn-danger btn-small">
+                    Törlés
+                </button>
+            </div>
+
+            <!-- Sidebar Context Menu (Navigation Context) -->
+            <div id="sidebar-context-menu" style="display:none; position:fixed; z-index:1000; background:var(--surface); border:1px solid var(--border); box-shadow:0 5px 15px rgba(0,0,0,0.5); border-radius:8px; padding:5px; flex-direction:column; gap:2px; min-width:120px;">
+                <button id="ctx-jump-btn" class="ctx-menu-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    Ugrás
+                </button>
+                <button id="ctx-delete-btn" class="ctx-menu-item" style="color:var(--danger);">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     Törlés
                 </button>
             </div>
@@ -298,7 +310,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.13.1-beta</li>
+                            <li>Verzió: 0.13.2-beta</li>
                             <li>Motor: Vanilla JS + JSZip</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
