@@ -252,14 +252,44 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
 
 /* --- MOHU Card --- */
 .mohu-print-area { background:var(--surface-alt); padding:20px; border-radius:12px; margin:20px 0; text-align:center; }
-.mohu-card { --card-bg: #1A1A1A; --card-text: #FFFFFF; background-color: var(--card-bg); background-image: linear-gradient(145deg, #2a2a2a 0%, #111111 100%); width: 320px; height: 200px; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1); font-family: 'Poppins', sans-serif; margin: 20px auto; overflow: hidden; }
-.mohu-card-bg-text { position: absolute; top: 0px; right: -20px; font-size: 6rem; font-weight: 700; color: var(--card-text); opacity: 0.04; user-select: none; transform: rotate(-15deg); }
-.mohu-card-logo { display: flex; align-items: center; gap: 8px; color: var(--card-text); font-weight: 600; z-index: 1; }
+.mohu-card { 
+    --card-bg: #1A1A1A; 
+    --card-text: #FFFFFF; 
+    background-color: var(--card-bg); 
+    background-image: linear-gradient(135deg, #2a2a2a 0%, #111111 60%, #181818 100%); 
+    width: 320px; 
+    height: 200px; 
+    border-radius: 16px; 
+    padding: 20px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+    position: relative; 
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5); 
+    border: 1px solid rgba(255, 255, 255, 0.15); 
+    font-family: 'Poppins', sans-serif; 
+    margin: 20px auto; 
+    overflow: hidden; 
+}
+.mohu-card-bg-text { 
+    position: absolute; 
+    top: -10px; 
+    right: -25px; 
+    font-size: 6.5rem; 
+    font-weight: 900; 
+    color: var(--card-text); 
+    opacity: 0.05; 
+    user-select: none; 
+    transform: rotate(-15deg); 
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: -2px;
+}
+.mohu-card-logo { display: flex; align-items: center; gap: 8px; color: var(--card-text); font-weight: 700; z-index: 1; letter-spacing: 0.5px; }
 .mohu-card-logo .logo-icon { width: 24px; height: 24px; }
-.mohu-qr { background: #fff; padding: 5px; width: 90px; height: 90px; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: absolute; right: 20px; bottom: 20px; z-index: 1; }
+.mohu-qr { background: #fff; padding: 6px; width: 90px; height: 90px; border-radius: 10px; display: flex; align-items: center; justify-content: center; position: absolute; right: 20px; bottom: 20px; z-index: 1; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
 .mohu-qr svg { width: 100%; height: 100%; }
 .mohu-card-details { color: var(--card-text); text-align: left; z-index: 1; margin-top: auto; }
-.mohu-card-name { font-size: 1.1rem; font-weight: 600; margin-top: 2px; }
+.mohu-card-name { font-size: 1.1rem; font-weight: 600; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
 
 /* Floating Back Button */
 #floating-back-btn-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 500; opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; }

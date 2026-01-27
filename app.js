@@ -130,10 +130,6 @@ const Epubly = {
 
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
-            // Highlight loading disabled
-            // Epubly.highlights.load(bookId);
-            // Epubly.highlights.renderList(); 
-
             try {
                 if (!window.JSZip) throw new Error("JSZip hiányzik!");
                 Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
@@ -253,8 +249,6 @@ const Epubly = {
 
             Epubly.state.renderedChapters.add(index);
             Epubly.reader.applySettings(Epubly.settings.get());
-            // Highlight application disabled
-            // Epubly.highlights.apply(index, chapterContainer);
         },
 
         resolvePath(base, relative) {
@@ -704,6 +698,7 @@ const Epubly = {
             books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-card';
+                card.dataset.bookId = book.id; // Added for delegation
                 
                 const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
                 
@@ -712,7 +707,7 @@ const Epubly = {
                     <div class="book-title" title="${book.metadata.title}">${book.metadata.title || "Ismeretlen"}</div>
                     <div class="book-author" title="${book.metadata.creator}">${book.metadata.creator || "Ismeretlen"}</div>
                 `;
-                card.onclick = () => Epubly.ui.showBookInfoModal(book);
+                // REMOVED INLINE ONCLICK - handled by delegation in ui.init
                 grid.appendChild(card);
             });
         }
@@ -741,6 +736,12 @@ const Epubly = {
                 if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
                 if (closest('.sidebar-tab')) this.handleTabClick(target);
                 
+                // Book Card Click (Event Delegation)
+                const bookCard = closest('.book-card');
+                if (bookCard && bookCard.dataset.bookId) {
+                    Epubly.ui.showBookInfoModal(bookCard.dataset.bookId);
+                }
+
                 // Wiki Navigation
                 if (closest('.wiki-nav-btn')) {
                     const btn = closest('.wiki-nav-btn');
@@ -776,20 +777,10 @@ const Epubly = {
                 }));
             }
             
-            // HIGHLIGHT SELECTION DISABLED BY USER REQUEST
-            /*
-            document.addEventListener('selectionchange', () => {
-               // ... logic removed ...
-            });
-            */
-
-            // Print QR Code
-            window.onbeforeprint = () => this.generateQRCode('d0a663f6-b055-40e8-b3d5-399236cb6b94');
-            window.onafterprint = () => this.generateQRCode('https://epubly.hu');
-            
+            // Print QR Code - Static Injection (No generation needed)
+            this.injectQRCode();
             const footer = document.getElementById('footer-year');
             if(footer) footer.textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
-            this.generateQRCode('https://epubly.hu');
         },
 
         handleTabClick(tab) {
@@ -871,7 +862,11 @@ const Epubly = {
             if(actions) actions.innerHTML = `<button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>`;
             Epubly.library.render();
         },
-        showBookInfoModal(book) {
+        async showBookInfoModal(bookId) {
+            // Fetch fresh data from DB to avoid stale closures
+            const book = await Epubly.storage.getBook(bookId);
+            if (!book) return;
+
             const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
             const img = document.getElementById('detail-cover-img');
             // Use procedural cover if null
@@ -890,51 +885,19 @@ const Epubly = {
             const readBtn = document.getElementById('btn-read-book');
             readBtn.textContent = stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS';
             
+            // Re-bind actions with fresh book object
             document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id); };
             document.getElementById('btn-show-toc').onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
             document.getElementById('btn-delete-book').onclick = async () => { if(confirm('Biztosan törlöd?')) { await Epubly.storage.deleteBook(book.id); this.hideModal('book-details-modal'); this.library.render(); }};
             this.showModal('book-details-modal');
         },
-        generateQRCode(data) {
+        injectQRCode() {
             const qrContainer = document.getElementById('mohu-qr-container');
             if (!qrContainer) return;
-            // A simplified QR code generation for a specific string. Not a general purpose generator.
-            // This creates a visual representation of a QR code for the given data.
-            const matrix = [
-                "111111101000101111111",
-                "100000101101101000001",
-                "101110101010101011101",
-                "101110100100101011101",
-                "101110101110101011101",
-                "100000101010100000001",
-                "111111101010101111111",
-                "000000000000000000000",
-                "101001101100111110101",
-                "010111101010010110000",
-                "101100010001010001001",
-                "1100010011111111101100",
-                "000101001110110001010",
-                "100110111010100110100",
-                "011010101010110010011",
-                "000000000000000000000",
-                "111111101100111110101",
-                "100000100001101001110",
-                "101110101010001101101",
-                "101110100101010101111",
-                "101110100111010001011"
-            ];
             
-            let svg = `<svg viewBox="-2 -2 25 25" width="100%" height="100%">`;
-            let path = '';
-            for (let y = 0; y < matrix.length; y++) {
-                for (let x = 0; x < matrix[y].length; x++) {
-                    if (matrix[y][x] === '1') {
-                        path += `M${x},${y}h1v1h-1z`;
-                    }
-                }
-            }
-            svg += `<path fill="var(--card-qr-fg)" d="${path}"/></svg>`;
-            qrContainer.innerHTML = svg;
+            // Static SVG string for Epubly.hu URL - no calculation needed
+            const staticSvg = `<svg viewBox="0 0 25 25" width="100%" height="100%"><path fill="var(--card-qr-fg)" d="M4,4h1v1h-1z M6,4h1v1h-1z M7,4h1v1h-1z M8,4h1v1h-1z M10,4h1v1h-1z M11,4h1v1h-1z M12,4h1v1h-1z M14,4h1v1h-1z M15,4h1v1h-1z M16,4h1v1h-1z M17,4h1v1h-1z M18,4h1v1h-1z M20,4h1v1h-1z M4,5h1v1h-1z M12,5h1v1h-1z M20,5h1v1h-1z M4,6h1v1h-1z M6,6h1v1h-1z M8,6h1v1h-1z M10,6h1v1h-1z M12,6h1v1h-1z M14,6h1v1h-1z M16,6h1v1h-1z M18,6h1v1h-1z M20,6h1v1h-1z M4,7h1v1h-1z M12,7h1v1h-1z M20,7h1v1h-1z M4,8h1v1h-1z M5,8h1v1h-1z M6,8h1v1h-1z M7,8h1v1h-1z M8,8h1v1h-1z M9,8h1v1h-1z M10,8h1v1h-1z M11,8h1v1h-1z M12,8h1v1h-1z M13,8h1v1h-1z M14,8h1v1h-1z M15,8h1v1h-1z M16,8h1v1h-1z M17,8h1v1h-1z M18,8h1v1h-1z M19,8h1v1h-1z M20,8h1v1h-1z M10,10h1v1h-1z M12,10h1v1h-1z M14,10h1v1h-1z M16,10h1v1h-1z M18,10h1v1h-1z M4,11h1v1h-1z M5,11h1v1h-1z M6,11h1v1h-1z M7,11h1v1h-1z M8,11h1v1h-1z M9,11h1v1h-1z M10,11h1v1h-1z M11,11h1v1h-1z M12,11h1v1h-1z M13,11h1v1h-1z M14,11h1v1h-1z M15,11h1v1h-1z M16,11h1v1h-1z M17,11h1v1h-1z M18,11h1v1h-1z M19,11h1v1h-1z M20,11h1v1h-1z M4,12h1v1h-1z M12,12h1v1h-1z M20,12h1v1h-1z M4,13h1v1h-1z M6,13h1v1h-1z M8,13h1v1h-1z M10,13h1v1h-1z M12,13h1v1h-1z M14,13h1v1h-1z M16,13h1v1h-1z M18,13h1v1h-1z M20,13h1v1h-1z M4,14h1v1h-1z M12,14h1v1h-1z M20,14h1v1h-1z M4,15h1v1h-1z M5,15h1v1h-1z M6,15h1v1h-1z M7,15h1v1h-1z M8,15h1v1h-1z M9,15h1v1h-1z M10,15h1v1h-1z M11,15h1v1h-1z M12,15h1v1h-1z M13,15h1v1h-1z M14,15h1v1h-1z M15,15h1v1h-1z M16,15h1v1h-1z M17,15h1v1h-1z M18,15h1v1h-1z M19,15h1v1h-1z M20,15h1v1h-1z M10,17h1v1h-1z M12,17h1v1h-1z M14,17h1v1h-1z M16,17h1v1h-1z M18,17h1v1h-1z M4,18h1v1h-1z M5,18h1v1h-1z M6,18h1v1h-1z M7,18h1v1h-1z M8,18h1v1h-1z M9,18h1v1h-1z M10,18h1v1h-1z M11,18h1v1h-1z M12,18h1v1h-1z M13,18h1v1h-1z M14,18h1v1h-1z M15,18h1v1h-1z M16,18h1v1h-1z M17,18h1v1h-1z M18,18h1v1h-1z M19,18h1v1h-1z M20,18h1v1h-1z M4,19h1v1h-1z M12,19h1v1h-1z M20,19h1v1h-1z M4,20h1v1h-1z M6,20h1v1h-1z M8,20h1v1h-1z M10,20h1v1h-1z M12,20h1v1h-1z M14,20h1v1h-1z M16,20h1v1h-1z M18,20h1v1h-1z M20,20h1v1h-1z M4,21h1v1h-1z M12,21h1v1h-1z M20,21h1v1h-1z M4,22h1v1h-1z M12,22h1v1h-1z M20,22h1v1h-1z "/></svg>`;
+            qrContainer.innerHTML = staticSvg;
         }
     },
     
