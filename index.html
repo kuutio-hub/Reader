@@ -28,17 +28,14 @@
             <div class="mohu-card">
                 <div class="mohu-card-bg-text">EPUBLY.HU</div>
                 <div class="mohu-card-logo">
-                     <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='#FFFFFF' /></svg>
+                     <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
                     <span>Epubly.hu</span>
                 </div>
                 <div id="print-qr-container" class="mohu-qr"></div>
-                <div class="mohu-card-details">
-                    <div class="mohu-card-name">Epubly.hu Támogatás</div>
-                </div>
             </div>
         </div>
         <div class="print-instructions">
-            <p>Vágja ki a kártyát a szaggatott vonal mentén.</p>
+            <p>Vágja ki a kártyát.</p>
             <p>Köszönjük a támogatást!</p>
         </div>
     </div>
@@ -294,7 +291,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.13.9-beta</li>
+                            <li>Verzió: 0.13.10-beta</li>
                             <li>Motor: Vanilla JS + JSZip</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
@@ -317,11 +314,8 @@
                                 <span>Epubly.hu</span>
                             </div>
                             <div id="mohu-qr-container" class="mohu-qr"></div>
-                            <div class="mohu-card-details">
-                                <div class="mohu-card-name">Epubly.hu Támogatás</div>
-                            </div>
                         </div>
-                        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px;">
                             <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
                             <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon (Automata)</button>
                         </div>

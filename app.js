@@ -792,8 +792,8 @@ const Epubly = {
         
         toggleTheme() {
             const s = Epubly.settings.get();
-            const themes = ['light', 'dark', 'sepia', 'terminal'];
-            const nextTheme = themes[(themes.indexOf(s.theme) + 1) % themes.length];
+            // User Request: Only toggle between Dark and Sepia via button
+            const nextTheme = s.theme === 'dark' ? 'sepia' : 'dark';
             Epubly.settings.handleUpdate('theme', nextTheme);
             this.updateThemeIcons(nextTheme);
         },
@@ -802,8 +802,17 @@ const Epubly = {
             const sun = document.getElementById('theme-icon-sun');
             const moon = document.getElementById('theme-icon-moon');
             if(sun && moon) {
-                sun.style.display = (theme === 'light' || theme === 'sepia') ? 'none' : 'block';
-                moon.style.display = (theme === 'light' || theme === 'sepia') ? 'block' : 'none';
+                // Logic: 
+                // If Dark -> Show Sun (to indicate you can switch to a lighter mode i.e. Sepia)
+                // If Sepia -> Show Moon (to indicate you can switch to dark)
+                // For simplicity, treat 'sepia' like 'light'
+                if (theme === 'sepia' || theme === 'light') {
+                    sun.style.display = 'none';
+                    moon.style.display = 'block';
+                } else {
+                    sun.style.display = 'block';
+                    moon.style.display = 'none';
+                }
             }
         },
 
@@ -884,7 +893,22 @@ const Epubly = {
             set('detail-title', book.metadata.title);
             set('detail-author', book.metadata.creator);
             const desc = document.getElementById('detail-desc');
-            if(desc) desc.innerHTML = book.metadata.description || "Leírás nem elérhető.";
+            if(desc) {
+                if (book.metadata.description) {
+                    // Strip styles to ensure it matches app theme (no white backgrounds from inline styles)
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(book.metadata.description, 'text/html');
+                    doc.body.querySelectorAll('*').forEach(el => {
+                        el.removeAttribute('style');
+                        el.removeAttribute('class');
+                        el.removeAttribute('color');
+                        el.removeAttribute('face');
+                    });
+                    desc.innerHTML = doc.body.innerHTML;
+                } else {
+                    desc.innerHTML = "Leírás nem elérhető.";
+                }
+            }
             
             const stats = book.stats || { totalTime: 0, progress: 0 };
             const minutes = Math.floor(stats.totalTime / 60000);
