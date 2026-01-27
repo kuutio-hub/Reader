@@ -129,16 +129,9 @@ body {
 .sidebar-tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; background: transparent; border: none; border-bottom: 2px solid transparent; }
 .sidebar-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 .sidebar-pane { display: none; } .sidebar-pane.active { display: block; }
-.toc-link, .highlight-item { display: block; padding: 12px 14px; color: var(--text-muted); text-decoration: none; border-radius: var(--radius-s); transition: 0.2s ease; font-size: 0.95rem; margin-bottom: 4px; border: 1px solid transparent; cursor: pointer; }
-.toc-link:hover, .highlight-item:hover { background: var(--surface-alt); color: var(--brand); border-color: var(--border); transform: translateX(4px); }
+.toc-link { display: block; padding: 12px 14px; color: var(--text-muted); text-decoration: none; border-radius: var(--radius-s); transition: 0.2s ease; font-size: 0.95rem; margin-bottom: 4px; border: 1px solid transparent; cursor: pointer; }
+.toc-link:hover { background: var(--surface-alt); color: var(--brand); border-color: var(--border); transform: translateX(4px); }
 .toc-link.active { color: var(--brand); background: var(--brand-dim); font-weight: 600; border-color: rgba(212, 175, 55, 0.2); }
-.highlight-item { font-size: 0.85rem; border-left: 3px solid var(--brand); }
-.highlight-text { font-style: italic; color: var(--text); display: block; margin-bottom: 4px; pointer-events: none; }
-.highlight-meta { font-size: 0.75rem; color: var(--text-muted); pointer-events: none; }
-
-/* Sidebar Context Menu */
-.ctx-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; color: var(--text); cursor: pointer; font-size: 0.9rem; border-radius: 4px; }
-.ctx-menu-item:hover { background: var(--surface-alt); }
 
 /* --- VIEWS --- */
 .view-section { display: none; width: 100%; height: calc(100% - 54px - 30px); overflow: hidden; position: relative; }
@@ -186,6 +179,10 @@ body.theme-light .btn-primary, body.theme-sepia .btn-primary { color: #fff; }
 .icon-btn svg { width: 22px; height: 22px; }
 .icon-btn:hover { background: var(--surface-alt); color: var(--brand); }
 .icon-btn.active { color: var(--brand); background: var(--brand-dim); }
+
+/* Improved Close Buttons */
+.big-close { font-size: 1.5rem !important; width: 44px; height: 44px; transition: 0.2s ease; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.big-close:hover { background-color: var(--brand); color: #000; transform: rotate(90deg); box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
 
 /* Book Card */
 .book-card { background: transparent; border-radius: var(--radius-m); transition: var(--transition); cursor: pointer; position: relative; display: flex; flex-direction: column; gap: 10px; }
@@ -235,41 +232,6 @@ input[type=range] { -webkit-appearance: none; width: 100%; background: transpare
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: var(--text); cursor: pointer; margin-top: -7px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid var(--bg); }
 input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--border); border-radius: 2px; }
 input[type=range]:focus::-webkit-slider-runnable-track { background: var(--brand); }
-
-/* --- HIGHLIGHTING & NOTES --- */
-.highlighted-text { padding: 0.1em 0; margin: -0.1em 0; border-radius: 3px; cursor: pointer; transition: background 0.2s; }
-
-/* Unified Highlight Colors */
-.hl-yellow { --hl-bg: rgba(255, 226, 68, 0.4); --hl-tx: #3d3400; }
-.hl-green { --hl-bg: rgba(72, 199, 116, 0.4); --hl-tx: #0e301a; }
-.hl-blue { --hl-bg: rgba(62, 142, 208, 0.4); --hl-tx: #102a40; }
-.hl-red { --hl-bg: rgba(241, 70, 104, 0.4); --hl-tx: #420f1a; }
-
-body.theme-light .highlighted-text { background-color: var(--hl-bg); color: var(--hl-tx); }
-body.theme-sepia .highlighted-text { background-color: var(--hl-bg); color: var(--hl-tx); }
-
-/* Dark Mode Overrides for text color */
-body.theme-dark .hl-yellow { --hl-tx: #ffffa0; }
-body.theme-dark .hl-green { --hl-tx: #a5d6a7; }
-body.theme-dark .hl-blue { --hl-tx: #90caf9; }
-body.theme-dark .hl-red { --hl-tx: #ef9a9a; }
-body.theme-dark .highlighted-text { background-color: var(--hl-bg); color: var(--hl-tx); }
-
-/* Terminal Mode Overrides - Uniform Look */
-body.theme-terminal .highlighted-text {
-    background-color: color-mix(in srgb, var(--terminal-color) 25%, transparent);
-    color: var(--terminal-color) !important;
-    text-shadow: 0 0 2px var(--terminal-color);
-}
-
-#highlight-menu, #highlight-delete-tool { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: 50px; display: flex; gap: 5px; padding: 5px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-#highlight-delete-tool { border-radius: 8px; padding: 5px 10px; }
-.hl-color-btn { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--surface); cursor: pointer; transition: transform 0.1s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-.hl-color-btn:hover { transform: scale(1.2); }
-.hl-color-btn.hl-yellow { background: #ffeb3b; }
-.hl-color-btn.hl-green { background: #4caf50; }
-.hl-color-btn.hl-blue { background: #2196f3; }
-.hl-color-btn.hl-red { background: #f44336; }
 
 /* --- APPLE STYLE WIKI --- */
 .apple-wiki { flex-direction: row !important; height: 80vh !important; max-height: 800px; max-width: 900px; }

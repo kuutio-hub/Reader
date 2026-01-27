@@ -31,7 +31,7 @@
 
     <!-- LIGHTBOX -->
     <div id="lightbox">
-        <button class="lightbox-close icon-btn" style="position:absolute; top:20px; right:20px; font-size:2rem; color:white;">&times;</button>
+        <button class="lightbox-close icon-btn big-close">&times;</button>
         <img id="lightbox-img" src="" alt="Nagyított kép">
     </div>
 
@@ -94,33 +94,6 @@
                 </div>
             </div>
             
-            <!-- Highlight Creation Menu -->
-            <div id="highlight-menu">
-                <button class="hl-color-btn hl-yellow" data-color="yellow"></button>
-                <button class="hl-color-btn hl-green" data-color="green"></button>
-                <button class="hl-color-btn hl-blue" data-color="blue"></button>
-                <button class="hl-color-btn hl-red" data-color="red"></button>
-            </div>
-            
-            <!-- Highlight Deletion Tooltip (Reader Context) -->
-            <div id="highlight-delete-tool">
-                <button id="btn-remove-highlight" class="btn btn-danger btn-small">
-                    Törlés
-                </button>
-            </div>
-
-            <!-- Sidebar Context Menu (Navigation Context) -->
-            <div id="sidebar-context-menu" style="display:none; position:fixed; z-index:1000; background:var(--surface); border:1px solid var(--border); box-shadow:0 5px 15px rgba(0,0,0,0.5); border-radius:8px; padding:5px; flex-direction:column; gap:2px; min-width:120px;">
-                <button id="ctx-jump-btn" class="ctx-menu-item">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                    Ugrás
-                </button>
-                <button id="ctx-delete-btn" class="ctx-menu-item" style="color:var(--danger);">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                    Törlés
-                </button>
-            </div>
-
             <!-- Floating Back Button -->
             <div id="floating-back-btn-container">
                 <button id="floating-back-btn" class="btn btn-secondary">
@@ -130,21 +103,17 @@
             </div>
         </div>
 
-        <!-- Sidebar TOC / Notes -->
+        <!-- Sidebar TOC -->
         <aside id="sidebar-toc" class="sidebar">
             <div class="sidebar-header">
                 <h3>NAVIGÁCIÓ</h3>
-                <button class="icon-btn close-sidebar" data-target="sidebar-toc">&times;</button>
+                <button class="icon-btn close-sidebar big-close" data-target="sidebar-toc">&times;</button>
             </div>
             <div class="sidebar-tabs">
-                <button class="sidebar-tab active" data-tab="toc-list">Tartalom</button>
-                <button class="sidebar-tab" data-tab="highlights-list">Jegyzetek</button>
+                <button class="sidebar-tab active" data-tab="toc-list" style="flex:1;">Tartalom</button>
             </div>
             <div class="sidebar-content">
                 <ul id="toc-list" class="sidebar-pane active"></ul>
-                <div id="highlights-list" class="sidebar-pane">
-                    <p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>
-                </div>
             </div>
         </aside>
 
@@ -152,7 +121,7 @@
         <aside id="sidebar-settings" class="sidebar">
             <div class="sidebar-header">
                 <h3>MEGJELENÉS</h3>
-                <button class="icon-btn close-sidebar" data-target="sidebar-settings">&times;</button>
+                <button class="icon-btn close-sidebar big-close" data-target="sidebar-settings">&times;</button>
             </div>
             <div class="sidebar-content">
                 
@@ -286,13 +255,6 @@
                             <p>Görgess szabadon. A fejezetek betöltődnek. Ha lábjegyzetre ugrasz, használd a lenti lebegő gombot a visszatéréshez.</p>
                         </div>
                     </div>
-                     <div class="wiki-card">
-                        <div class="wiki-icon">🖍️</div>
-                        <div class="wiki-text">
-                            <h4>Kiemelések</h4>
-                            <p>Jelöld ki a szöveget az egérrel a színezéshez. Kattints a már kiemelt szövegre a törléshez.</p>
-                        </div>
-                    </div>
                     
                     <h3 style="margin-top:30px;">Hibaelhárítás</h3>
                     <p>Ha az alkalmazás furcsán viselkedik, a "Minden Adat Törlése" gomb alaphelyzetbe állítja.</p>
@@ -310,7 +272,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.13.2-beta</li>
+                            <li>Verzió: 0.13.3-beta</li>
                             <li>Motor: Vanilla JS + JSZip</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
@@ -369,7 +331,6 @@
                     </div>
                     <div class="detail-actions">
                         <button id="btn-read-book" class="btn btn-primary" style="width:100%;">OLVASÁS</button>
-                        <button id="btn-show-toc" class="btn btn-secondary" style="width:100%;">TARTALOMJEGYZÉK</button>
                         <button class="btn btn-secondary modal-close" style="width:100%;">BEZÁRÁS</button>
                     </div>
                     <div class="detail-actions-extra">
@@ -388,7 +349,7 @@
         <div class="modal-content" style="height: 70vh; max-width: 600px; padding: 20px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:10px;">
                 <h3 style="color:var(--text);">Keresés</h3>
-                <button class="icon-btn modal-close">&times;</button>
+                <button class="icon-btn modal-close big-close">&times;</button>
             </div>
             <div class="search-input-wrapper" style="display:flex; gap:10px; margin-bottom:15px;">
                 <input type="text" id="search-input" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-alt); color:var(--text);" placeholder="Írd be a keresett szót...">
@@ -401,12 +362,12 @@
         </div>
     </div>
 
-    <!-- Modal: Import (Updated Text) -->
+    <!-- Modal: Import -->
     <div id="import-modal" class="modal">
         <div class="modal-content" style="max-width:500px; padding: 40px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:30px; align-items:center;">
                 <h3 style="font-size:1.4rem;">Könyv Importálása</h3>
-                <button class="icon-btn modal-close">&times;</button>
+                <button class="icon-btn modal-close big-close">&times;</button>
             </div>
             <div id="import-drop-zone" class="drop-zone" style="cursor:pointer;" onclick="document.getElementById('epub-file').click()">
                 <div style="font-size:3rem; margin-bottom:15px; opacity:0.7;">📂</div>

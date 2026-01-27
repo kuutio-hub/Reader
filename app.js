@@ -130,8 +130,9 @@ const Epubly = {
 
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
-            Epubly.highlights.load(bookId);
-            Epubly.highlights.renderList(); 
+            // Highlight loading disabled
+            // Epubly.highlights.load(bookId);
+            // Epubly.highlights.renderList(); 
 
             try {
                 if (!window.JSZip) throw new Error("JSZip hiányzik!");
@@ -244,14 +245,6 @@ const Epubly = {
             chapterContainer.innerHTML = doc.body ? doc.body.innerHTML : "Hiba a fejezet megjelenítésekor.";
             chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
 
-            // Attach highlight events delegate
-            chapterContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('highlighted-text')) {
-                    Epubly.highlights.showDeleteTool(e.target);
-                    e.stopPropagation();
-                }
-            });
-
             const viewer = document.getElementById('viewer-content');
             if (method === 'clear') viewer.innerHTML = '';
             
@@ -260,7 +253,8 @@ const Epubly = {
 
             Epubly.state.renderedChapters.add(index);
             Epubly.reader.applySettings(Epubly.settings.get());
-            Epubly.highlights.apply(index, chapterContainer);
+            // Highlight application disabled
+            // Epubly.highlights.apply(index, chapterContainer);
         },
 
         resolvePath(base, relative) {
@@ -419,203 +413,6 @@ const Epubly = {
         }
     },
 
-    // --- HIGHLIGHTS ---
-    highlights: {
-        load(bookId) {
-            const saved = localStorage.getItem(`epubly-highlights-${bookId}`);
-            Epubly.state.highlights[bookId] = saved ? JSON.parse(saved) : [];
-        },
-        save() {
-            const bookId = Epubly.state.currentBookId;
-            if(bookId) {
-                localStorage.setItem(`epubly-highlights-${bookId}`, JSON.stringify(Epubly.state.highlights[bookId]));
-            }
-        },
-        add(color = 'yellow') {
-            const selection = window.getSelection();
-            if(!selection.rangeCount || selection.isCollapsed) return;
-            
-            const chapterDiv = selection.anchorNode.parentElement.closest('.chapter-container');
-            if(!chapterDiv) return;
-
-            const idx = parseInt(chapterDiv.dataset.index);
-            const bookId = Epubly.state.currentBookId;
-            const range = selection.getRangeAt(0);
-            
-            // Unique ID for deletion logic
-            const hlId = `hl-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
-
-            const highlightData = {
-                id: hlId,
-                type: 'text',
-                chapterIndex: idx,
-                text: range.toString(),
-                color: color
-            };
-
-            const span = document.createElement('span');
-            span.className = `highlighted-text hl-${color}`;
-            span.dataset.hlId = hlId;
-
-            try { range.surroundContents(span); } catch (e) { console.warn("Complex selection not supported yet.", e); return; }
-
-            if(!Epubly.state.highlights[bookId]) Epubly.state.highlights[bookId] = [];
-            Epubly.state.highlights[bookId].push(highlightData);
-            this.save();
-            this.renderList();
-            
-            document.getElementById('highlight-menu').style.opacity = '0';
-            selection.removeAllRanges();
-        },
-        apply(chapterIndex, container) {
-            const bookId = Epubly.state.currentBookId;
-            const items = (Epubly.state.highlights[bookId] || []).filter(h => h.type === 'text' && h.chapterIndex === chapterIndex);
-            if (items.length === 0) return;
-
-            items.forEach(h => {
-                const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-                let node;
-                while(node = walker.nextNode()) {
-                    if (node.parentElement.classList.contains('highlighted-text')) continue;
-                    const index = node.nodeValue.indexOf(h.text);
-                    if (index !== -1) {
-                        const range = document.createRange();
-                        range.setStart(node, index);
-                        range.setEnd(node, index + h.text.length);
-                        
-                        const span = document.createElement('span');
-                        span.className = `highlighted-text hl-${h.color}`;
-                        // Add ID to existing highlights if missing (legacy support)
-                        if (!h.id) h.id = `hl-${Date.now()}-${Math.random()}`; 
-                        span.dataset.hlId = h.id;
-
-                        try {
-                            range.surroundContents(span);
-                        } catch (e) {
-                            console.warn("Could not apply highlight to complex selection", e);
-                        }
-                        break; 
-                    }
-                }
-            });
-        },
-        showDeleteTool(targetElement) {
-            const tool = document.getElementById('highlight-delete-tool');
-            const rect = targetElement.getBoundingClientRect();
-            
-            tool.style.opacity = '1';
-            tool.style.pointerEvents = 'auto';
-            tool.style.top = `${rect.top + window.scrollY - 40}px`;
-            tool.style.left = `${rect.left + window.scrollX}px`;
-            
-            // Store the ID to delete
-            Epubly.state.selectedHighlightId = targetElement.dataset.hlId;
-            
-            // Auto hide after 3 seconds if not clicked
-            clearTimeout(this._timer);
-            this._timer = setTimeout(() => {
-                tool.style.opacity = '0';
-                tool.style.pointerEvents = 'none';
-            }, 3000);
-        },
-        showSidebarMenu(e, hlId, chapterIndex) {
-            e.stopPropagation();
-            const menu = document.getElementById('sidebar-context-menu');
-            menu.style.display = 'flex';
-            menu.style.top = `${e.clientY}px`;
-            menu.style.left = `${e.clientX}px`;
-            
-            Epubly.state.ctxMenuHighlightId = hlId;
-            
-            // Configure Jump Action
-            const jumpBtn = document.getElementById('ctx-jump-btn');
-            jumpBtn.onclick = () => {
-                menu.style.display = 'none';
-                this.jumpTo(chapterIndex, hlId);
-            };
-
-            // Configure Delete Action
-            const delBtn = document.getElementById('ctx-delete-btn');
-            delBtn.onclick = () => {
-                 menu.style.display = 'none';
-                 Epubly.state.selectedHighlightId = hlId; // Re-use delete logic
-                 this.remove();
-            };
-        },
-        async jumpTo(chapterIndex, hlId) {
-            // Close sidebar
-            Epubly.ui.toggleSidebar('sidebar-toc');
-            
-            document.getElementById('viewer-content').innerHTML = '';
-            Epubly.state.renderedChapters.clear();
-            await Epubly.engine.renderChapter(chapterIndex, 'clear');
-            
-            // Find the highlight element and center it
-            setTimeout(() => {
-                const el = document.querySelector(`span[data-hl-id="${hlId}"]`);
-                if(el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Optional: flash effect
-                    el.style.transition = '0.3s';
-                    el.style.transform = 'scale(1.1)';
-                    setTimeout(() => el.style.transform = 'scale(1)', 300);
-                }
-            }, 100);
-        },
-        remove() {
-            const hlId = Epubly.state.selectedHighlightId;
-            if (!hlId) return;
-
-            const bookId = Epubly.state.currentBookId;
-            if (!Epubly.state.highlights[bookId]) return;
-
-            // Remove from state
-            Epubly.state.highlights[bookId] = Epubly.state.highlights[bookId].filter(h => h.id !== hlId);
-            this.save();
-            this.renderList();
-
-            // Remove from DOM (unwrap)
-            const spans = document.querySelectorAll(`span[data-hl-id="${hlId}"]`);
-            spans.forEach(span => {
-                const parent = span.parentNode;
-                while (span.firstChild) parent.insertBefore(span.firstChild, span);
-                parent.removeChild(span);
-            });
-
-            document.getElementById('highlight-delete-tool').style.opacity = '0';
-        },
-        renderList() {
-            const list = document.getElementById('highlights-list');
-            if(!list) return;
-            const bookId = Epubly.state.currentBookId;
-            const items = Epubly.state.highlights[bookId] || [];
-            list.innerHTML = '';
-            if(items.length === 0) {
-                list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Még nincsenek jegyzetek.</p>';
-                return;
-            }
-            items.sort((a,b) => a.chapterIndex - b.chapterIndex).forEach(h => {
-                const item = document.createElement('div');
-                item.className = 'highlight-item';
-                item.style.borderLeftColor = `var(--hl-color-${h.color}, #ccc)`;
-                
-                const content = h.type === 'image' ? `[Kép könyvjelző]` : `"${h.text.substring(0, 80)}..."`;
-                
-                item.innerHTML = `
-                    <p class="highlight-text">${content}</p>
-                    <div class="highlight-meta">
-                        <span>Fejezet: ${h.chapterIndex + 1}</span>
-                    </div>
-                `;
-                // Add click handler for Context Menu
-                item.onclick = (e) => {
-                   this.showSidebarMenu(e, h.id, h.chapterIndex);
-                };
-                list.appendChild(item);
-            });
-        }
-    },
-
     // --- READER SETTINGS ---
     reader: {
         updateSessionStats() {
@@ -696,12 +493,18 @@ const Epubly = {
                 });
             });
 
-            // Terminal Presets
+            // Terminal Presets - Ensure immediate update
             document.querySelectorAll('.color-preset-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const color = btn.dataset.color;
-                    this.handleUpdate('terminalColor', color);
-                    document.getElementById('terminal-color-picker').value = color;
+                    const picker = document.getElementById('terminal-color-picker');
+                    if(picker) picker.value = color;
+                    
+                    // Force update logic
+                    const currentSettings = this.get();
+                    currentSettings.terminalColor = color;
+                    this.save(currentSettings);
+                    this.load(); // This calls reader.applySettings
                 });
             });
         },
@@ -917,6 +720,14 @@ const Epubly = {
     
     ui: {
         init() {
+            // Fix for File Import Input
+            const fileInput = document.getElementById('epub-file');
+            if(fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    if(e.target.files.length > 0) Epubly.storage.handleFileUpload(e.target.files[0]);
+                });
+            }
+
             // Event listeners
             document.body.addEventListener('click', e => {
                 const target = e.target;
@@ -927,11 +738,6 @@ const Epubly = {
                     document.querySelectorAll('.sidebar.visible').forEach(sb => sb.classList.remove('visible'));
                 }
                 
-                // Context menu closer logic
-                if (!closest('#sidebar-context-menu')) {
-                    document.getElementById('sidebar-context-menu').style.display = 'none';
-                }
-
                 if (closest('.close-sidebar')) Epubly.ui.toggleSidebar(closest('.close-sidebar').dataset.target);
                 if (closest('.sidebar-tab')) this.handleTabClick(target);
                 
@@ -948,9 +754,6 @@ const Epubly = {
                 if (closest('#app-logo-btn')) { Epubly.reader.updateSessionStats(); Epubly.ui.showLibraryView(); }
                 if (closest('.modal-close')) closest('.modal').classList.remove('visible');
                 if (target.classList.contains('modal')) target.classList.remove('visible');
-                
-                if (closest('.hl-color-btn')) Epubly.highlights.add(target.dataset.color);
-                if (closest('#btn-remove-highlight')) Epubly.highlights.remove();
                 
                 if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
                 if (closest('#btn-theme-toggle')) this.toggleTheme();
@@ -973,25 +776,12 @@ const Epubly = {
                 }));
             }
             
-            // Selection Menu
+            // HIGHLIGHT SELECTION DISABLED BY USER REQUEST
+            /*
             document.addEventListener('selectionchange', () => {
-                const sel = window.getSelection();
-                const menu = document.getElementById('highlight-menu');
-                if(!menu) return;
-                
-                // Don't show if context menu is open
-                if (document.getElementById('sidebar-context-menu').style.display === 'flex') return;
-
-                if(sel.isCollapsed || sel.toString().trim().length < 2) {
-                    menu.style.opacity = '0'; menu.style.pointerEvents = 'none';
-                } else {
-                    const rect = sel.getRangeAt(0).getBoundingClientRect();
-                    menu.style.opacity = '1';
-                    menu.style.pointerEvents = 'auto';
-                    menu.style.top = `${rect.bottom + window.scrollY + 10}px`;
-                    menu.style.left = `${Math.max(10, rect.left + window.scrollX)}px`; 
-                }
+               // ... logic removed ...
             });
+            */
 
             // Print QR Code
             window.onbeforeprint = () => this.generateQRCode('d0a663f6-b055-40e8-b3d5-399236cb6b94');
