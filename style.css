@@ -127,7 +127,7 @@ body {
         margin: 0 !important;
     }
     .mohu-card * { color: #FFFFFF !important; }
-    .mohu-card-bg-text { color: rgba(255,255,255,0.1) !important; }
+    .mohu-card-bg-text { color: rgba(255,255,255,0.05) !important; }
     .mohu-qr { background: #FFFFFF !important; }
     .mohu-qr path { fill: #000000 !important; }
     
@@ -323,7 +323,7 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     position: absolute; 
     top: -10px; 
     right: -25px; 
-    font-size: 4rem; /* Adjusted for longer text */
+    font-size: 3.5rem; /* Slightly smaller for EPUBLY.HU */
     font-weight: 900; 
     color: var(--card-text); 
     opacity: 0.05; 

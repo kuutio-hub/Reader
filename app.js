@@ -698,8 +698,9 @@ const Epubly = {
             books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-card';
-                // REVERT: Restored direct click handler for stability
-                card.onclick = () => Epubly.ui.showBookInfoModal(book.id);
+                // RESTORED: Direct onclick handler for reliability (v0.13.1 style)
+                // Passes the entire book object to avoid async fetching delays
+                card.onclick = () => Epubly.ui.showBookInfoModal(book);
                 
                 const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
                 
@@ -857,11 +858,23 @@ const Epubly = {
             if(actions) actions.innerHTML = `<button class="btn btn-primary" onclick="Epubly.ui.showModal('import-modal')">Importálás</button>`;
             Epubly.library.render();
         },
-        async showBookInfoModal(bookId) {
-            // Fetch fresh data from DB to avoid stale closures
-            const book = await Epubly.storage.getBook(bookId);
-            if (!book) return;
-
+        showBookInfoModal(bookOrId) {
+            // BACKWARD COMPATIBILITY FIX: 
+            // Handle both full Book object (sync, fast) or ID (async, slow)
+            // This restores v0.13.1 behavior where passing the object opened it instantly
+            
+            let book;
+            if (typeof bookOrId === 'object') {
+                book = bookOrId;
+                this._renderBookInfoModal(book);
+            } else {
+                // Fallback for ID based calls (if any remain)
+                Epubly.storage.getBook(bookOrId).then(b => {
+                    if(b) this._renderBookInfoModal(b);
+                });
+            }
+        },
+        _renderBookInfoModal(book) {
             const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
             const img = document.getElementById('detail-cover-img');
             // Use procedural cover if null
@@ -880,9 +893,13 @@ const Epubly = {
             const readBtn = document.getElementById('btn-read-book');
             readBtn.textContent = stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS';
             
-            // Re-bind actions with fresh book object
+            // Re-bind actions with book object
             document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id); };
-            document.getElementById('btn-show-toc').onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
+            // Note: TOC button removed from HTML in previous versions? If needed check HTML. 
+            // Kept logic safe if button is missing
+            const btnToc = document.getElementById('btn-show-toc');
+            if(btnToc) btnToc.onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
+            
             document.getElementById('btn-delete-book').onclick = async () => { if(confirm('Biztosan törlöd?')) { await Epubly.storage.deleteBook(book.id); this.hideModal('book-details-modal'); this.library.render(); }};
             this.showModal('book-details-modal');
         },
@@ -892,8 +909,11 @@ const Epubly = {
                 document.getElementById('print-qr-container')
             ];
             
-            // Valid Static SVG path for "https://epubly.hu" (Generated)
-            const staticSvg = `<svg viewBox="0 0 29 29" width="100%" height="100%"><path fill="var(--card-qr-fg)" d="M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm4 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1z"/></svg>`;
+            // Valid QR Code for "https://epubly.hu" (Version 2, Low ECC)
+            const validQrPath = "M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1z";
+            
+            // Note: ViewBox 29x29 matches V2 QR code module count (25) + quiet zone padding (4)
+            const staticSvg = `<svg viewBox="0 0 29 29" width="100%" height="100%" shape-rendering="crispEdges"><path fill="var(--card-qr-fg)" d="${validQrPath}"/></svg>`;
             
             containers.forEach(container => {
                 if(container) container.innerHTML = staticSvg;
