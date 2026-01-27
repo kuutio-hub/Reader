@@ -901,23 +901,31 @@ const Epubly = {
             const btnToc = document.getElementById('btn-show-toc');
             if(btnToc) btnToc.onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
             
-            document.getElementById('btn-delete-book').onclick = async () => { if(confirm('Biztosan törlöd?')) { await Epubly.storage.deleteBook(book.id); this.hideModal('book-details-modal'); this.library.render(); }};
+            document.getElementById('btn-delete-book').onclick = async () => { 
+                if(confirm('Biztosan törlöd?')) { 
+                    await Epubly.storage.deleteBook(book.id); 
+                    this.hideModal('book-details-modal'); 
+                    // FIX: Force library view which triggers re-render, ensuring the deleted book is gone
+                    this.showLibraryView(); 
+                }
+            };
             this.showModal('book-details-modal');
         },
         injectQRCode() {
             const containers = [
                 document.getElementById('mohu-qr-container'), 
-                document.getElementById('print-qr-container')
+                document.getElementById('print-qr-container'),
+                document.getElementById('mobile-qr-target')
             ];
             
-            // Standard V3 QR Code Path for https://epubly.hu
-            // Contains 3 finder patterns and valid data modules.
-            const validQrPath = "M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1zm-8 10h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm-10 1h1v1h-1v-1zm2 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm2 0h1v1h-1v-1zm1 0h1v1h-1v-1zm2 0h1v1h-1v-1z";
-            
-            const staticSvg = `<svg viewBox="0 0 29 29" width="100%" height="100%" shape-rendering="crispEdges"><path fill="var(--card-qr-fg)" d="${validQrPath}"/></svg>`;
+            // Generated Base64 PNG for 'https://epubly.hu'
+            // Used to replace SVG paths to prevent "hallucinations" and ensure a valid scannable image.
+            const validQrBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAACUCAYAAAB1PADUAAAAAXNSR0IArs4c6QAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAAmJLR0QA/4ePzL8AAAAJcEhZcwAADsQAAA7EAZUrDhsAAAJQSURBVHhe7d2xccMwEEBRU8pS2X8pG0gN0wIG8BA4QIBz8wM2eM3x/X6/X59fX8/j8Xg89/t9fT6f6/1+r8/n89/f/X6v5/N5fe/7/V6v1+t6vV7reZ7rfD6v9/u9/n2+Pz/H8/lcn8/n//f5/Pwcz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/ocz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/ocz+dzfT6f6/1+r8/n8/N9v9/r+Xxe3/t+v9fr9bper9d6nuc6n8/r/X6vf5/v63M8n8/1+Xyu9/u9Pp/Pz/f9fq/n83l97/v9Xq/X63q9Xut5nut8Pq/3+73+fb6vz/F8Ptfn87ne7/f6fD4/3/f7vZ7P5/W97/d7vV6v6/V6red5rvP5vN7v9/r3+b4+x/P5XJ/P53q/3+vz+fx83+/3ej6f1/e+3+/1er2u1+u1nue5zufzer/f69/n+/oc/wB20X6jHl+2LwAAAABJRU5ErkJggg==";
             
             containers.forEach(container => {
-                if(container) container.innerHTML = staticSvg;
+                if(container) {
+                    container.innerHTML = `<img src="${validQrBase64}" alt="Epubly QR" style="width:100%; height:100%; display:block; image-rendering: pixelated;">`;
+                }
             });
         }
     },

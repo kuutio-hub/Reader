@@ -293,7 +293,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.13.5-beta</li>
+                            <li>Verzió: 0.13.8-beta</li>
                             <li>Motor: Vanilla JS + JSZip</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
@@ -320,7 +320,10 @@
                                 <div class="mohu-card-name">Epubly.hu Támogatás</div>
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
+                        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                            <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
+                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon (Automata)</button>
+                        </div>
                     </div>
                 </div>
 
@@ -365,6 +368,24 @@
         </div>
     </div>
 
+    <!-- Modal: Search -->
+    <div id="search-modal" class="modal">
+        <div class="modal-content" style="height: 70vh; max-width: 600px; padding: 20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+                <h3 style="color:var(--text);">Keresés</h3>
+                <button class="icon-btn modal-close big-close">&times;</button>
+            </div>
+            <div class="search-input-wrapper" style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="text" id="search-input" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-alt); color:var(--text);" placeholder="Írd be a keresett szót...">
+                <button class="btn btn-primary" id="btn-do-search">Keresés</button>
+            </div>
+            <div id="search-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px; display:none;">Keresés folyamatban... <span id="search-progress"></span></div>
+            <div id="search-results" class="search-results" style="overflow-y:auto; flex:1;">
+                <p style="color:var(--text-muted); text-align:center; padding:20px;">A találatok itt jelennek meg.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Import -->
     <div id="import-modal" class="modal">
         <div class="modal-content" style="max-width:500px; padding: 40px;">
@@ -377,6 +398,20 @@
                 <p style="margin-bottom:10px; font-weight:600; font-size:1.1rem; color:var(--text);">Nyisd meg a számítógépedről</p>
                 <p style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub fájlt</p>
                 <input type="file" id="epub-file" accept=".epub" style="display:none">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Mobile QR Optimized -->
+    <div id="mobile-qr-modal" class="modal">
+        <div class="modal-content" style="background:#000; color:#fff; width:100%; height:100%; max-width:100%; max-height:100%; border:none; border-radius:0; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+            <div style="padding:20px; text-align:center;">
+                <h2 style="margin-bottom:20px; color:#D4AF37;">EPUBLY.HU</h2>
+                <div style="background:#fff; padding:20px; display:inline-block; border-radius:20px; box-shadow:0 0 50px rgba(255,255,255,0.2);">
+                    <div id="mobile-qr-target" style="width:250px; height:250px;"></div>
+                </div>
+                <p style="margin-top:30px; color:#aaa; font-size:0.9rem;">Tartsad a telefont a szkenner alá.</p>
+                <button class="btn btn-secondary modal-close" style="margin-top:40px; border-color:#555; background:#222; color:#fff;">BEZÁRÁS</button>
             </div>
         </div>
     </div>
