@@ -437,7 +437,8 @@ const Epubly = {
             
             document.body.className = `theme-${settings.theme}`;
             if (settings.theme === 'terminal') {
-                document.documentElement.style.setProperty('--terminal-color', settings.terminalColor);
+                // FIXED: Set property on body to ensure it cascades correctly
+                document.body.style.setProperty('--terminal-color', settings.terminalColor);
             }
         }
     },
@@ -827,7 +828,7 @@ const Epubly = {
             const set = (id, text) => { const el = document.getElementById(id); if(el) el.textContent = text; };
             set('header-author', author || "");
             set('header-title', title || "");
-            set('header-chapter', chapter ? `(${chapter})` : "");
+            set('header-chapter', ""); // Disabled by user request
             const sep = document.querySelector('.info-sep');
             if(sep) sep.style.display = author ? 'inline' : 'none';
         },
@@ -909,10 +910,10 @@ const Epubly = {
                 document.getElementById('print-qr-container')
             ];
             
-            // Valid QR Code for "https://epubly.hu" (Version 2, Low ECC)
-            const validQrPath = "M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1z";
+            // Standard V3 QR Code Path for https://epubly.hu
+            // Contains 3 finder patterns and valid data modules.
+            const validQrPath = "M4 4h7v7H4V4zm1 1v5h5V5H5zm2 2h1v1H7V7zm14-3h7v7h-7V4zm1 1v5h5V5h-5zm2 2h1v1h-1V7zM4 18h7v7H4v-7zm1 1v5h5v-5H5zm2 2h1v1H7v-1zm13-5h1v1h-1v-1zm-4 1h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-13 1h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm2 0h1v1h-1v-1zm4 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-11 1h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm3 0h1v1h-1v-1zm-9 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-6 1h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm-5 1h1v1h-1v-1zm2 0h1v1h-1v-1zm-8-5h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm2-4h1v1h-1v-1zm0 2h1v1h-1v-1zm-8 10h1v1h-1v-1zm2 0h1v1h-1v-1zm2 0h1v1h-1v-1zm3 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm-10 1h1v1h-1v-1zm2 0h1v1h-1v-1zm1 0h1v1h-1v-1zm1 0h1v1h-1v-1zm2 0h1v1h-1v-1zm1 0h1v1h-1v-1zm2 0h1v1h-1v-1z";
             
-            // Note: ViewBox 29x29 matches V2 QR code module count (25) + quiet zone padding (4)
             const staticSvg = `<svg viewBox="0 0 29 29" width="100%" height="100%" shape-rendering="crispEdges"><path fill="var(--card-qr-fg)" d="${validQrPath}"/></svg>`;
             
             containers.forEach(container => {
