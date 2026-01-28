@@ -62,8 +62,11 @@ const Epubly = {
             Epubly.state.renderedChapters.clear();
             Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
                 const viewer = document.getElementById('viewer');
-                viewer.scrollTop = state.scrollTop;
-                viewer.scrollLeft = state.scrollLeft || 0;
+                // Wait for layout
+                setTimeout(() => {
+                    viewer.scrollTop = state.scrollTop;
+                    viewer.scrollLeft = state.scrollLeft || 0;
+                }, 50);
             });
         },
 
@@ -121,50 +124,48 @@ const Epubly = {
             const content = document.getElementById('viewer-content');
             if (!viewer || !content) return;
 
-            // Calculate width of the VIEWPORT (clientWidth), not the total scroll width
+            // Calculate width of the VIEWPORT (clientWidth)
             const pageWidth = viewer.clientWidth;
             
-            // Check boundaries
             const maxScroll = viewer.scrollWidth - pageWidth;
             const currentScroll = viewer.scrollLeft;
 
             // Logic:
-            // If Next & at end of chapter -> Load Next Chapter
-            // If Prev & at start of chapter -> Load Prev Chapter (and jump to end of it)
-            // Else -> Scroll
+            // Check if we can scroll in the requested direction within the current chapter.
+            // Tolerance (epsilon) of 5px to handle sub-pixel rendering differences.
             
             if (direction === 'next') {
-                if (currentScroll >= maxScroll - 10) { // Tolerance
-                    // End of chapter
+                if (currentScroll + pageWidth < viewer.scrollWidth - 5) {
+                    // There is room to scroll
+                    viewer.scrollBy({ left: pageWidth, behavior: 'smooth' });
+                } else {
+                    // End of chapter -> Load Next
                     const lastIdx = Math.max(...Epubly.state.renderedChapters);
                     if (lastIdx < Epubly.state.spine.length - 1) {
-                         // Clear current and load next
                         document.getElementById('viewer-content').innerHTML = '';
                         Epubly.state.renderedChapters.clear();
                         Epubly.engine.renderChapter(lastIdx + 1, 'clear').then(() => {
                             viewer.scrollLeft = 0;
                         });
                     }
-                } else {
-                    viewer.scrollBy({ left: pageWidth, behavior: 'smooth' });
                 }
             } else { // prev
-                if (currentScroll <= 0) {
-                     // Start of chapter
+                if (currentScroll > 5) {
+                    // There is room to scroll back
+                    viewer.scrollBy({ left: -pageWidth, behavior: 'smooth' });
+                } else {
+                    // Start of chapter -> Load Prev
                     const firstIdx = Math.min(...Epubly.state.renderedChapters);
                     if (firstIdx > 0) {
                         document.getElementById('viewer-content').innerHTML = '';
                         Epubly.state.renderedChapters.clear();
                         Epubly.engine.renderChapter(firstIdx - 1, 'clear').then(() => {
-                            // Jump to end of new chapter
-                             // Wait for render layout
+                            // Jump to end of new chapter after render
                              setTimeout(() => {
                                  viewer.scrollLeft = viewer.scrollWidth;
-                             }, 50);
+                             }, 100);
                         });
                     }
-                } else {
-                    viewer.scrollBy({ left: -pageWidth, behavior: 'smooth' });
                 }
             }
             // Update "Page X of Y" stats
@@ -228,11 +229,16 @@ const Epubly = {
                 
                 Epubly.ui.updateHeaderInfo(title, author, "");
 
+                // -- POSITION RESTORATION LOGIC --
                 let startIdx = 0;
+                let savedPos = 0;
                 const savedLoc = Epubly.storage.getLocation(bookId);
+                
                 if(savedLoc) {
-                    const idx = parseInt(savedLoc.split(',')[0]);
+                    const parts = savedLoc.split(',');
+                    const idx = parseInt(parts[0]);
                     if(!isNaN(idx) && idx < Epubly.state.spine.length) startIdx = idx;
+                    savedPos = parseInt(parts[1]) || 0;
                 }
 
                 document.getElementById('viewer-content').innerHTML = '';
@@ -240,17 +246,16 @@ const Epubly = {
                 
                 await this.renderChapter(startIdx, 'clear');
 
-                if (savedLoc) {
-                    const savedParts = savedLoc.split(',');
-                    const savedPos = parseInt(savedParts[1]);
-                    
+                // Important: Wait for CSS columns to calculate before setting scrollLeft
+                setTimeout(() => {
                     const viewer = document.getElementById('viewer');
                     if (Epubly.settings.get().viewMode === 'paged') {
-                         viewer.scrollLeft = !isNaN(savedPos) ? savedPos : 0;
+                         viewer.scrollLeft = savedPos;
                     } else {
-                         viewer.scrollTop = !isNaN(savedPos) ? savedPos : 0;
+                         viewer.scrollTop = savedPos;
                     }
-                }
+                    this.updatePageCounts();
+                }, 150); // Small delay to ensure layout is ready
                 
                 this.initObservers();
                 
@@ -263,7 +268,6 @@ const Epubly = {
                 this.parseTOC(opfDoc);
                 
                 Epubly.ui.hideLoader();
-                this.updatePageCounts();
             } catch (e) {
                 console.error("Engine Error:", e);
                 alert("Hiba: " + e.message);
@@ -375,7 +379,12 @@ const Epubly = {
                         });
                     }
                 }
-                // (Prev logic omitted for brevity in scroll mode, focused on next)
+                // Update position
+                const firstChapter = document.querySelector('.chapter-container');
+                if(firstChapter) {
+                     const idx = parseInt(firstChapter.dataset.index);
+                     Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+                }
             } else {
                 // Paged Mode Logic: Update "Page X of Y"
                 this.updatePageCounts();
@@ -504,8 +513,22 @@ const Epubly = {
         },
         applySettings(settings) {
             const viewer = document.getElementById('viewer-content');
-            const viewerContainer = document.getElementById('reader-main');
             if(!viewer) return;
+            
+            // MARGIN LOGIC SEPARATION
+            let paddingLeft, paddingRight;
+            
+            if (settings.viewMode === 'paged') {
+                // In paged mode, "margin" means spacing on the left/right of the screen to shrink text width
+                const pagedMargin = settings.marginPaged || 0;
+                paddingLeft = `${pagedMargin}%`;
+                paddingRight = `${pagedMargin}%`;
+            } else {
+                // In scroll mode, standard margins
+                const scrollMargin = settings.marginScroll || 10;
+                paddingLeft = `${scrollMargin}%`;
+                paddingRight = `${scrollMargin}%`;
+            }
             
             Object.assign(viewer.style, {
                 fontFamily: settings.fontFamily,
@@ -515,10 +538,8 @@ const Epubly = {
                 fontWeight: settings.fontWeight,
                 color: settings.fontColor,
                 letterSpacing: `${settings.letterSpacing}px`,
-                // Logic Change: In paged mode, margin controls container padding (outer edges). 
-                // In scroll mode, margin controls paragraph margins (via padding-left/right).
-                paddingLeft: settings.viewMode === 'scroll' ? `${settings.margin}%` : `${settings.margin / 2}%`,
-                paddingRight: settings.viewMode === 'scroll' ? `${settings.margin}%` : `${settings.margin / 2}%`
+                paddingLeft: paddingLeft,
+                paddingRight: paddingRight
             });
             
             document.body.className = `theme-${settings.theme}`;
@@ -530,13 +551,21 @@ const Epubly = {
             document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
             document.body.classList.add(`view-mode-${settings.viewMode}`);
             
-            // Logic Change: If user selects 'paged', they want columns (Book mode).
-            // We force it to double page unless screen is weirdly small, but handled by CSS.
-            // Basically 'paged' now implies '2-up'.
             if(settings.viewMode === 'paged') {
-                // Removed the >900px check here, we let CSS logic handle the columns or force it.
-                // The prompt asked for "2-page view -> paged", "1-page -> scroll".
                 document.body.classList.add('double-page'); 
+            }
+
+            // Update UI Slider Visibility based on Mode
+            const scrollControl = document.getElementById('margin-scroll-control');
+            const pagedControl = document.getElementById('margin-paged-control');
+            if (scrollControl && pagedControl) {
+                if (settings.viewMode === 'paged') {
+                    scrollControl.style.display = 'none';
+                    pagedControl.style.display = 'block';
+                } else {
+                    scrollControl.style.display = 'block';
+                    pagedControl.style.display = 'none';
+                }
             }
 
             // Trigger re-calc for pages
@@ -576,7 +605,10 @@ const Epubly = {
             };
             bind('font-size-range', 'input', 'fontSize');
             bind('line-height-range', 'input', 'lineHeight');
-            bind('margin-range', 'input', 'margin');
+            // Bind Separate Margin Controls
+            bind('margin-scroll-range', 'input', 'marginScroll');
+            bind('margin-paged-range', 'input', 'marginPaged');
+            
             bind('font-weight-range', 'input', 'fontWeight');
             bind('letter-spacing-range', 'input', 'letterSpacing');
             bind('font-color-picker', 'input', 'fontColor');
@@ -592,28 +624,25 @@ const Epubly = {
                 });
             });
 
-            // Terminal Presets - Ensure immediate update
+            // Terminal Presets
             document.querySelectorAll('.color-preset-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const color = btn.dataset.color;
                     const picker = document.getElementById('terminal-color-picker');
                     if(picker) picker.value = color;
-                    
-                    // Force update logic
-                    const currentSettings = this.get();
-                    currentSettings.terminalColor = color;
-                    this.save(currentSettings);
-                    this.load(); // This calls reader.applySettings
+                    this.handleUpdate('terminalColor', color);
                 });
             });
         },
         get() {
             const defaults = {
-                fontSize: '100', lineHeight: '1.6', margin: '10',
+                fontSize: '100', lineHeight: '1.6', 
+                marginScroll: '10', // Default scroll margin
+                marginPaged: '0',   // Default paged margin
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark', terminalColor: '#00FF41',
-                viewMode: 'scroll' // 'scroll' or 'paged'
+                viewMode: 'scroll'
             };
             try {
                 const saved = JSON.parse(localStorage.getItem('epubly-settings'));
@@ -628,7 +657,11 @@ const Epubly = {
             const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
-            setVal('margin-range', s.margin);
+            
+            // Set separate margin values
+            setVal('margin-scroll-range', s.marginScroll);
+            setVal('margin-paged-range', s.marginPaged);
+            
             setVal('font-weight-range', s.fontWeight);
             setVal('letter-spacing-range', s.letterSpacing);
             setVal('font-color-picker', s.fontColor);
