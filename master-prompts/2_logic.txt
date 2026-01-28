@@ -1,21 +1,22 @@
-Prompt_2 – Logikai Felépítés (Epubly.hu)
+Prompt_2 – Logikai Felépítés (Epubly.hu - Modular Refactor)
 
-A következő architektúrát kell megvalósítanod az `app.js`-ben:
+Az alkalmazás üzleti logikáját ES6 modulokra bontva, a `js/modules/` mappában kell megvalósítani. Az `app.js` feladata kizárólag a modulok importálása és a globális `Epubly` névtér összeállítása.
 
-1. Fő Objektum: `const Epubly = { ... }`.
-2. Állapotkezelés (`state`): Tárolja a betöltött könyvet (zip/pdf), metaadatokat, előzményeket, renderelt fejezeteket.
-3. Motor (`engine`):
-   - `loadBook`: ZIP/PDF buffer betöltése.
-   - `renderChapter`: EPUB HTML tisztítása (stílusok eltávolítása), képek blob URL-re cserélése, DOM-ba illesztése. PDF esetén Canvas renderelés (PDF.js).
-   - `resolvePath`: Relatív útvonalak kezelése EPUB-on belül.
-4. Navigáció (`navigation`):
-   - `pushState`/`popState`: Belső előzmények kezelése a "Vissza" gombhoz.
-   - `turnPage`: Lapozás logika (csak Paged módban).
-5. Tárhely (`storage`):
-   - `IndexedDB` használata a teljes könyvfájlok (blob) és metaadatok tárolására (offline működéshez).
-   - `localStorage`: Beállítások és olvasási pozíciók mentése.
-6. Beállítások (`settings`):
-   - Globális Zoom (betűméret, sorköz skálázása), Betűtípus, Margók, Témák (Light, Dark, Sepia, Terminal).
-   - Ezeket valós időben kell alkalmazni a DOM-ra (`applySettings`).
+Modul Struktúra:
+1. `state.js`: Központi állapot (zip, spine, metadata, currentBookId) exportálása `State` néven.
+2. `storage.js`: IndexedDB (`getDb`, `saveBook`, `handleFileUpload`) és LocalStorage kezelés exportálása `Storage` néven.
+3. `engine.js`: EPUB parse, PDF render, fejezetek DOM-ba illesztése. Export: `Engine`.
+4. `ui.js`: DOM eseménykezelők, modális ablakok (Modal), oldalsávok (Sidebar) vezérlése. Export: `UI`.
+5. `library.js`: Könyvtár nézet (Grid) és borító generálás (SVG). Export: `Library`.
+6. `settings.js`: Beállítások (betűméret, téma, zoom) betöltése és mentése. Export: `Settings`.
+7. `reader_settings.js`: A beállítások vizuális alkalmazása (`applySettings`) a DOM-ra. Export: `Reader`.
+8. `navigation.js`: Lapozás (`turnPage`) és előzmények (`pushState`). Export: `Navigation`.
+9. `search.js`: Keresési algoritmus. Export: `Search`.
+10. `toc.js`: Tartalomjegyzék generálás. Export: `TOC`.
+11. `utils.js`: Segédfüggvények (path resolve) és hibakezelés.
 
-Ez a második lépés. Kérlek, erősítsd meg, hogy érted a logikát, és várd a következő utasítást a dizájnról! Ne generálj még kódot.
+Működési elv:
+- A modulok egymást a globális `window.Epubly` objektumon keresztül érik el futásidőben (pl. `Epubly.storage.saveBook`).
+- Az `app.js` inicializálja (`init()`) a rendszert a DOMContentLoaded eseménykor.
+
+Ez a második lépés. Kérlek, erősítsd meg, hogy érted a moduláris logikát, és várd a következő utasítást a dizájnról! Ne generálj még kódot.

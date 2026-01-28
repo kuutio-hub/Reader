@@ -1,0 +1,16 @@
+Prompt_4 – Vészhelyzeti Visszaállítási Útmutató (Epubly.hu)
+
+Ha a kód refaktorálása vagy fejlesztése során az alkalmazás működésképtelenné válna, kövesd az alábbi lépéseket a stabil (v0.14.7-alpha) állapot visszaállításához:
+
+1. Fájlok Törlése:
+   - Töröld a teljes `js/` vagy `modules/` mappát (ha létrehoztuk).
+   - Töröld a hibás `app.js` fájlt.
+
+2. Visszaállítás:
+   - Keresd meg az `app.backup.js` fájlt a gyökérkönyvtárban.
+   - Nevezd át ezt a fájlt `app.js`-re.
+
+3. Ellenőrzés:
+   - Frissítsd az oldalt. Az alkalmazásnak vissza kell térnie a korábbi, működő állapotába.
+
+Ez a fájl a biztonsági háló. Ne módosítsd, hacsak nem hozunk létre újabb stabil verziót!
