@@ -33,7 +33,7 @@ export const Engine = {
             viewer.onscroll = this.handleNavigation.bind(this);
             // Ensure position saves on touch end (mobile optimization)
             viewer.ontouchend = () => {
-                this.saveCurrentPosition();
+                this.saveCurrentPosition(true); // true = force update
             };
 
             Epubly.ui.hideLoader();
@@ -226,15 +226,17 @@ export const Engine = {
         const viewer = document.getElementById('viewer-content');
         if (method === 'clear') viewer.innerHTML = '';
         
-        if (method === 'prepend') viewer.insertBefore(chapterContainer, viewer.firstChild);
-        else viewer.appendChild(chapterContainer);
+        if (method === 'prepend') {
+            viewer.insertBefore(chapterContainer, viewer.firstChild);
+        } else {
+            viewer.appendChild(chapterContainer);
+        }
 
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
     },
 
     initObservers() {
-        // Disconnect existing to avoid duplicates
         if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
         Epubly.state.observer = new IntersectionObserver((entries) => {
@@ -246,13 +248,11 @@ export const Engine = {
                         // Optimistically save on intersection
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
                         
-                        // Update UI
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.toc.highlight(idx);
                         
-                        // Also trigger stats update (throttled)
                         this.throttledStatsUpdate(idx);
                     }
                 }
@@ -264,57 +264,74 @@ export const Engine = {
 
     handleNavigation() {
         const viewer = document.getElementById('viewer');
-        
-        // CRITICAL FIX: If renderedChapters is empty (e.g. during TOC clear), STOP immediately.
-        // This prevents the -Infinity loop freeze.
         if (Epubly.state.renderedChapters.size === 0) return;
 
-        // Scroll Logic for EPUB Infinite Scroll
         if (Epubly.state.currentFormat === 'epub') {
-           // Load next if close to bottom
+           // 1. SCROLL DOWN (Load Next)
            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
                const lastIdx = Math.max(...Epubly.state.renderedChapters);
-               // Sanity check
                if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
                    Epubly.state.isLoadingNext = true;
                    document.getElementById('scroll-loader').style.display = 'block';
                    
                    this.renderChapter(lastIdx + 1, 'append').then(async () => {
                         document.getElementById('scroll-loader').style.display = 'none';
-                        // Re-observe new elements
                         this.initObservers();
                         await this.ensureContentFillsScreen(lastIdx + 1);
                         Epubly.state.isLoadingNext = false;
                    });
                }
            }
+
+           // 2. SCROLL UP (Load Previous)
+           // If we are close to the top and haven't loaded the first chapter yet
+           if (viewer.scrollTop < 100 && !Epubly.state.isLoadingPrev) {
+               const firstIdx = Math.min(...Epubly.state.renderedChapters);
+               if (isFinite(firstIdx) && firstIdx > 0) {
+                   Epubly.state.isLoadingPrev = true;
+                   const loader = document.getElementById('top-loader');
+                   if(loader) loader.style.display = 'block';
+                   
+                   const oldScrollHeight = viewer.scrollHeight;
+                   
+                   this.renderChapter(firstIdx - 1, 'prepend').then(() => {
+                        // Adjust scroll position to maintain visual continuity
+                        const newScrollHeight = viewer.scrollHeight;
+                        const addedHeight = newScrollHeight - oldScrollHeight;
+                        viewer.scrollTop += addedHeight;
+                        
+                        if(loader) loader.style.display = 'none';
+                        this.initObservers();
+                        Epubly.state.isLoadingPrev = false;
+                   });
+               }
+           }
         }
+        
         this.saveCurrentPosition();
     },
 
-    saveCurrentPosition() {
+    saveCurrentPosition(force = false) {
         const viewer = document.getElementById('viewer');
         if (Epubly.state.currentFormat === 'epub') {
             const firstChapter = document.querySelector('.chapter-container');
             if(firstChapter) {
                  const idx = parseInt(firstChapter.dataset.index);
                  Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
-                 this.throttledStatsUpdate(idx);
+                 this.throttledStatsUpdate(idx, force);
             }
         } else {
-             // PDF Scroll Position
+             // PDF
              Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
         }
     },
 
-    throttledStatsUpdate(idx) {
+    throttledStatsUpdate(idx, force = false) {
         const now = Date.now();
-        // Save to DB at most once every 3 seconds to update Progress %
-        if (now - this.lastStatsSave > 3000) {
+        // Save to DB at most once every 2 seconds to update Progress %, OR if forced (touch end)
+        if (force || (now - this.lastStatsSave > 2000)) {
             this.lastStatsSave = now;
             const progress = Epubly.state.spine.length > 0 ? (idx / Epubly.state.spine.length) : 0;
-            // We pass durationDelta = 0 here because we just want to update progress,
-            // time tracking is handled by session start/end mostly, but this ensures 'lastRead' updates.
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, 0, progress);
         }
     },
