@@ -208,6 +208,13 @@
                 <!-- TYPOGRAPHY -->
                 <div class="settings-group">
                     <h4>BETŰSTÍLUS</h4>
+                    
+                    <!-- Global Zoom -->
+                    <div class="setting-item" style="background:var(--surface-alt); padding:10px; border-radius:8px; border:1px solid var(--brand-dim);">
+                        <label style="font-weight:600; color:var(--brand);">Globális Nagyítás (Zoom)</label>
+                        <input type="range" id="global-zoom-range" min="0.8" max="2.0" step="0.1">
+                    </div>
+
                     <div class="setting-item">
                          <select id="font-family-select" style="width:100%; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); font-size: 0.95rem;">
                             <option value="'Inter', sans-serif">Modern (Inter)</option>
@@ -235,7 +242,7 @@
                     </div>
                     
                     <div class="setting-item">
-                        <label>Méret</label>
+                        <label>Méret (Relatív)</label>
                         <input type="range" id="font-size-range" min="80" max="250" step="10">
                     </div>
                     
@@ -318,6 +325,16 @@
                             <p>Két mód közül választhatsz a beállításokban: <strong>Görgetés</strong> (hagyományos) vagy <strong>Lapozás</strong> (könyvszerű). Lapozásnál kattints a képernyő széleire!</p>
                         </div>
                     </div>
+
+                    <!-- PWA Help Card -->
+                    <div class="wiki-card" style="border-color:var(--brand-dim);">
+                        <div class="wiki-icon">📲</div>
+                        <div class="wiki-text">
+                            <h4>Az alkalmazás telepítése</h4>
+                            <p>Az Epubly telepíthető a telefonodra vagy számítógépedre. <strong>Ez teljesen biztonságos!</strong></p>
+                            <p style="margin-top:8px; font-size:0.85rem;">Nem foglal tárhelyet, nem tartalmaz vírust, és nem fér hozzá az adataidhoz. Gyakorlatilag egy "felturbózott könyvjelző", ami lehetővé teszi, hogy teljes képernyőn, internet nélkül is olvass. Keresd a böngésződ menüjében a <em>"Hozzáadás a kezdőképernyőhöz"</em> vagy <em>"Alkalmazás telepítése"</em> opciót.</p>
+                        </div>
+                    </div>
                     
                     <h3 style="margin-top:30px;">Hibaelhárítás</h3>
                     <p>Ha az alkalmazás furcsán viselkedik, a "Minden Adat Törlése" gomb alaphelyzetbe állítja.</p>
@@ -335,7 +352,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.6-alpha</li>
+                            <li>Verzió: 0.14.7-alpha</li>
                             <li>Motor: Vanilla JS + JSZip + CSS Columns + PDF.js</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>

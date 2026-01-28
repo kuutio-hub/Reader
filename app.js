@@ -613,6 +613,9 @@ const Epubly = {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
+            // GLOBAL ZOOM CALCULATION
+            const zoom = settings.globalZoom || 1.0;
+            
             // MARGIN LOGIC
             let paddingLeft, paddingRight;
             
@@ -630,12 +633,14 @@ const Epubly = {
 
             Object.assign(viewer.style, {
                 fontFamily: settings.fontFamily,
-                fontSize: `${settings.fontSize}%`,
-                lineHeight: settings.lineHeight,
+                // Scale Font Size by Global Zoom
+                fontSize: `${settings.fontSize * zoom}%`,
+                lineHeight: settings.lineHeight, // Keeps ratio, effectively scales with font size
                 textAlign: settings.textAlign,
                 fontWeight: settings.fontWeight,
                 color: settings.fontColor,
-                letterSpacing: `${settings.letterSpacing}px`,
+                // Scale Letter Spacing by Global Zoom (if it was px based, which it is)
+                letterSpacing: `${settings.letterSpacing * zoom}px`,
                 paddingLeft: paddingLeft,
                 paddingRight: paddingRight,
                 paddingTop: `${verticalMargin}px`,
@@ -707,6 +712,9 @@ const Epubly = {
             bind('margin-paged-range', 'input', 'marginPaged');
             bind('margin-vertical-range', 'input', 'marginVertical'); 
             
+            // New Global Zoom
+            bind('global-zoom-range', 'input', 'globalZoom');
+
             bind('font-weight-range', 'input', 'fontWeight');
             bind('letter-spacing-range', 'input', 'letterSpacing');
             bind('font-color-picker', 'input', 'fontColor');
@@ -734,6 +742,7 @@ const Epubly = {
         },
         get() {
             const defaults = {
+                globalZoom: '1.0', // NEW
                 fontSize: '100', lineHeight: '1.6', 
                 marginScroll: '28', // Default 70% of 40
                 marginPaged: '0',   
@@ -764,6 +773,7 @@ const Epubly = {
             setVal('font-color-picker', s.fontColor);
             setVal('terminal-color-picker', s.terminalColor);
             setVal('font-family-select', s.fontFamily);
+            setVal('global-zoom-range', s.globalZoom);
             
             const updateToggle = (groupId, val) => {
                 document.getElementById(groupId)?.querySelectorAll('.toggle-btn').forEach(b => { 

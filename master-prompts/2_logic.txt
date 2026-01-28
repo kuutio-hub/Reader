@@ -1,0 +1,21 @@
+Prompt_2 – Logikai Felépítés (Epubly.hu)
+
+A következő architektúrát kell megvalósítanod az `app.js`-ben:
+
+1. Fő Objektum: `const Epubly = { ... }`.
+2. Állapotkezelés (`state`): Tárolja a betöltött könyvet (zip/pdf), metaadatokat, előzményeket, renderelt fejezeteket.
+3. Motor (`engine`):
+   - `loadBook`: ZIP/PDF buffer betöltése.
+   - `renderChapter`: EPUB HTML tisztítása (stílusok eltávolítása), képek blob URL-re cserélése, DOM-ba illesztése. PDF esetén Canvas renderelés (PDF.js).
+   - `resolvePath`: Relatív útvonalak kezelése EPUB-on belül.
+4. Navigáció (`navigation`):
+   - `pushState`/`popState`: Belső előzmények kezelése a "Vissza" gombhoz.
+   - `turnPage`: Lapozás logika (csak Paged módban).
+5. Tárhely (`storage`):
+   - `IndexedDB` használata a teljes könyvfájlok (blob) és metaadatok tárolására (offline működéshez).
+   - `localStorage`: Beállítások és olvasási pozíciók mentése.
+6. Beállítások (`settings`):
+   - Globális Zoom (betűméret, sorköz skálázása), Betűtípus, Margók, Témák (Light, Dark, Sepia, Terminal).
+   - Ezeket valós időben kell alkalmazni a DOM-ra (`applySettings`).
+
+Ez a második lépés. Kérlek, erősítsd meg, hogy érted a logikát, és várd a következő utasítást a dizájnról! Ne generálj még kódot.

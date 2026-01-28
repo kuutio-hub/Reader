@@ -1,0 +1,19 @@
+Prompt_3 – Dizájn és UI (Epubly.hu)
+
+A vizuális megjelenésnek (`style.css` és HTML szerkezet) az alábbiakat kell követnie:
+
+1. Stílus: Modern, letisztult, "Apple-szerű" esztétika. Sötét mód az alapértelmezett.
+2. Felépítés:
+   - Header: Logó, Könyv címe/Szerző, Gombok (Keresés, TOC, Beállítások).
+   - Reader View: Központi olvasó felület. Két mód: Görgetés (Scroll) és Lapozás (Paged - CSS Columns 100vw).
+   - Sidebarok: Jobbról beúszó panelek (Tartalomjegyzék, Beállítások).
+3. Modális Ablakok:
+   - Importálás: Drag & Drop felület.
+   - Könyvtár: Grid elrendezésű kártyák, generált borítókkal (SVG minta) vagy a könyv saját borítójával.
+   - Wiki/Súgó: iOS stílusú, bal oldali navigációs sávval rendelkező ablak. Itt kell leírni a PWA telepítést is.
+4. Speciális elemek:
+   - Támogatói Kártya: Bankkártya méretű (85.6x54mm), nyomtatható elem QR kóddal.
+   - PDF Vezérlő: Lebegő gombsor (szélességhez igazítás, nagyítás) csak PDF nézetben.
+   - Globális Zoom: A beállításokban egy csúszka, ami mindent skáláz a szövegben.
+
+Ez a harmadik, végső utasítás. Mostantól, ha egy új projektben ezeket a prompteokat megkapod sorban, képesnek kell lenned rekonstruálni a jelenlegi 0.14.7-alpha állapotot.
