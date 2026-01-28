@@ -127,16 +127,18 @@ const Epubly = {
             // Calculate width of the VIEWPORT (clientWidth)
             const pageWidth = viewer.clientWidth;
             
+            // Refined Check for "End of Scroll"
+            // We use Math.ceil to avoid subpixel rounding issues which cause false negatives
             const maxScroll = viewer.scrollWidth - pageWidth;
-            const currentScroll = viewer.scrollLeft;
+            const currentScroll = Math.ceil(viewer.scrollLeft);
 
             // Logic:
             // Check if we can scroll in the requested direction within the current chapter.
-            // Tolerance (epsilon) of 5px to handle sub-pixel rendering differences.
+            // Tolerance increased to 10px to be safe.
             
             if (direction === 'next') {
-                if (currentScroll + pageWidth < viewer.scrollWidth - 5) {
-                    // There is room to scroll
+                if (currentScroll < maxScroll - 10) {
+                    // There is room to scroll horizontally
                     viewer.scrollBy({ left: pageWidth, behavior: 'smooth' });
                 } else {
                     // End of chapter -> Load Next
@@ -150,7 +152,7 @@ const Epubly = {
                     }
                 }
             } else { // prev
-                if (currentScroll > 5) {
+                if (currentScroll > 10) {
                     // There is room to scroll back
                     viewer.scrollBy({ left: -pageWidth, behavior: 'smooth' });
                 } else {
@@ -530,6 +532,9 @@ const Epubly = {
                 paddingRight = `${scrollMargin}%`;
             }
             
+            // Vertical Margins (padding top/bottom) - New Feature
+            const verticalMargin = settings.marginVertical || 60; // Default 60px
+
             Object.assign(viewer.style, {
                 fontFamily: settings.fontFamily,
                 fontSize: `${settings.fontSize}%`,
@@ -539,7 +544,9 @@ const Epubly = {
                 color: settings.fontColor,
                 letterSpacing: `${settings.letterSpacing}px`,
                 paddingLeft: paddingLeft,
-                paddingRight: paddingRight
+                paddingRight: paddingRight,
+                paddingTop: `${verticalMargin}px`,
+                paddingBottom: `${verticalMargin}px`
             });
             
             document.body.className = `theme-${settings.theme}`;
@@ -608,6 +615,7 @@ const Epubly = {
             // Bind Separate Margin Controls
             bind('margin-scroll-range', 'input', 'marginScroll');
             bind('margin-paged-range', 'input', 'marginPaged');
+            bind('margin-vertical-range', 'input', 'marginVertical'); // New Vertical Margin
             
             bind('font-weight-range', 'input', 'fontWeight');
             bind('letter-spacing-range', 'input', 'letterSpacing');
@@ -639,6 +647,7 @@ const Epubly = {
                 fontSize: '100', lineHeight: '1.6', 
                 marginScroll: '10', // Default scroll margin
                 marginPaged: '0',   // Default paged margin
+                marginVertical: '60', // Default vertical padding
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark', terminalColor: '#00FF41',
@@ -661,6 +670,7 @@ const Epubly = {
             // Set separate margin values
             setVal('margin-scroll-range', s.marginScroll);
             setVal('margin-paged-range', s.marginPaged);
+            setVal('margin-vertical-range', s.marginVertical);
             
             setVal('font-weight-range', s.fontWeight);
             setVal('letter-spacing-range', s.letterSpacing);
@@ -1120,7 +1130,7 @@ const Epubly = {
             
             // CSERÉLD KI EZT A SAJÁT EGYEDI KÓDODRA! (pl. "REpont-ABC-123")
             // Mivel az üzenetedben nem adtad meg a kódot, egy helyőrzőt használok.
-            const mohuCode = "28374829374"; 
+            const mohuCode = "d0a663f6-b055-40e8-b3d5-399236cb6b94"; 
 
             containers.forEach(item => {
                 const el = document.getElementById(item.id);

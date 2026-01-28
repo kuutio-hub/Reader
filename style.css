@@ -236,7 +236,7 @@ body {
     height: 100%;
     width: 100%;
     margin: 0;
-    padding: 0 !important; /* Padding handled by JS settings (margins) */
+    padding: 0; /* Padding handled by JS settings (margins). IMPORTANT REMOVED HERE. */
     max-width: none;
     
     /* The Magic */

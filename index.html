@@ -234,13 +234,18 @@
                     </div>
 
                     <div class="setting-item" id="margin-scroll-control">
-                        <label>Margó (Görgetés)</label>
+                        <label>Margó</label> <!-- Görgetés -->
                         <input type="range" id="margin-scroll-range" min="0" max="40" step="1">
                     </div>
 
                     <div class="setting-item" id="margin-paged-control" style="display:none;">
-                        <label>Oldalszél (Lapozás)</label>
+                        <label>Margó</label> <!-- Lapozás -->
                         <input type="range" id="margin-paged-range" min="0" max="20" step="1">
+                    </div>
+
+                    <div class="setting-item">
+                        <label>Függőleges Margó</label>
+                        <input type="range" id="margin-vertical-range" min="0" max="150" step="10">
                     </div>
                 </div>
             </div>
@@ -309,7 +314,7 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.2-alpha</li>
+                            <li>Verzió: 0.14.3-alpha</li>
                             <li>Motor: Vanilla JS + JSZip + CSS Columns</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
