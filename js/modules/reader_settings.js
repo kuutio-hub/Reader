@@ -20,7 +20,13 @@ export const Reader = {
         const zoom = settings.globalZoom || 1.0;
         
         // Scroll mode only now
-        const scrollMargin = settings.marginScroll || 10;
+        let scrollMargin = settings.marginScroll || 10;
+        
+        // MOBILE OVERRIDE: Force small margins if screen width < 600px
+        if (window.innerWidth < 600) {
+            scrollMargin = 3; // Max 3% margin on mobile
+        }
+
         const paddingLeft = `${scrollMargin}%`;
         const paddingRight = `${scrollMargin}%`;
         const verticalMargin = settings.marginVertical || 60;

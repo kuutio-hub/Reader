@@ -89,6 +89,13 @@
             <!-- Buttons injected by JS -->
         </div>
         
+        <!-- Fullscreen Toggle (Mobile) -->
+        <button class="icon-btn" id="btn-fullscreen-toggle" title="Teljes Képernyő" style="margin-left: 4px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+        </button>
+
         <!-- Theme Toggle -->
         <button class="icon-btn" id="btn-theme-toggle" title="Téma váltás" style="margin-left: 4px;">
             <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -297,8 +304,8 @@
                     <div class="wiki-card">
                         <div class="wiki-icon">🔒</div>
                         <div class="wiki-text">
-                            <h4>Teljesen Privát</h4>
-                            <p>A könyveid sosem kerülnek fel semmilyen szerverre. Minden adatot (könyvek, olvasási pozíció) a saját eszközödön, a böngésződben tárolunk (IndexedDB technológiával).</p>
+                            <h4>Teljesen Privát - Te Tárolod!</h4>
+                            <p>Minden adat (könyvek, olvasási pozíció) <strong>kizárólag a Te eszközödön</strong>, a böngésződben tárolódik. Az Epubly csak egy keretrendszer, ami segít megjeleníteni a fájlokat. Mi nem tárolunk semmit.</p>
                         </div>
                     </div>
 
@@ -313,7 +320,7 @@
                         <div class="wiki-icon">📜</div>
                         <div class="wiki-text">
                             <h4>Görgetés</h4>
-                            <p>Az Epubly modern, "végtelenített" görgetést használ. Csak görgess lefelé, és a rendszer automatikusan betölti a következő fejezetet. Nincs lapozgatás, nincs várakozás.</p>
+                            <p>Az Epubly modern, "végtelenített" görgetést használ. Csak görgess lefelé, és a rendszer automatikusan betölti a következő fejezetet.</p>
                         </div>
                     </div>
 
@@ -321,9 +328,8 @@
                     <div class="wiki-card" style="border-color:var(--brand-dim);">
                         <div class="wiki-icon">📲</div>
                         <div class="wiki-text">
-                            <h4>Az alkalmazás telepítése</h4>
-                            <p>Bár weboldalnak tűnik, az Epubly telepíthető alkalmazásként is.</p>
-                            <p style="margin-top:8px; font-size:0.85rem;"><strong>Android (Chrome):</strong> Menü &rarr; "Alkalmazás telepítése" vagy "Hozzáadás a kezdőképernyőhöz".<br><strong>iOS (Safari):</strong> Megosztás gomb &rarr; "Hozzáadás a Főképernyőhöz".</p>
+                            <h4>Mobil és Tablet</h4>
+                            <p>Az alkalmazás automatikusan alkalmazkodik az álló és fekvő nézethez. Teljes képernyőhöz használd a felső menüben található gombot.</p>
                         </div>
                     </div>
                     
@@ -343,7 +349,7 @@
                         <h4>Technikai részletek</h4>
                         <p style="font-size:0.9rem; color:var(--text-muted);">Mivel nincs központi szerver ("felhő"), ha törlöd a böngészési adataidat, a könyvek is törlődnek. Erre figyelj!</p>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.9-alpha</li>
+                            <li>Verzió: 0.14.10-beta</li>
                             <li>Motor: Vanilla JS + JSZip + PDF.js</li>
                             <li>Tárhely: Helyi IndexedDB</li>
                         </ul>

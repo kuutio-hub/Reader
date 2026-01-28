@@ -27,8 +27,14 @@ export const Engine = {
                 await this.loadEPUB(arrayBuffer, bookId);
             }
             
-            document.getElementById('viewer').onscroll = this.handleNavigation.bind(this);
-            // Removed updatePageCounts as we are scroll only
+            // Attach Scroll Saver (Immediate & Touch)
+            const viewer = document.getElementById('viewer');
+            viewer.onscroll = this.handleNavigation.bind(this);
+            // Ensure position saves on touch end (mobile optimization)
+            viewer.ontouchend = () => {
+                this.saveCurrentPosition();
+            };
+
             Epubly.ui.hideLoader();
 
         } catch (e) {
@@ -90,7 +96,10 @@ export const Engine = {
         if(savedLoc) {
             const parts = savedLoc.split(',');
             const savedPos = parseInt(parts[1]) || 0;
-            document.getElementById('viewer').scrollTop = savedPos;
+            // Use rAF to ensure paint before scroll
+            requestAnimationFrame(() => {
+                document.getElementById('viewer').scrollTop = savedPos;
+            });
         }
     },
 
@@ -153,31 +162,31 @@ export const Engine = {
         document.getElementById('viewer-content').innerHTML = '';
         Epubly.ui.showReaderView();
         
-        // Critical: Render first, then ensure content fills screen, THEN scroll
+        // Render first chapter
         await this.renderChapter(startIdx, 'clear');
         
-        // Ensure we fill the screen (handles short/empty chapters)
+        // Ensure fill screen
         await this.ensureContentFillsScreen(startIdx);
 
-        // Apply saved scroll position after DOM update
-        setTimeout(() => {
-            const viewer = document.getElementById('viewer');
-            viewer.scrollTop = savedPos;
-        }, 50); 
+        // Apply saved scroll position using requestAnimationFrame to fix "second load" bug
+        // Wait for 2 frames to ensure layout is stable
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const viewer = document.getElementById('viewer');
+                viewer.scrollTop = savedPos;
+            });
+        });
         
         this.initObservers();
         this.parseTOC(opfDoc);
     },
 
-    // New Helper: Recursive loader for empty chapters
     async ensureContentFillsScreen(lastLoadedIndex) {
         const viewer = document.getElementById('viewer');
         // Threshold: If content height is less than 1.5x screen height, load more
-        // (1.5x gives buffer for smooth scrolling)
         if (viewer.scrollHeight < viewer.clientHeight * 1.5 && lastLoadedIndex < Epubly.state.spine.length - 1) {
              const nextIdx = lastLoadedIndex + 1;
              await this.renderChapter(nextIdx, 'append');
-             // Recursive check
              await this.ensureContentFillsScreen(nextIdx);
         }
     },
@@ -228,12 +237,6 @@ export const Engine = {
 
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
-        
-        // After rendering, check if we need to load more (e.g. if this chapter was tiny)
-        // But only if we are in 'append' mode to prevent recursion issues during initial load loop
-        if (method === 'append') {
-             // We do a light check here, main check is in ensureContentFillsScreen or scroll handler
-        }
     },
 
     initObservers() {
@@ -243,6 +246,7 @@ export const Engine = {
                     const idx = parseInt(entry.target.dataset.index);
                     const scrollTop = document.getElementById('viewer').scrollTop;
                     if (Epubly.state.currentFormat === 'epub') {
+                        // Optimistically save on intersection too
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
@@ -269,21 +273,26 @@ export const Engine = {
                    
                    this.renderChapter(lastIdx + 1, 'append').then(async () => {
                         document.getElementById('scroll-loader').style.display = 'none';
-                        // Keep loading if still small (nested empty chapters)
                         await this.ensureContentFillsScreen(lastIdx + 1);
                         Epubly.state.isLoadingNext = false;
                    });
                }
            }
-           // Update position
-           const firstChapter = document.querySelector('.chapter-container');
-           if(firstChapter) {
-                const idx = parseInt(firstChapter.dataset.index);
-                Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
-           }
+        }
+        this.saveCurrentPosition();
+    },
+
+    saveCurrentPosition() {
+        const viewer = document.getElementById('viewer');
+        if (Epubly.state.currentFormat === 'epub') {
+            const firstChapter = document.querySelector('.chapter-container');
+            if(firstChapter) {
+                 const idx = parseInt(firstChapter.dataset.index);
+                 Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+            }
         } else {
-            // PDF Scroll Position
-            Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+             // PDF Scroll Position
+             Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
         }
     },
 

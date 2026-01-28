@@ -62,6 +62,18 @@ export const UI = {
         if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
         if (closest('#btn-theme-toggle')) this.toggleTheme();
         
+        // Fullscreen Toggle
+        if (closest('#btn-fullscreen-toggle')) {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => {
+                    console.warn("Fullscreen error", e);
+                    alert("A teljes képernyős mód nem engedélyezett ezen az eszközön.");
+                });
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+        
         if (closest('#btn-delete-all') && confirm("FIGYELEM! Ez a gomb töröl minden könyvet, jegyzetet és beállítást. A művelet nem vonható vissza. Folytatod?")) {
             localStorage.clear();
             Epubly.storage.clearBooks().then(() => location.reload());
