@@ -942,7 +942,9 @@ const Epubly = {
                 { id: 'mobile-qr-target', size: 250 }
             ];
             
-            const url = "https://epubly.hu";
+            // CSERÉLD KI EZT A SAJÁT EGYEDI KÓDODRA! (pl. "REpont-ABC-123")
+            // Mivel az üzenetedben nem adtad meg a kódot, egy helyőrzőt használok.
+            const mohuCode = "28374829374"; 
 
             containers.forEach(item => {
                 const el = document.getElementById(item.id);
@@ -951,15 +953,13 @@ const Epubly = {
                     el.innerHTML = ''; // Clear previous content (static/base64)
                     try {
                         new QRCode(el, {
-                            text: url,
+                            text: mohuCode,
                             width: item.size,
                             height: item.size,
                             colorDark : "#000000",
                             colorLight : "#ffffff",
                             correctLevel : QRCode.CorrectLevel.H
                         });
-                        // Remove inline styles from generated img to allow CSS control if needed, 
-                        // though QRCodeJS usually handles it well.
                     } catch (e) {
                         console.error("QR Generation failed:", e);
                         el.innerHTML = "QR Hiba";
