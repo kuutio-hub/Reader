@@ -70,7 +70,7 @@
                 <span class="info-author" id="header-author"></span>
                 <span class="info-sep" style="display:none;">:</span>
                 <span class="info-title" id="header-title">Könyvtár</span>
-                <span class="info-chapter" id="header-chapter"></span>
+                <span class="info-page" id="header-page" style="margin-left: 10px; font-variant-numeric: tabular-nums;"></span>
             </div>
         </div>
 
@@ -101,6 +101,10 @@
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
         <div id="reader-main">
+            <!-- Navigation Zones for Paged Mode -->
+            <div id="nav-zone-left" class="nav-zone"></div>
+            <div id="nav-zone-right" class="nav-zone"></div>
+
             <div id="viewer">
                 <div id="top-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted); font-size:0.8rem;">
                     Előző fejezet betöltése...
@@ -144,6 +148,15 @@
             </div>
             <div class="sidebar-content">
                 
+                <!-- VIEW MODE -->
+                <div class="settings-group">
+                    <h4>NÉZET</h4>
+                     <div class="toggle-group" id="view-mode-toggle-group">
+                        <button class="toggle-btn" data-val="scroll">Görgetés</button>
+                        <button class="toggle-btn" data-val="paged">Lapozás</button>
+                    </div>
+                </div>
+
                 <!-- THEME -->
                 <div class="settings-group">
                     <h4>TÉMA</h4>
@@ -271,7 +284,7 @@
                         <div class="wiki-icon">👓</div>
                         <div class="wiki-text">
                             <h4>Olvasás & Navigáció</h4>
-                            <p>Görgess szabadon. A fejezetek betöltődnek. Ha lábjegyzetre ugrasz, használd a lenti lebegő gombot a visszatéréshez.</p>
+                            <p>Két mód közül választhatsz a beállításokban: <strong>Görgetés</strong> (hagyományos) vagy <strong>Lapozás</strong> (könyvszerű). Lapozásnál kattints a képernyő széleire!</p>
                         </div>
                     </div>
                     
@@ -291,8 +304,8 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.13.10-beta</li>
-                            <li>Motor: Vanilla JS + JSZip</li>
+                            <li>Verzió: 0.14.0-alpha</li>
+                            <li>Motor: Vanilla JS + JSZip + CSS Columns</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
                     </div>
