@@ -11,10 +11,28 @@ export const TOC = {
             : tocItems.map(item => `<li><a class="toc-link" data-idx="${item.index}">${item.label || "Fejezet " + (item.index + 1)}</a></li>`).join('');
         
         tocList.querySelectorAll('.toc-link').forEach(link => {
-            link.onclick = () => {
+            link.onclick = async () => {
+                const idx = parseInt(link.dataset.idx);
+                Epubly.ui.toggleSidebar('sidebar-toc'); // Close sidebar on click
+                
+                // 1. Disconnect observer to prevent scroll triggers during clear
+                if(Epubly.state.observer) Epubly.state.observer.disconnect();
+                
+                // 2. Clear content
                 document.getElementById('viewer-content').innerHTML = '';
                 Epubly.state.renderedChapters.clear();
-                Epubly.engine.renderChapter(parseInt(link.dataset.idx), 'clear');
+                
+                // 3. Render target chapter
+                await Epubly.engine.renderChapter(idx, 'clear');
+                
+                // 4. Ensure we have enough content to scroll (prevents getting stuck on short chapters)
+                await Epubly.engine.ensureContentFillsScreen(idx);
+                
+                // 5. Re-init observers for the new content
+                Epubly.engine.initObservers();
+                
+                // 6. Reset scroll to top
+                document.getElementById('viewer').scrollTop = 0;
             };
         });
     },

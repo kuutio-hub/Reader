@@ -6,6 +6,7 @@ import { Utils } from './utils.js';
  */
 export const Engine = {
     resolvePath: Utils.resolvePath,
+    lastStatsSave: 0, // Timestamp for throttling DB writes
 
     async loadBook(arrayBuffer, bookId, format = 'epub') {
         Epubly.ui.showLoader();
@@ -96,7 +97,6 @@ export const Engine = {
         if(savedLoc) {
             const parts = savedLoc.split(',');
             const savedPos = parseInt(parts[1]) || 0;
-            // Use rAF to ensure paint before scroll
             requestAnimationFrame(() => {
                 document.getElementById('viewer').scrollTop = savedPos;
             });
@@ -147,7 +147,6 @@ export const Engine = {
         
         Epubly.ui.updateHeaderInfo(title, author, "");
 
-        // --- RESUME LOGIC FIX ---
         let startIdx = 0;
         let savedPos = 0;
         const savedLoc = Epubly.storage.getLocation(bookId);
@@ -162,14 +161,10 @@ export const Engine = {
         document.getElementById('viewer-content').innerHTML = '';
         Epubly.ui.showReaderView();
         
-        // Render first chapter
         await this.renderChapter(startIdx, 'clear');
-        
-        // Ensure fill screen
         await this.ensureContentFillsScreen(startIdx);
 
-        // Apply saved scroll position using requestAnimationFrame to fix "second load" bug
-        // Wait for 2 frames to ensure layout is stable
+        // Stabilize scroll
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 const viewer = document.getElementById('viewer');
@@ -183,7 +178,6 @@ export const Engine = {
 
     async ensureContentFillsScreen(lastLoadedIndex) {
         const viewer = document.getElementById('viewer');
-        // Threshold: If content height is less than 1.5x screen height, load more
         if (viewer.scrollHeight < viewer.clientHeight * 1.5 && lastLoadedIndex < Epubly.state.spine.length - 1) {
              const nextIdx = lastLoadedIndex + 1;
              await this.renderChapter(nextIdx, 'append');
@@ -240,18 +234,26 @@ export const Engine = {
     },
 
     initObservers() {
+        // Disconnect existing to avoid duplicates
+        if(Epubly.state.observer) Epubly.state.observer.disconnect();
+
         Epubly.state.observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const idx = parseInt(entry.target.dataset.index);
                     const scrollTop = document.getElementById('viewer').scrollTop;
                     if (Epubly.state.currentFormat === 'epub') {
-                        // Optimistically save on intersection too
+                        // Optimistically save on intersection
                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
+                        
+                        // Update UI
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.toc.highlight(idx);
+                        
+                        // Also trigger stats update (throttled)
+                        this.throttledStatsUpdate(idx);
                     }
                 }
             });
@@ -262,17 +264,25 @@ export const Engine = {
 
     handleNavigation() {
         const viewer = document.getElementById('viewer');
+        
+        // CRITICAL FIX: If renderedChapters is empty (e.g. during TOC clear), STOP immediately.
+        // This prevents the -Infinity loop freeze.
+        if (Epubly.state.renderedChapters.size === 0) return;
+
         // Scroll Logic for EPUB Infinite Scroll
         if (Epubly.state.currentFormat === 'epub') {
            // Load next if close to bottom
            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
                const lastIdx = Math.max(...Epubly.state.renderedChapters);
-               if (lastIdx < Epubly.state.spine.length - 1) {
+               // Sanity check
+               if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
                    Epubly.state.isLoadingNext = true;
                    document.getElementById('scroll-loader').style.display = 'block';
                    
                    this.renderChapter(lastIdx + 1, 'append').then(async () => {
                         document.getElementById('scroll-loader').style.display = 'none';
+                        // Re-observe new elements
+                        this.initObservers();
                         await this.ensureContentFillsScreen(lastIdx + 1);
                         Epubly.state.isLoadingNext = false;
                    });
@@ -289,10 +299,23 @@ export const Engine = {
             if(firstChapter) {
                  const idx = parseInt(firstChapter.dataset.index);
                  Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+                 this.throttledStatsUpdate(idx);
             }
         } else {
              // PDF Scroll Position
              Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+        }
+    },
+
+    throttledStatsUpdate(idx) {
+        const now = Date.now();
+        // Save to DB at most once every 3 seconds to update Progress %
+        if (now - this.lastStatsSave > 3000) {
+            this.lastStatsSave = now;
+            const progress = Epubly.state.spine.length > 0 ? (idx / Epubly.state.spine.length) : 0;
+            // We pass durationDelta = 0 here because we just want to update progress,
+            // time tracking is handled by session start/end mostly, but this ensures 'lastRead' updates.
+            Epubly.storage.updateBookStats(Epubly.state.currentBookId, 0, progress);
         }
     },
 
