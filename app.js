@@ -121,9 +121,8 @@ const Epubly = {
             const content = document.getElementById('viewer-content');
             if (!viewer || !content) return;
 
-            // Calculate width of one "page" (clientWidth)
+            // Calculate width of the VIEWPORT (clientWidth), not the total scroll width
             const pageWidth = viewer.clientWidth;
-            const scrollAmount = direction === 'next' ? pageWidth : -pageWidth;
             
             // Check boundaries
             const maxScroll = viewer.scrollWidth - pageWidth;
@@ -516,9 +515,10 @@ const Epubly = {
                 fontWeight: settings.fontWeight,
                 color: settings.fontColor,
                 letterSpacing: `${settings.letterSpacing}px`,
-                // Margin is handled via padding in Paged Mode CSS
-                paddingLeft: settings.viewMode === 'scroll' ? `${settings.margin}%` : null,
-                paddingRight: settings.viewMode === 'scroll' ? `${settings.margin}%` : null
+                // Logic Change: In paged mode, margin controls container padding (outer edges). 
+                // In scroll mode, margin controls paragraph margins (via padding-left/right).
+                paddingLeft: settings.viewMode === 'scroll' ? `${settings.margin}%` : `${settings.margin / 2}%`,
+                paddingRight: settings.viewMode === 'scroll' ? `${settings.margin}%` : `${settings.margin / 2}%`
             });
             
             document.body.className = `theme-${settings.theme}`;
@@ -530,8 +530,13 @@ const Epubly = {
             document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
             document.body.classList.add(`view-mode-${settings.viewMode}`);
             
+            // Logic Change: If user selects 'paged', they want columns (Book mode).
+            // We force it to double page unless screen is weirdly small, but handled by CSS.
+            // Basically 'paged' now implies '2-up'.
             if(settings.viewMode === 'paged') {
-                if(window.innerWidth > 900) document.body.classList.add('double-page');
+                // Removed the >900px check here, we let CSS logic handle the columns or force it.
+                // The prompt asked for "2-page view -> paged", "1-page -> scroll".
+                document.body.classList.add('double-page'); 
             }
 
             // Trigger re-calc for pages
@@ -793,10 +798,29 @@ const Epubly = {
             if(!grid) return;
             grid.innerHTML = '';
             
-            // Inject Import Card FIRST
+            // Inject Import Card FIRST with Drag & Drop events
             const importCard = document.createElement('div');
             importCard.className = 'import-card';
             importCard.onclick = () => Epubly.ui.showModal('import-modal');
+            
+            // Attach Drag events
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                importCard.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+
+            importCard.addEventListener('dragenter', () => importCard.classList.add('drag-active'));
+            importCard.addEventListener('dragover', () => importCard.classList.add('drag-active'));
+            importCard.addEventListener('dragleave', () => importCard.classList.remove('drag-active'));
+            importCard.addEventListener('drop', (e) => {
+                importCard.classList.remove('drag-active');
+                if (e.dataTransfer.files.length > 0) {
+                    Epubly.storage.handleFileUpload(e.dataTransfer.files[0]);
+                }
+            });
+
             importCard.innerHTML = `
                 <div class="book-cover">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);">
@@ -809,10 +833,6 @@ const Epubly = {
             grid.appendChild(importCard);
 
             const books = await Epubly.storage.getAllBooks();
-            if (!books || books.length === 0) {
-                // Keep the import card, but add a message if empty
-                // (Optional: already handled by empty grid, but import card makes it look better)
-            }
             
             books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
                 const card = document.createElement('div');
