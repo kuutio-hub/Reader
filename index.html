@@ -19,6 +19,12 @@
     <!-- DEPENDENCIES -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set worker src
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 </head>
 <body>
 
@@ -287,7 +293,7 @@
                         <div class="wiki-icon">📚</div>
                         <div class="wiki-text">
                             <h4>Könyvtár</h4>
-                            <p>Importálj .epub fájlokat a gépedről. Ha egy könyvnek nincs borítója, az Epubly automatikusan generál egyet.</p>
+                            <p>Importálj .epub és .pdf fájlokat a gépedről. Ha egy könyvnek nincs borítója, az Epubly automatikusan generál egyet.</p>
                         </div>
                     </div>
                      <div class="wiki-card">
@@ -314,8 +320,8 @@
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
                         <h4>Technikai infó</h4>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.3-alpha</li>
-                            <li>Motor: Vanilla JS + JSZip + CSS Columns</li>
+                            <li>Verzió: 0.14.4-alpha</li>
+                            <li>Motor: Vanilla JS + JSZip + CSS Columns + PDF.js</li>
                             <li>Tárhely: IndexedDB</li>
                         </ul>
                     </div>
@@ -414,8 +420,8 @@
             <div id="import-drop-zone" class="drop-zone" style="cursor:pointer;" onclick="document.getElementById('epub-file').click()">
                 <div style="font-size:3rem; margin-bottom:15px; opacity:0.7;">📂</div>
                 <p style="margin-bottom:10px; font-weight:600; font-size:1.1rem; color:var(--text);">Nyisd meg a számítógépedről</p>
-                <p style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub fájlt</p>
-                <input type="file" id="epub-file" accept=".epub" style="display:none">
+                <p style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub, .pdf fájlt</p>
+                <input type="file" id="epub-file" accept=".epub,.pdf" style="display:none">
             </div>
         </div>
     </div>

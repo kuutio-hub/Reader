@@ -14,6 +14,8 @@ Debug.init();
 const Epubly = {
     state: {
         zip: null,
+        pdfDoc: null, // For PDF support
+        currentFormat: null, // 'epub' or 'pdf'
         currentBookId: null,
         spine: [], 
         manifest: {}, 
@@ -30,7 +32,6 @@ const Epubly = {
         history: [], 
         selectedHighlightId: null,
         ctxMenuHighlightId: null,
-        // New State for Paged Mode
         currentPageInChapter: 1,
         totalPagesInChapter: 1,
     },
@@ -39,16 +40,20 @@ const Epubly = {
     navigation: {
         pushState() {
             const viewer = document.getElementById('viewer');
-            let firstVisibleChapter = document.querySelector('.chapter-container');
-            if (!firstVisibleChapter) return;
+            let scrollTop = viewer.scrollTop;
+            let scrollLeft = viewer.scrollLeft;
+            let currentIdx = 0;
 
-            // In paged mode, getting "first visible" is tricky, but logic remains similar
-            const currentIdx = parseInt(firstVisibleChapter.dataset.index) || 0;
+            if (Epubly.state.currentFormat === 'epub') {
+                let firstVisibleChapter = document.querySelector('.chapter-container');
+                if (firstVisibleChapter) currentIdx = parseInt(firstVisibleChapter.dataset.index) || 0;
+            }
+            // PDF handles position via generic scrollTop/Left storage
             
             Epubly.state.history.push({
                 chapterIndex: currentIdx,
-                scrollTop: viewer.scrollTop,
-                scrollLeft: viewer.scrollLeft // Save Horizontal position for paged mode
+                scrollTop: scrollTop,
+                scrollLeft: scrollLeft
             });
             Epubly.ui.showFloatingBackButton(false);
         },
@@ -58,16 +63,21 @@ const Epubly = {
             const state = Epubly.state.history.pop();
             Epubly.ui.showFloatingBackButton(false);
             
-            document.getElementById('viewer-content').innerHTML = '';
-            Epubly.state.renderedChapters.clear();
-            Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
+            if (Epubly.state.currentFormat === 'epub') {
+                document.getElementById('viewer-content').innerHTML = '';
+                Epubly.state.renderedChapters.clear();
+                Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
+                    const viewer = document.getElementById('viewer');
+                    setTimeout(() => {
+                        viewer.scrollTop = state.scrollTop;
+                        viewer.scrollLeft = state.scrollLeft || 0;
+                    }, 50);
+                });
+            } else {
+                // PDF Restore
                 const viewer = document.getElementById('viewer');
-                // Wait for layout
-                setTimeout(() => {
-                    viewer.scrollTop = state.scrollTop;
-                    viewer.scrollLeft = state.scrollLeft || 0;
-                }, 50);
-            });
+                viewer.scrollTop = state.scrollTop;
+            }
         },
 
         handleLinkClick(e) {
@@ -86,24 +96,27 @@ const Epubly = {
             e.preventDefault();
             this.pushState();
 
-            const [path, hash] = href.split('#');
-            const targetPath = Epubly.engine.resolvePath(Epubly.state.currentChapterPath, path);
-            
-            let targetIndex = Epubly.state.spine.findIndex(s => s.fullPath === targetPath);
+            // EPUB internal linking logic
+            if (Epubly.state.currentFormat === 'epub') {
+                const [path, hash] = href.split('#');
+                const targetPath = Epubly.engine.resolvePath(Epubly.state.currentChapterPath, path);
+                
+                let targetIndex = Epubly.state.spine.findIndex(s => s.fullPath === targetPath);
 
-            if (targetIndex !== -1) {
-                const isSameChapter = Array.from(Epubly.state.renderedChapters).includes(targetIndex);
-                if (isSameChapter && hash) {
-                    this.scrollToHash(hash);
+                if (targetIndex !== -1) {
+                    const isSameChapter = Array.from(Epubly.state.renderedChapters).includes(targetIndex);
+                    if (isSameChapter && hash) {
+                        this.scrollToHash(hash);
+                    } else {
+                        document.getElementById('viewer-content').innerHTML = '';
+                        Epubly.state.renderedChapters.clear();
+                        Epubly.engine.renderChapter(targetIndex, 'clear').then(() => {
+                            if (hash) this.scrollToHash(hash);
+                        });
+                    }
                 } else {
-                    document.getElementById('viewer-content').innerHTML = '';
-                    Epubly.state.renderedChapters.clear();
-                    Epubly.engine.renderChapter(targetIndex, 'clear').then(() => {
-                        if (hash) this.scrollToHash(hash);
-                    });
+                    console.warn("Could not find target for:", href);
                 }
-            } else {
-                console.warn("Could not find target for:", href);
             }
             Epubly.ui.showFloatingBackButton(true);
         },
@@ -121,161 +134,229 @@ const Epubly = {
         // --- PAGED NAVIGATION ---
         turnPage(direction) {
             const viewer = document.getElementById('viewer');
-            const content = document.getElementById('viewer-content');
-            if (!viewer || !content) return;
-
-            // Calculate width of the VIEWPORT (clientWidth)
-            const pageWidth = viewer.clientWidth;
             
-            // Refined Check for "End of Scroll"
-            // We use Math.ceil to avoid subpixel rounding issues which cause false negatives
-            const maxScroll = viewer.scrollWidth - pageWidth;
+            // For PDF in paged mode (which we treat as scroll anyway usually)
+            // or EPUB in single-column paged mode.
+            
+            const pageWidth = viewer.clientWidth;
+            const scrollWidth = viewer.scrollWidth;
             const currentScroll = Math.ceil(viewer.scrollLeft);
-
-            // Logic:
-            // Check if we can scroll in the requested direction within the current chapter.
-            // Tolerance increased to 10px to be safe.
+            
+            // Logic for EPUB single-column:
+            // The content is one long horizontal strip.
+            // Check boundaries carefully.
             
             if (direction === 'next') {
-                if (currentScroll < maxScroll - 10) {
-                    // There is room to scroll horizontally
+                // Ensure we don't scroll past the end
+                if (currentScroll + pageWidth < scrollWidth - 10) { 
                     viewer.scrollBy({ left: pageWidth, behavior: 'smooth' });
                 } else {
-                    // End of chapter -> Load Next
-                    const lastIdx = Math.max(...Epubly.state.renderedChapters);
-                    if (lastIdx < Epubly.state.spine.length - 1) {
-                        document.getElementById('viewer-content').innerHTML = '';
-                        Epubly.state.renderedChapters.clear();
-                        Epubly.engine.renderChapter(lastIdx + 1, 'clear').then(() => {
-                            viewer.scrollLeft = 0;
-                        });
+                    // End of chapter/content
+                    if (Epubly.state.currentFormat === 'epub') {
+                        const lastIdx = Math.max(...Epubly.state.renderedChapters);
+                        if (lastIdx < Epubly.state.spine.length - 1) {
+                            document.getElementById('viewer-content').innerHTML = '';
+                            Epubly.state.renderedChapters.clear();
+                            Epubly.engine.renderChapter(lastIdx + 1, 'clear').then(() => {
+                                viewer.scrollLeft = 0;
+                            });
+                        }
                     }
                 }
             } else { // prev
                 if (currentScroll > 10) {
-                    // There is room to scroll back
                     viewer.scrollBy({ left: -pageWidth, behavior: 'smooth' });
                 } else {
-                    // Start of chapter -> Load Prev
-                    const firstIdx = Math.min(...Epubly.state.renderedChapters);
-                    if (firstIdx > 0) {
-                        document.getElementById('viewer-content').innerHTML = '';
-                        Epubly.state.renderedChapters.clear();
-                        Epubly.engine.renderChapter(firstIdx - 1, 'clear').then(() => {
-                            // Jump to end of new chapter after render
-                             setTimeout(() => {
-                                 viewer.scrollLeft = viewer.scrollWidth;
-                             }, 100);
-                        });
+                    // Start of chapter
+                    if (Epubly.state.currentFormat === 'epub') {
+                        const firstIdx = Math.min(...Epubly.state.renderedChapters);
+                        if (firstIdx > 0) {
+                            document.getElementById('viewer-content').innerHTML = '';
+                            Epubly.state.renderedChapters.clear();
+                            Epubly.engine.renderChapter(firstIdx - 1, 'clear').then(() => {
+                                setTimeout(() => {
+                                    viewer.scrollLeft = viewer.scrollWidth;
+                                }, 100);
+                            });
+                        }
                     }
                 }
             }
-            // Update "Page X of Y" stats
+            
             setTimeout(Epubly.engine.updatePageCounts, 300);
         }
     },
 
     // --- ENGINE ---
     engine: {
-        async loadBook(arrayBuffer, bookId) {
+        async loadBook(arrayBuffer, bookId, format = 'epub') {
             Epubly.ui.showLoader();
             
+            // RESET STATE
             Object.assign(Epubly.state, {
-                zip: null, spine: [], manifest: {}, renderedChapters: new Set(),
+                zip: null, pdfDoc: null, currentFormat: format,
+                spine: [], manifest: {}, renderedChapters: new Set(),
                 toc: [], rootPath: '', currentBookId: bookId, activeBookSessionStart: Date.now(),
                 isLoadingNext: false, isLoadingPrev: false, history: []
             });
             Epubly.ui.showFloatingBackButton(false);
-
             if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
             try {
-                if (!window.JSZip) throw new Error("JSZip hiányzik!");
-                Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
-
-                const containerXml = await Epubly.state.zip.file("META-INF/container.xml").async("string");
-                const parser = new DOMParser();
-                const containerDoc = parser.parseFromString(containerXml, "application/xml");
-                const rootfile = containerDoc.querySelector("rootfile");
-                if(!rootfile) throw new Error("Hibás EPUB: Nincs rootfile.");
-                
-                const fullOpfPath = rootfile.getAttribute("full-path");
-                const lastSlash = fullOpfPath.lastIndexOf('/');
-                Epubly.state.rootPath = lastSlash !== -1 ? fullOpfPath.substring(0, lastSlash + 1) : '';
-
-                const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
-                const opfDoc = parser.parseFromString(opfXml, "application/xml");
-
-                for (let item of opfDoc.getElementsByTagName("item")) {
-                    Epubly.state.manifest[item.getAttribute("id")] = {
-                        href: item.getAttribute("href"),
-                        type: item.getAttribute("media-type"),
-                        fullPath: this.resolvePath(Epubly.state.rootPath, item.getAttribute("href"))
-                    };
+                if (format === 'pdf') {
+                    await this.loadPDF(arrayBuffer, bookId);
+                } else {
+                    await this.loadEPUB(arrayBuffer, bookId);
                 }
-
-                for (let item of opfDoc.getElementsByTagName("itemref")) {
-                    const manifestItem = Epubly.state.manifest[item.getAttribute("idref")];
-                    if (manifestItem) {
-                        Epubly.state.spine.push({
-                            id: item.getAttribute("idref"),
-                            href: manifestItem.href,
-                            fullPath: manifestItem.fullPath
-                        });
-                    }
-                }
-
-                const title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || "Névtelen Könyv";
-                const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen Szerző";
-                Epubly.state.metadata = { title, author };
                 
-                Epubly.ui.updateHeaderInfo(title, author, "");
-
-                // -- POSITION RESTORATION LOGIC --
-                let startIdx = 0;
-                let savedPos = 0;
-                const savedLoc = Epubly.storage.getLocation(bookId);
-                
-                if(savedLoc) {
-                    const parts = savedLoc.split(',');
-                    const idx = parseInt(parts[0]);
-                    if(!isNaN(idx) && idx < Epubly.state.spine.length) startIdx = idx;
-                    savedPos = parseInt(parts[1]) || 0;
-                }
-
-                document.getElementById('viewer-content').innerHTML = '';
-                Epubly.ui.showReaderView();
-                
-                await this.renderChapter(startIdx, 'clear');
-
-                // Important: Wait for CSS columns to calculate before setting scrollLeft
-                setTimeout(() => {
-                    const viewer = document.getElementById('viewer');
-                    if (Epubly.settings.get().viewMode === 'paged') {
-                         viewer.scrollLeft = savedPos;
-                    } else {
-                         viewer.scrollTop = savedPos;
-                    }
-                    this.updatePageCounts();
-                }, 150); // Small delay to ensure layout is ready
-                
-                this.initObservers();
-                
-                // Bind scroll handler based on mode
+                // Common Post-Load Logic
+                // Bind scroll handler
                 document.getElementById('viewer').onscroll = this.handleNavigation.bind(this);
-                
-                // Window resize handler for re-calculating pages
+                // Window resize handler
                 window.onresize = this.updatePageCounts.bind(this);
-
-                this.parseTOC(opfDoc);
-                
                 Epubly.ui.hideLoader();
+
             } catch (e) {
                 console.error("Engine Error:", e);
                 alert("Hiba: " + e.message);
                 Epubly.ui.hideLoader();
                 Epubly.ui.showLibraryView();
             }
+        },
+
+        async loadPDF(arrayBuffer, bookId) {
+            if (!window.pdfjsLib) throw new Error("PDF motor nem található.");
+            
+            const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+            Epubly.state.pdfDoc = await loadingTask.promise;
+            
+            // Basic Metadata
+            let title = "PDF Dokumentum";
+            try {
+                const meta = await Epubly.state.pdfDoc.getMetadata();
+                if (meta.info.Title) title = meta.info.Title;
+            } catch(e) {}
+            
+            Epubly.state.metadata = { title: title, author: "" };
+            Epubly.ui.updateHeaderInfo(title, "", "");
+            
+            document.getElementById('viewer-content').innerHTML = '';
+            Epubly.ui.showReaderView();
+
+            // Render All Pages Sequentially (Simple approach for native feel)
+            // For better performance on huge PDFs, this should be lazy loaded, 
+            // but for a "no build step" app, this is robust.
+            const viewerContent = document.getElementById('viewer-content');
+            
+            for (let pageNum = 1; pageNum <= Epubly.state.pdfDoc.numPages; pageNum++) {
+                const page = await Epubly.state.pdfDoc.getPage(pageNum);
+                
+                // Create Canvas
+                const canvas = document.createElement('canvas');
+                canvas.className = 'pdf-page';
+                canvas.dataset.pageNumber = pageNum;
+                
+                // Determine scale based on container width or fixed
+                // We render at high quality
+                const scale = 1.5; 
+                const viewport = page.getViewport({ scale: scale });
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                // Style for responsiveness
+                canvas.style.maxWidth = '100%';
+                canvas.style.height = 'auto';
+
+                const renderContext = {
+                    canvasContext: canvas.getContext('2d'),
+                    viewport: viewport
+                };
+                
+                await page.render(renderContext).promise;
+                viewerContent.appendChild(canvas);
+            }
+
+            // Restore Position
+            const savedLoc = Epubly.storage.getLocation(bookId);
+            if(savedLoc) {
+                const parts = savedLoc.split(',');
+                const savedPos = parseInt(parts[1]) || 0;
+                document.getElementById('viewer').scrollTop = savedPos;
+            }
+        },
+
+        async loadEPUB(arrayBuffer, bookId) {
+            if (!window.JSZip) throw new Error("JSZip hiányzik!");
+            Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
+
+            const containerXml = await Epubly.state.zip.file("META-INF/container.xml").async("string");
+            const parser = new DOMParser();
+            const containerDoc = parser.parseFromString(containerXml, "application/xml");
+            const rootfile = containerDoc.querySelector("rootfile");
+            if(!rootfile) throw new Error("Hibás EPUB: Nincs rootfile.");
+            
+            const fullOpfPath = rootfile.getAttribute("full-path");
+            const lastSlash = fullOpfPath.lastIndexOf('/');
+            Epubly.state.rootPath = lastSlash !== -1 ? fullOpfPath.substring(0, lastSlash + 1) : '';
+
+            const opfXml = await Epubly.state.zip.file(fullOpfPath).async("string");
+            const opfDoc = parser.parseFromString(opfXml, "application/xml");
+
+            for (let item of opfDoc.getElementsByTagName("item")) {
+                Epubly.state.manifest[item.getAttribute("id")] = {
+                    href: item.getAttribute("href"),
+                    type: item.getAttribute("media-type"),
+                    fullPath: this.resolvePath(Epubly.state.rootPath, item.getAttribute("href"))
+                };
+            }
+
+            for (let item of opfDoc.getElementsByTagName("itemref")) {
+                const manifestItem = Epubly.state.manifest[item.getAttribute("idref")];
+                if (manifestItem) {
+                    Epubly.state.spine.push({
+                        id: item.getAttribute("idref"),
+                        href: manifestItem.href,
+                        fullPath: manifestItem.fullPath
+                    });
+                }
+            }
+
+            const title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || "Névtelen Könyv";
+            const author = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "Ismeretlen Szerző";
+            Epubly.state.metadata = { title, author };
+            
+            Epubly.ui.updateHeaderInfo(title, author, "");
+
+            // -- POSITION RESTORATION LOGIC --
+            let startIdx = 0;
+            let savedPos = 0;
+            const savedLoc = Epubly.storage.getLocation(bookId);
+            
+            if(savedLoc) {
+                const parts = savedLoc.split(',');
+                const idx = parseInt(parts[0]);
+                if(!isNaN(idx) && idx < Epubly.state.spine.length) startIdx = idx;
+                savedPos = parseInt(parts[1]) || 0;
+            }
+
+            document.getElementById('viewer-content').innerHTML = '';
+            Epubly.ui.showReaderView();
+            
+            await this.renderChapter(startIdx, 'clear');
+
+            setTimeout(() => {
+                const viewer = document.getElementById('viewer');
+                if (Epubly.settings.get().viewMode === 'paged') {
+                     viewer.scrollLeft = savedPos;
+                } else {
+                     viewer.scrollTop = savedPos;
+                }
+                this.updatePageCounts();
+            }, 150); 
+            
+            this.initObservers();
+            this.parseTOC(opfDoc);
         },
 
         async renderChapter(index, method = 'append') {
@@ -325,7 +406,6 @@ const Epubly = {
             Epubly.state.renderedChapters.add(index);
             Epubly.reader.applySettings(Epubly.settings.get());
             
-            // Wait for DOM paint to calc pages
             setTimeout(this.updatePageCounts, 100);
         },
 
@@ -342,7 +422,6 @@ const Epubly = {
         },
 
         initObservers() {
-            // Only useful in Scroll Mode
             if (Epubly.settings.get().viewMode === 'paged') return;
 
             Epubly.state.observer = new IntersectionObserver((entries) => {
@@ -350,13 +429,15 @@ const Epubly = {
                     if (entry.isIntersecting) {
                         const idx = parseInt(entry.target.dataset.index);
                         const scrollTop = document.getElementById('viewer').scrollTop;
-                        Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
-                        
-                        const hTag = entry.target.querySelector('h1, h2, h3');
-                        const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
-                        
-                        Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
-                        Epubly.toc.highlight(idx);
+                        // Only save chapter index for EPUBs here.
+                        if (Epubly.state.currentFormat === 'epub') {
+                            Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
+                            
+                            const hTag = entry.target.querySelector('h1, h2, h3');
+                            const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
+                            Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
+                            Epubly.toc.highlight(idx);
+                        }
                     }
                 });
             }, { root: document.getElementById('viewer'), threshold: 0.1 });
@@ -368,37 +449,49 @@ const Epubly = {
             const viewer = document.getElementById('viewer');
             const settings = Epubly.settings.get();
             
+            // Universal Position Saver (works for PDF scroll too)
+            // For EPUB paged mode, we save scrollLeft logic separately below.
+            
             if (settings.viewMode === 'scroll') {
-                 // Classic Scroll Logic
-                if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
-                    const lastIdx = Math.max(...Epubly.state.renderedChapters);
-                    if (lastIdx < Epubly.state.spine.length - 1) {
-                        Epubly.state.isLoadingNext = true;
-                        document.getElementById('scroll-loader').style.display = 'block';
-                        this.renderChapter(lastIdx + 1, 'append').then(() => {
-                             document.getElementById('scroll-loader').style.display = 'none';
-                             Epubly.state.isLoadingNext = false;
-                        });
+                 // Classic Scroll Logic for EPUB Infinite Scroll
+                 if (Epubly.state.currentFormat === 'epub') {
+                    if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
+                        const lastIdx = Math.max(...Epubly.state.renderedChapters);
+                        if (lastIdx < Epubly.state.spine.length - 1) {
+                            Epubly.state.isLoadingNext = true;
+                            document.getElementById('scroll-loader').style.display = 'block';
+                            this.renderChapter(lastIdx + 1, 'append').then(() => {
+                                 document.getElementById('scroll-loader').style.display = 'none';
+                                 Epubly.state.isLoadingNext = false;
+                            });
+                        }
                     }
-                }
-                // Update position
-                const firstChapter = document.querySelector('.chapter-container');
-                if(firstChapter) {
-                     const idx = parseInt(firstChapter.dataset.index);
-                     Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
-                }
+                    // Update position
+                    const firstChapter = document.querySelector('.chapter-container');
+                    if(firstChapter) {
+                         const idx = parseInt(firstChapter.dataset.index);
+                         Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+                    }
+                 } else {
+                     // PDF Scroll Position
+                     Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+                 }
             } else {
-                // Paged Mode Logic: Update "Page X of Y"
+                // Paged Mode
                 this.updatePageCounts();
-                // Save position (scrollLeft)
-                const currentChapterIdx = Math.max(...Epubly.state.renderedChapters);
-                Epubly.storage.saveLocation(Epubly.state.currentBookId, currentChapterIdx, viewer.scrollLeft);
+                if (Epubly.state.currentFormat === 'epub') {
+                    const currentChapterIdx = Math.max(...Epubly.state.renderedChapters);
+                    Epubly.storage.saveLocation(Epubly.state.currentBookId, currentChapterIdx, viewer.scrollLeft);
+                } else {
+                     // PDF Paged (if forced) - Treat as scroll
+                     Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+                }
             }
         },
 
         updatePageCounts() {
             const viewer = document.getElementById('viewer');
-            if(Epubly.settings.get().viewMode !== 'paged') {
+            if(Epubly.settings.get().viewMode !== 'paged' || Epubly.state.currentFormat !== 'epub') {
                 document.getElementById('header-page').textContent = "";
                 return;
             }
@@ -443,6 +536,11 @@ const Epubly = {
     // --- SEARCH ---
     search: {
         async run(query) {
+            // PDF search not implemented in this version
+            if(Epubly.state.currentFormat !== 'epub') {
+                alert("A keresés jelenleg csak EPUB könyveknél érhető el.");
+                return;
+            }
             if(!Epubly.state.zip || !query || query.length < 3) return;
             const resultsDiv = document.getElementById('search-results');
             const progress = document.getElementById('search-progress');
@@ -509,31 +607,29 @@ const Epubly = {
             const duration = now - Epubly.state.activeBookSessionStart;
             Epubly.state.activeBookSessionStart = now;
             
-            const maxRendered = Epubly.state.renderedChapters.size > 0 ? Math.max(...Epubly.state.renderedChapters) : 0;
-            const progress = (maxRendered + 1) / Epubly.state.spine.length;
+            // Stats logic different for EPUB vs PDF?
+            // Simplified: store progress
+            const progress = 0; // TODO: better progress calculation
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, progress);
         },
         applySettings(settings) {
             const viewer = document.getElementById('viewer-content');
             if(!viewer) return;
             
-            // MARGIN LOGIC SEPARATION
+            // MARGIN LOGIC
             let paddingLeft, paddingRight;
             
             if (settings.viewMode === 'paged') {
-                // In paged mode, "margin" means spacing on the left/right of the screen to shrink text width
                 const pagedMargin = settings.marginPaged || 0;
                 paddingLeft = `${pagedMargin}%`;
                 paddingRight = `${pagedMargin}%`;
             } else {
-                // In scroll mode, standard margins
                 const scrollMargin = settings.marginScroll || 10;
                 paddingLeft = `${scrollMargin}%`;
                 paddingRight = `${scrollMargin}%`;
             }
             
-            // Vertical Margins (padding top/bottom) - New Feature
-            const verticalMargin = settings.marginVertical || 60; // Default 60px
+            const verticalMargin = settings.marginVertical || 60;
 
             Object.assign(viewer.style, {
                 fontFamily: settings.fontFamily,
@@ -558,10 +654,6 @@ const Epubly = {
             document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
             document.body.classList.add(`view-mode-${settings.viewMode}`);
             
-            if(settings.viewMode === 'paged') {
-                document.body.classList.add('double-page'); 
-            }
-
             // Update UI Slider Visibility based on Mode
             const scrollControl = document.getElementById('margin-scroll-control');
             const pagedControl = document.getElementById('margin-paged-control');
@@ -615,7 +707,7 @@ const Epubly = {
             // Bind Separate Margin Controls
             bind('margin-scroll-range', 'input', 'marginScroll');
             bind('margin-paged-range', 'input', 'marginPaged');
-            bind('margin-vertical-range', 'input', 'marginVertical'); // New Vertical Margin
+            bind('margin-vertical-range', 'input', 'marginVertical'); 
             
             bind('font-weight-range', 'input', 'fontWeight');
             bind('letter-spacing-range', 'input', 'letterSpacing');
@@ -645,13 +737,13 @@ const Epubly = {
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', 
-                marginScroll: '10', // Default scroll margin
-                marginPaged: '0',   // Default paged margin
-                marginVertical: '60', // Default vertical padding
+                marginScroll: '10', 
+                marginPaged: '0',   
+                marginVertical: '60', 
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark', terminalColor: '#00FF41',
-                viewMode: 'scroll'
+                viewMode: 'scroll' // Default to scroll per request
             };
             try {
                 const saved = JSON.parse(localStorage.getItem('epubly-settings'));
@@ -666,12 +758,9 @@ const Epubly = {
             const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
             setVal('font-size-range', s.fontSize);
             setVal('line-height-range', s.lineHeight);
-            
-            // Set separate margin values
             setVal('margin-scroll-range', s.marginScroll);
             setVal('margin-paged-range', s.marginPaged);
             setVal('margin-vertical-range', s.marginVertical);
-            
             setVal('font-weight-range', s.fontWeight);
             setVal('letter-spacing-range', s.letterSpacing);
             setVal('font-color-picker', s.fontColor);
@@ -763,29 +852,45 @@ const Epubly = {
             Epubly.ui.hideModal('import-modal');
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const zip = await JSZip.loadAsync(arrayBuffer);
-                const containerXml = await zip.file("META-INF/container.xml").async("string");
-                const opfPath = new DOMParser().parseFromString(containerXml, "application/xml").querySelector("rootfile").getAttribute("full-path");
-                const opfDoc = new DOMParser().parseFromString(await zip.file(opfPath).async("string"), "application/xml");
-                const metadata = {};
-                ['title', 'creator', 'description'].forEach(tag => {
-                    metadata[tag] = opfDoc.getElementsByTagName(`dc:${tag}`)[0]?.textContent || "";
-                });
-                
+                let metadata = { title: file.name, creator: "Ismeretlen" };
                 let coverUrl = null;
-                const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
-                if (coverItem) {
-                    const href = Epubly.engine.resolvePath(opfPath, coverItem.getAttribute("href"));
-                    const coverFile = zip.file(href);
-                    if(coverFile) coverUrl = URL.createObjectURL(await coverFile.async("blob"));
+                
+                // DETECT FORMAT
+                let format = 'epub';
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    format = 'pdf';
+                    metadata.title = file.name.replace('.pdf', '');
+                    metadata.creator = "PDF Dokumentum";
+                    // PDF metadata parsing is done inside loadPDF mostly, but we save record here
+                } else {
+                    // EPUB Metadata Extraction
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+                    const containerXml = await zip.file("META-INF/container.xml").async("string");
+                    const opfPath = new DOMParser().parseFromString(containerXml, "application/xml").querySelector("rootfile").getAttribute("full-path");
+                    const opfDoc = new DOMParser().parseFromString(await zip.file(opfPath).async("string"), "application/xml");
+                    metadata.title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || file.name;
+                    metadata.creator = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "";
+                    
+                    const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
+                    if (coverItem) {
+                        const href = Epubly.engine.resolvePath(opfPath, coverItem.getAttribute("href"));
+                        const coverFile = zip.file(href);
+                        if(coverFile) coverUrl = URL.createObjectURL(await coverFile.async("blob"));
+                    }
                 }
                 
+                // SAVE
+                const bookId = `${Date.now()}`;
                 await this.saveBook({
-                    id: `${Date.now()}`, data: arrayBuffer, metadata: {...metadata, coverUrl},
+                    id: bookId, 
+                    data: arrayBuffer, 
+                    format: format, // Store format!
+                    metadata: {...metadata, coverUrl},
                     stats: { totalTime: 0, progress: 0, lastRead: Date.now() }
                 });
                 await Epubly.library.render();
                 Epubly.ui.hideLoader();
+                
             } catch (error) {
                 console.error(error);
                 alert("Hiba: " + error.message);
@@ -1105,11 +1210,11 @@ const Epubly = {
             readBtn.textContent = stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS';
             
             // Re-bind actions with book object
-            document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id); };
+            document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id, book.format); };
             // Note: TOC button removed from HTML in previous versions? If needed check HTML. 
             // Kept logic safe if button is missing
             const btnToc = document.getElementById('btn-show-toc');
-            if(btnToc) btnToc.onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id); this.toggleSidebar('sidebar-toc'); };
+            if(btnToc) btnToc.onclick = async () => { this.hideModal('book-details-modal'); await Epubly.engine.loadBook(book.data, book.id, book.format); this.toggleSidebar('sidebar-toc'); };
             
             document.getElementById('btn-delete-book').onclick = async () => { 
                 if(confirm('Biztosan törlöd?')) { 
