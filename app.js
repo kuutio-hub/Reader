@@ -34,6 +34,9 @@ const Epubly = {
         ctxMenuHighlightId: null,
         currentPageInChapter: 1,
         totalPagesInChapter: 1,
+        // PDF specific
+        pdfScale: 2.0, // Render high res for clear zooming
+        pdfLayout: 'fit-width', // 'fit-width' | 'fit-height'
     },
 
     // --- NAVIGATION MANAGER ---
@@ -48,7 +51,6 @@ const Epubly = {
                 let firstVisibleChapter = document.querySelector('.chapter-container');
                 if (firstVisibleChapter) currentIdx = parseInt(firstVisibleChapter.dataset.index) || 0;
             }
-            // PDF handles position via generic scrollTop/Left storage
             
             Epubly.state.history.push({
                 chapterIndex: currentIdx,
@@ -135,16 +137,9 @@ const Epubly = {
         turnPage(direction) {
             const viewer = document.getElementById('viewer');
             
-            // For PDF in paged mode (which we treat as scroll anyway usually)
-            // or EPUB in single-column paged mode.
-            
             const pageWidth = viewer.clientWidth;
             const scrollWidth = viewer.scrollWidth;
             const currentScroll = Math.ceil(viewer.scrollLeft);
-            
-            // Logic for EPUB single-column:
-            // The content is one long horizontal strip.
-            // Check boundaries carefully.
             
             if (direction === 'next') {
                 // Ensure we don't scroll past the end
@@ -210,9 +205,7 @@ const Epubly = {
                 }
                 
                 // Common Post-Load Logic
-                // Bind scroll handler
                 document.getElementById('viewer').onscroll = this.handleNavigation.bind(this);
-                // Window resize handler
                 window.onresize = this.updatePageCounts.bind(this);
                 Epubly.ui.hideLoader();
 
@@ -242,31 +235,36 @@ const Epubly = {
             
             document.getElementById('viewer-content').innerHTML = '';
             Epubly.ui.showReaderView();
+            
+            // Show PDF Controls
+            Epubly.ui.togglePDFControls(true);
 
-            // Render All Pages Sequentially (Simple approach for native feel)
-            // For better performance on huge PDFs, this should be lazy loaded, 
-            // but for a "no build step" app, this is robust.
+            // Render Pages
             const viewerContent = document.getElementById('viewer-content');
             
             for (let pageNum = 1; pageNum <= Epubly.state.pdfDoc.numPages; pageNum++) {
                 const page = await Epubly.state.pdfDoc.getPage(pageNum);
                 
-                // Create Canvas
                 const canvas = document.createElement('canvas');
                 canvas.className = 'pdf-page';
                 canvas.dataset.pageNumber = pageNum;
                 
-                // Determine scale based on container width or fixed
-                // We render at high quality
-                const scale = 1.5; 
+                // Render at high scale (2.0) for clarity when zooming
+                // We use CSS to scale it down visually
+                const scale = 2.0; 
                 const viewport = page.getViewport({ scale: scale });
 
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
                 
-                // Style for responsiveness
-                canvas.style.maxWidth = '100%';
+                // Default Layout CSS (fit-width)
+                canvas.style.width = '100%';
                 canvas.style.height = 'auto';
+
+                // Click to zoom interaction
+                canvas.onclick = (e) => {
+                    e.target.classList.toggle('zoomed');
+                };
 
                 const renderContext = {
                     canvasContext: canvas.getContext('2d'),
@@ -287,6 +285,8 @@ const Epubly = {
         },
 
         async loadEPUB(arrayBuffer, bookId) {
+            Epubly.ui.togglePDFControls(false); // Hide PDF controls for EPUB
+            
             if (!window.JSZip) throw new Error("JSZip hiányzik!");
             Epubly.state.zip = await JSZip.loadAsync(arrayBuffer);
 
@@ -536,7 +536,6 @@ const Epubly = {
     // --- SEARCH ---
     search: {
         async run(query) {
-            // PDF search not implemented in this version
             if(Epubly.state.currentFormat !== 'epub') {
                 alert("A keresés jelenleg csak EPUB könyveknél érhető el.");
                 return;
@@ -607,9 +606,7 @@ const Epubly = {
             const duration = now - Epubly.state.activeBookSessionStart;
             Epubly.state.activeBookSessionStart = now;
             
-            // Stats logic different for EPUB vs PDF?
-            // Simplified: store progress
-            const progress = 0; // TODO: better progress calculation
+            const progress = 0; // Simplified
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, progress);
         },
         applySettings(settings) {
@@ -657,17 +654,18 @@ const Epubly = {
             // Update UI Slider Visibility based on Mode
             const scrollControl = document.getElementById('margin-scroll-control');
             const pagedControl = document.getElementById('margin-paged-control');
-            if (scrollControl && pagedControl) {
-                if (settings.viewMode === 'paged') {
-                    scrollControl.style.display = 'none';
-                    pagedControl.style.display = 'block';
-                } else {
-                    scrollControl.style.display = 'block';
-                    pagedControl.style.display = 'none';
-                }
+            const verticalControl = document.getElementById('margin-vertical-control');
+
+            if (settings.viewMode === 'paged') {
+                if (scrollControl) scrollControl.style.display = 'none';
+                if (pagedControl) pagedControl.style.display = 'block';
+                if (verticalControl) verticalControl.style.display = 'block';
+            } else {
+                if (scrollControl) scrollControl.style.display = 'block';
+                if (pagedControl) pagedControl.style.display = 'none';
+                if (verticalControl) verticalControl.style.display = 'none';
             }
 
-            // Trigger re-calc for pages
             Epubly.engine.updatePageCounts();
         }
     },
@@ -737,13 +735,13 @@ const Epubly = {
         get() {
             const defaults = {
                 fontSize: '100', lineHeight: '1.6', 
-                marginScroll: '10', 
+                marginScroll: '28', // Default 70% of 40
                 marginPaged: '0',   
                 marginVertical: '60', 
                 textAlign: 'left', fontFamily: "'Inter', sans-serif",
                 fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
                 theme: 'dark', terminalColor: '#00FF41',
-                viewMode: 'scroll' // Default to scroll per request
+                viewMode: 'scroll' // Default to scroll
             };
             try {
                 const saved = JSON.parse(localStorage.getItem('epubly-settings'));
@@ -851,17 +849,49 @@ const Epubly = {
             Epubly.ui.showLoader();
             Epubly.ui.hideModal('import-modal');
             try {
+                // Strict File Validation
+                const allowedExtensions = ['.epub', '.pdf'];
+                const fileName = file.name.toLowerCase();
+                const isValid = allowedExtensions.some(ext => fileName.endsWith(ext));
+                
+                if (!isValid) {
+                    throw new Error("Nem támogatott fájlformátum. Kérjük, csak .epub vagy .pdf fájlokat tölts fel.");
+                }
+
                 const arrayBuffer = await file.arrayBuffer();
                 let metadata = { title: file.name, creator: "Ismeretlen" };
                 let coverUrl = null;
                 
                 // DETECT FORMAT
                 let format = 'epub';
-                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
                     format = 'pdf';
                     metadata.title = file.name.replace('.pdf', '');
                     metadata.creator = "PDF Dokumentum";
-                    // PDF metadata parsing is done inside loadPDF mostly, but we save record here
+                    
+                    // Generate PDF Thumbnail
+                    try {
+                        const pdfTask = pdfjsLib.getDocument(arrayBuffer.slice(0)); // Clone buffer for metadata op
+                        const pdf = await pdfTask.promise;
+                        const page = await pdf.getPage(1);
+                        const viewport = page.getViewport({ scale: 0.5 }); // Thumbnail scale
+                        const canvas = document.createElement('canvas');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        const ctx = canvas.getContext('2d');
+                        await page.render({ canvasContext: ctx, viewport }).promise;
+                        coverUrl = canvas.toDataURL();
+                        
+                        // Try to get internal title
+                        try {
+                            const meta = await pdf.getMetadata();
+                            if (meta.info.Title) metadata.title = meta.info.Title;
+                        } catch(e){}
+                        
+                    } catch(e) {
+                        console.warn("PDF Thumbnail failed", e);
+                    }
+
                 } else {
                     // EPUB Metadata Extraction
                     const zip = await JSZip.loadAsync(arrayBuffer);
@@ -1016,6 +1046,12 @@ const Epubly = {
                 const target = e.target;
                 const closest = (selector) => target.closest(selector);
                 
+                // PDF Control Buttons
+                if (closest('.pdf-btn')) {
+                    const action = closest('.pdf-btn').dataset.action;
+                    this.handlePDFControl(action);
+                }
+
                 // Paged Navigation Click Zones
                 if (target.id === 'nav-zone-left') Epubly.navigation.turnPage('prev');
                 if (target.id === 'nav-zone-right') Epubly.navigation.turnPage('next');
@@ -1136,6 +1172,35 @@ const Epubly = {
             document.getElementById('floating-back-btn-container')?.classList.toggle('visible', visible);
         },
         
+        togglePDFControls(show) {
+            const el = document.getElementById('pdf-controls');
+            if (el) el.style.display = show ? 'flex' : 'none';
+        },
+
+        handlePDFControl(action) {
+            const pages = document.querySelectorAll('.pdf-page');
+            
+            if (action === 'fit-width') {
+                pages.forEach(p => { 
+                    p.classList.remove('zoomed'); 
+                    p.style.width = '100%'; 
+                    p.style.height = 'auto'; 
+                });
+            } else if (action === 'fit-height') {
+                pages.forEach(p => { 
+                    p.classList.remove('zoomed'); 
+                    p.style.height = '90vh'; 
+                    p.style.width = 'auto'; 
+                    p.style.maxWidth = 'none';
+                    p.style.margin = '20px auto';
+                });
+            } else if (action === 'zoom-in') {
+                pages.forEach(p => p.classList.add('zoomed'));
+            } else if (action === 'zoom-out') {
+                pages.forEach(p => p.classList.remove('zoomed'));
+            }
+        },
+        
         showReaderView() {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('reader-view')?.classList.add('active');
@@ -1154,6 +1219,7 @@ const Epubly = {
             document.getElementById('library-view')?.classList.add('active');
             this.updateHeaderInfo("Könyvtár", "", "");
             this.showFloatingBackButton(false);
+            this.togglePDFControls(false); // Ensure hidden
             const actions = document.getElementById('top-actions-container');
             // Remove the import button from top actions, as it's now a card
             if(actions) actions.innerHTML = ``;

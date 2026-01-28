@@ -1,0 +1,22 @@
+
+{
+  "name": "Epubly",
+  "short_name": "Epubly",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1c1c1e",
+  "description": "Modern, privát e-könyv olvasó.",
+  "icons": [
+    {
+        "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='%23D4AF37' stroke='%233A2F14' stroke-width='2'/%3E%3Cpath d='M50 25 L50 90' stroke='%233A2F14' stroke-width='2'/%3E%3C/svg%3E",
+        "sizes": "192x192",
+        "type": "image/svg+xml"
+    },
+    {
+        "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='%23D4AF37' stroke='%233A2F14' stroke-width='2'/%3E%3Cpath d='M50 25 L50 90' stroke='%233A2F14' stroke-width='2'/%3E%3C/svg%3E",
+        "sizes": "512x512",
+        "type": "image/svg+xml"
+    }
+  ]
+}
