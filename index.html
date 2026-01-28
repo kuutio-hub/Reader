@@ -38,7 +38,7 @@
     <div id="print-container">
         <div class="print-wrapper">
             <div class="mohu-card">
-                <div class="mohu-card-bg-text">EPUBLY.HU</div>
+                <div class="mohu-card-bg-text">EPUBLY</div>
                 <div class="mohu-card-logo">
                      <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
                     <span>Epubly.hu</span>
@@ -82,7 +82,6 @@
                 <span class="info-author" id="header-author"></span>
                 <span class="info-sep" style="display:none;">:</span>
                 <span class="info-title" id="header-title">Könyvtár</span>
-                <span class="info-page" id="header-page" style="margin-left: 10px; font-variant-numeric: tabular-nums;"></span>
             </div>
         </div>
 
@@ -113,11 +112,7 @@
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
         <div id="reader-main">
-            <!-- Navigation Zones for Paged Mode -->
-            <div id="nav-zone-left" class="nav-zone"></div>
-            <div id="nav-zone-right" class="nav-zone"></div>
-
-            <!-- PDF Floating Controls (Injected by JS when needed) -->
+            <!-- PDF Floating Controls -->
             <div id="pdf-controls" style="display:none;">
                 <button class="pdf-btn" data-action="fit-width" title="Szélességhez igazítás">↔</button>
                 <button class="pdf-btn" data-action="fit-height" title="Magassághoz igazítás">↕</button>
@@ -169,15 +164,6 @@
             </div>
             <div class="sidebar-content">
                 
-                <!-- VIEW MODE -->
-                <div class="settings-group">
-                    <h4>NÉZET</h4>
-                     <div class="toggle-group" id="view-mode-toggle-group">
-                        <button class="toggle-btn" data-val="scroll">Görgetés</button>
-                        <button class="toggle-btn" data-val="paged">Lapozás</button>
-                    </div>
-                </div>
-
                 <!-- THEME -->
                 <div class="settings-group">
                     <h4>TÉMA</h4>
@@ -262,13 +248,8 @@
                     </div>
 
                     <div class="setting-item" id="margin-scroll-control">
-                        <label>Margó</label> <!-- Görgetés -->
+                        <label>Oldalsó Margó</label>
                         <input type="range" id="margin-scroll-range" min="0" max="40" step="1">
-                    </div>
-
-                    <div class="setting-item" id="margin-paged-control" style="display:none;">
-                        <label>Margó</label> <!-- Lapozás -->
-                        <input type="range" id="margin-paged-range" min="0" max="20" step="1">
                     </div>
 
                     <div class="setting-item" id="margin-vertical-control">
@@ -310,19 +291,29 @@
                 
                 <!-- GUIDE -->
                 <div id="wiki-guide" class="wiki-page active">
-                    <h2>Kezdő lépések</h2>
+                    <h2>Mi az az Epubly?</h2>
+                    <p class="lead">Az Epubly egy privát, biztonságos és egyszerű e-könyv olvasó, ami közvetlenül a böngésződben fut.</p>
+
+                    <div class="wiki-card">
+                        <div class="wiki-icon">🔒</div>
+                        <div class="wiki-text">
+                            <h4>Teljesen Privát</h4>
+                            <p>A könyveid sosem kerülnek fel semmilyen szerverre. Minden adatot (könyvek, olvasási pozíció) a saját eszközödön, a böngésződben tárolunk (IndexedDB technológiával).</p>
+                        </div>
+                    </div>
+
                     <div class="wiki-card">
                         <div class="wiki-icon">📚</div>
                         <div class="wiki-text">
-                            <h4>Könyvtár</h4>
-                            <p>Importálj .epub és .pdf fájlokat a gépedről. Ha egy könyvnek nincs borítója, az Epubly automatikusan generál egyet.</p>
+                            <h4>Könyvtár és Formátumok</h4>
+                            <p>Támogatjuk az <strong>.epub</strong> és <strong>.pdf</strong> formátumokat. A "Könyvtár" nézetben láthatod az összes importált könyvedet. Kattints egy könyvre az olvasáshoz.</p>
                         </div>
                     </div>
                      <div class="wiki-card">
-                        <div class="wiki-icon">👓</div>
+                        <div class="wiki-icon">📜</div>
                         <div class="wiki-text">
-                            <h4>Olvasás & Navigáció</h4>
-                            <p>Két mód közül választhatsz a beállításokban: <strong>Görgetés</strong> (hagyományos) vagy <strong>Lapozás</strong> (könyvszerű). Lapozásnál kattints a képernyő széleire!</p>
+                            <h4>Görgetés</h4>
+                            <p>Az Epubly modern, "végtelenített" görgetést használ. Csak görgess lefelé, és a rendszer automatikusan betölti a következő fejezetet. Nincs lapozgatás, nincs várakozás.</p>
                         </div>
                     </div>
 
@@ -331,8 +322,8 @@
                         <div class="wiki-icon">📲</div>
                         <div class="wiki-text">
                             <h4>Az alkalmazás telepítése</h4>
-                            <p>Az Epubly telepíthető a telefonodra vagy számítógépedre. <strong>Ez teljesen biztonságos!</strong></p>
-                            <p style="margin-top:8px; font-size:0.85rem;">Nem foglal tárhelyet, nem tartalmaz vírust, és nem fér hozzá az adataidhoz. Gyakorlatilag egy "felturbózott könyvjelző", ami lehetővé teszi, hogy teljes képernyőn, internet nélkül is olvass. Keresd a böngésződ menüjében a <em>"Hozzáadás a kezdőképernyőhöz"</em> vagy <em>"Alkalmazás telepítése"</em> opciót.</p>
+                            <p>Bár weboldalnak tűnik, az Epubly telepíthető alkalmazásként is.</p>
+                            <p style="margin-top:8px; font-size:0.85rem;"><strong>Android (Chrome):</strong> Menü &rarr; "Alkalmazás telepítése" vagy "Hozzáadás a kezdőképernyőhöz".<br><strong>iOS (Safari):</strong> Megosztás gomb &rarr; "Hozzáadás a Főképernyőhöz".</p>
                         </div>
                     </div>
                     
@@ -345,16 +336,16 @@
 
                 <!-- ABOUT -->
                 <div id="wiki-about" class="wiki-page">
-                    <h2>Az Epubly-ról</h2>
-                    <p class="lead">Egy modern, kliens-oldali e-könyv olvasó, amely tiszteletben tartja a privát szférádat.</p>
-                    <p>A projekt nyílt forráskódú és teljesen ingyenes. Nincsenek reklámok, nincsenek követőkódok. Minden feldolgozás a te böngésződben történik, a könyveid sosem hagyják el az eszközödet.</p>
+                    <h2>Névjegy</h2>
+                    <p>Az Epubly egy hobbi projekt, melynek célja a reklámmentes, tiszta olvasás.</p>
                     
                     <div style="background:var(--surface-alt); padding:20px; border-radius:12px; margin-top:20px;">
-                        <h4>Technikai infó</h4>
+                        <h4>Technikai részletek</h4>
+                        <p style="font-size:0.9rem; color:var(--text-muted);">Mivel nincs központi szerver ("felhő"), ha törlöd a böngészési adataidat, a könyvek is törlődnek. Erre figyelj!</p>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.7-alpha</li>
-                            <li>Motor: Vanilla JS + JSZip + CSS Columns + PDF.js</li>
-                            <li>Tárhely: IndexedDB</li>
+                            <li>Verzió: 0.14.9-alpha</li>
+                            <li>Motor: Vanilla JS + JSZip + PDF.js</li>
+                            <li>Tárhely: Helyi IndexedDB</li>
                         </ul>
                     </div>
                 </div>
@@ -362,14 +353,14 @@
                 <!-- DONATE -->
                 <div id="wiki-donate" class="wiki-page">
                     <h2>Támogatás</h2>
-                    <p style="margin-bottom:20px;">Az Epubly egy teljesen ingyenes, reklámmentes szerelemprojekt. Célunk a tiszta olvasási élmény megőrzése. Ha szereted az alkalmazást, egy palackvisszaváltás árával is sokat segíthetsz a fenntartásban és a fejlesztésben. Minden támogatást hálásan köszönünk!</p>
+                    <p style="margin-bottom:20px;">Az Epubly teljesen ingyenes. Ha tetszik, és szeretnéd támogatni a fejlesztést, azt a legkönnyebben egy palackvisszaváltás árával teheted meg a MOHU automatáknál.</p>
                     
                     <div class="mohu-print-area">
-                        <h3 style="color:var(--brand);">MOHU REpont</h3>
-                        <p style="font-size:0.9rem; margin-bottom:15px;">Nyomtasd ki, és olvasd be az automatánál.</p>
+                        <h3 style="color:var(--brand);">MOHU REpont Kártya</h3>
+                        <p style="font-size:0.9rem; margin-bottom:15px;">Mentsd le telefonra, vagy nyomtasd ki ezt a kártyát. Az automatánál válaszd a "Kifizetés banki átutalással" opciót, és olvasd be a QR kódot.</p>
                         
                         <div class="mohu-card">
-                            <div class="mohu-card-bg-text">EPUBLY.HU</div>
+                            <div class="mohu-card-bg-text">EPUBLY</div>
                             <div class="mohu-card-logo">
                                  <svg width="20" height="20" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
                                 <span>Epubly.hu</span>
@@ -378,7 +369,7 @@
                         </div>
                         <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px;">
                             <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
-                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon (Automata)</button>
+                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon</button>
                         </div>
                     </div>
                 </div>
@@ -386,7 +377,8 @@
             </div>
         </div>
     </div>
-
+    
+    <!-- Other Modals ... -->
     <!-- Modal: Details -->
     <div id="book-details-modal" class="modal">
         <div class="modal-content">

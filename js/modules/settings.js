@@ -16,7 +16,6 @@ export const Settings = {
         bind('font-size-range', 'input', 'fontSize');
         bind('line-height-range', 'input', 'lineHeight');
         bind('margin-scroll-range', 'input', 'marginScroll');
-        bind('margin-paged-range', 'input', 'marginPaged');
         bind('margin-vertical-range', 'input', 'marginVertical'); 
         bind('global-zoom-range', 'input', 'globalZoom');
         bind('font-weight-range', 'input', 'fontWeight');
@@ -25,10 +24,10 @@ export const Settings = {
         bind('terminal-color-picker', 'input', 'terminalColor');
         bind('font-family-select', 'change', 'fontFamily');
         
-        ['align-toggle-group', 'theme-toggle-group', 'view-mode-toggle-group'].forEach(id => {
+        ['align-toggle-group', 'theme-toggle-group'].forEach(id => {
             document.getElementById(id)?.querySelectorAll('.toggle-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const key = id.includes('align') ? 'textAlign' : (id.includes('theme') ? 'theme' : 'viewMode');
+                    const key = id.includes('align') ? 'textAlign' : 'theme';
                     this.handleUpdate(key, btn.dataset.val);
                 });
             });
@@ -49,12 +48,10 @@ export const Settings = {
             globalZoom: '1.0',
             fontSize: '100', lineHeight: '1.6', 
             marginScroll: '28', 
-            marginPaged: '0',   
             marginVertical: '60', 
             textAlign: 'left', fontFamily: "'Inter', sans-serif",
             fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
-            theme: 'dark', terminalColor: '#00FF41',
-            viewMode: 'scroll'
+            theme: 'dark', terminalColor: '#00FF41'
         };
         try {
             const saved = JSON.parse(localStorage.getItem('epubly-settings'));
@@ -72,7 +69,6 @@ export const Settings = {
         setVal('font-size-range', s.fontSize);
         setVal('line-height-range', s.lineHeight);
         setVal('margin-scroll-range', s.marginScroll);
-        setVal('margin-paged-range', s.marginPaged);
         setVal('margin-vertical-range', s.marginVertical);
         setVal('font-weight-range', s.fontWeight);
         setVal('letter-spacing-range', s.letterSpacing);
@@ -88,7 +84,6 @@ export const Settings = {
         };
         updateToggle('align-toggle-group', s.textAlign);
         updateToggle('theme-toggle-group', s.theme);
-        updateToggle('view-mode-toggle-group', s.viewMode);
         
         const terminalOpts = document.getElementById('terminal-options');
         if (terminalOpts) {

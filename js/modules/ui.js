@@ -39,9 +39,6 @@ export const UI = {
             this.handlePDFControl(action);
         }
 
-        if (target.id === 'nav-zone-left') Epubly.navigation.turnPage('prev');
-        if (target.id === 'nav-zone-right') Epubly.navigation.turnPage('next');
-        
         if (!closest('.sidebar') && !closest('.toggle-sidebar-btn')) {
             document.querySelectorAll('.sidebar.visible').forEach(sb => sb.classList.remove('visible'));
         }

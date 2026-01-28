@@ -18,18 +18,11 @@ export const Reader = {
         if(!viewer) return;
         
         const zoom = settings.globalZoom || 1.0;
-        let paddingLeft, paddingRight;
         
-        if (settings.viewMode === 'paged') {
-            const pagedMargin = settings.marginPaged || 0;
-            paddingLeft = `${pagedMargin}%`;
-            paddingRight = `${pagedMargin}%`;
-        } else {
-            const scrollMargin = settings.marginScroll || 10;
-            paddingLeft = `${scrollMargin}%`;
-            paddingRight = `${scrollMargin}%`;
-        }
-        
+        // Scroll mode only now
+        const scrollMargin = settings.marginScroll || 10;
+        const paddingLeft = `${scrollMargin}%`;
+        const paddingRight = `${scrollMargin}%`;
         const verticalMargin = settings.marginVertical || 60;
 
         Object.assign(viewer.style, {
@@ -52,22 +45,14 @@ export const Reader = {
         }
 
         document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
-        document.body.classList.add(`view-mode-${settings.viewMode}`);
+        document.body.classList.add('view-mode-scroll');
         
         const scrollControl = document.getElementById('margin-scroll-control');
         const pagedControl = document.getElementById('margin-paged-control');
         const verticalControl = document.getElementById('margin-vertical-control');
 
-        if (settings.viewMode === 'paged') {
-            if (scrollControl) scrollControl.style.display = 'none';
-            if (pagedControl) pagedControl.style.display = 'block';
-            if (verticalControl) verticalControl.style.display = 'block';
-        } else {
-            if (scrollControl) scrollControl.style.display = 'block';
-            if (pagedControl) pagedControl.style.display = 'none';
-            if (verticalControl) verticalControl.style.display = 'none';
-        }
-
-        if(Epubly.engine && Epubly.engine.updatePageCounts) Epubly.engine.updatePageCounts();
+        if (scrollControl) scrollControl.style.display = 'block';
+        if (pagedControl) pagedControl.style.display = 'none';
+        if (verticalControl) verticalControl.style.display = 'block';
     }
 };

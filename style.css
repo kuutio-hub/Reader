@@ -122,7 +122,7 @@ body {
         margin: 0 !important;
     }
     .mohu-card * { color: #000000 !important; }
-    .mohu-card-bg-text { color: rgba(0,0,0,0.05) !important; }
+    .mohu-card-bg-text { color: rgba(0,0,0,0.15) !important; } /* Darker in print */
     .mohu-qr { background: transparent !important; box-shadow: none !important; }
     .mohu-qr path { fill: #000000 !important; }
     
@@ -228,31 +228,6 @@ body {
 #viewer { flex: 1; width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; scroll-behavior: auto; position: relative; z-index: 10; background-color: var(--bg); }
 #viewer-content { width: 100%; margin: 0 auto; min-height: 80vh; padding: 60px 20px 100px 20px; max-width: 100%; color: var(--text); }
 
-/* PAGED VIEW STYLES (CSS Columns) - BOOK MODE */
-.view-mode-paged #viewer {
-    overflow: hidden; /* Hide scrollbars, we use nav buttons or touch zones */
-}
-.view-mode-paged #viewer-content {
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0; 
-    max-width: none;
-    
-    /* The Magic */
-    column-fill: auto;
-    column-gap: 40px; 
-    
-    /* ENFORCE SINGLE PAGE (1 Column) */
-    column-count: 1 !important;  
-    column-width: 100vw !important;
-    
-    height: calc(100vh - 54px - 40px); /* Full height minus header and vertical buffers */
-    
-    /* Horizontal Scrolling setup */
-    overflow-y: hidden;
-    overflow-x: hidden; /* Programmatic scrolling only */
-}
 
 /* PDF Pages */
 .pdf-page {
@@ -309,34 +284,7 @@ body {
 .pdf-sep { width: 1px; height: 20px; background: var(--border); }
 
 
-/* Navigation Zones */
-.nav-zone {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 15%;
-    z-index: 100;
-    cursor: pointer;
-    /* Debug: background: rgba(255,0,0,0.1); */
-}
-#nav-zone-left { left: 0; }
-#nav-zone-right { right: 0; }
-/* Disable nav zones in scroll mode */
-.view-mode-scroll .nav-zone { display: none; }
-
-
 .chapter-container { margin-bottom: 40px; }
-.view-mode-paged .chapter-container { 
-    margin-bottom: 0; 
-    /* REMOVED break-after: column; to allow flow */
-    break-after: auto; 
-    break-inside: auto;
-}
-/* Ensure block elements don't act weird in columns */
-.view-mode-paged p, .view-mode-paged div {
-    break-inside: auto; 
-}
-
 .chapter-container * { max-width: 100% !important; box-sizing: border-box !important; color: inherit; background: transparent !important; }
 
 /* Image Sizing Fix: Prevent upscale */
@@ -459,36 +407,37 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     justify-content: space-between; 
     position: relative; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-    border: 1px solid #000; /* Minimal border for cut guidance */
+    border: 1px solid #000; 
     font-family: 'Poppins', sans-serif; 
     margin: 20px auto; 
     overflow: hidden; 
 }
 .mohu-card-bg-text { 
     position: absolute; 
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-10deg) scale(1); /* Centered and scaled down */
-    font-size: 2.5rem; /* Smaller font */
+    top: 55%;
+    left: 45%;
+    transform: translate(-50%, -50%) rotate(-5deg); 
+    font-size: 5rem; /* Big */
     font-weight: 900; 
-    color: rgba(0,0,0,0.03); /* Fainter */
+    color: rgba(0,0,0,0.08); /* More visible */
     user-select: none; 
     font-family: 'Poppins', sans-serif;
-    letter-spacing: 2px;
+    letter-spacing: -2px;
     white-space: nowrap;
     width: auto;
     pointer-events: none;
+    z-index: 0;
 }
 .mohu-card-logo { display: flex; align-items: center; gap: 6px; color: var(--card-text); font-weight: 700; z-index: 1; letter-spacing: 0.5px; font-size: 0.9rem; }
 .mohu-card-logo .logo-icon { width: 18px; height: 18px; fill: #000 !important; }
 .mohu-qr { 
-    width: 35mm; 
-    height: 35mm; 
+    width: 25mm; /* Smaller */
+    height: 25mm; 
     display: flex; 
     align-items: center; 
     justify-content: center; 
     position: absolute; 
-    right: 5px; 
+    right: 5px; /* Corner */
     bottom: 5px; 
     z-index: 2; 
 }

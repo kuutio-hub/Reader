@@ -10,7 +10,7 @@ export const Engine = {
     async loadBook(arrayBuffer, bookId, format = 'epub') {
         Epubly.ui.showLoader();
         
-        // RESET STATE via global object
+        // RESET STATE
         Object.assign(Epubly.state, {
             zip: null, pdfDoc: null, currentFormat: format,
             spine: [], manifest: {}, renderedChapters: new Set(),
@@ -28,7 +28,7 @@ export const Engine = {
             }
             
             document.getElementById('viewer').onscroll = this.handleNavigation.bind(this);
-            window.onresize = this.updatePageCounts.bind(this);
+            // Removed updatePageCounts as we are scroll only
             Epubly.ui.hideLoader();
 
         } catch (e) {
@@ -138,6 +138,7 @@ export const Engine = {
         
         Epubly.ui.updateHeaderInfo(title, author, "");
 
+        // --- RESUME LOGIC FIX ---
         let startIdx = 0;
         let savedPos = 0;
         const savedLoc = Epubly.storage.getLocation(bookId);
@@ -152,20 +153,33 @@ export const Engine = {
         document.getElementById('viewer-content').innerHTML = '';
         Epubly.ui.showReaderView();
         
+        // Critical: Render first, then ensure content fills screen, THEN scroll
         await this.renderChapter(startIdx, 'clear');
+        
+        // Ensure we fill the screen (handles short/empty chapters)
+        await this.ensureContentFillsScreen(startIdx);
 
+        // Apply saved scroll position after DOM update
         setTimeout(() => {
             const viewer = document.getElementById('viewer');
-            if (Epubly.settings.get().viewMode === 'paged') {
-                 viewer.scrollLeft = savedPos;
-            } else {
-                 viewer.scrollTop = savedPos;
-            }
-            this.updatePageCounts();
-        }, 150); 
+            viewer.scrollTop = savedPos;
+        }, 50); 
         
         this.initObservers();
         this.parseTOC(opfDoc);
+    },
+
+    // New Helper: Recursive loader for empty chapters
+    async ensureContentFillsScreen(lastLoadedIndex) {
+        const viewer = document.getElementById('viewer');
+        // Threshold: If content height is less than 1.5x screen height, load more
+        // (1.5x gives buffer for smooth scrolling)
+        if (viewer.scrollHeight < viewer.clientHeight * 1.5 && lastLoadedIndex < Epubly.state.spine.length - 1) {
+             const nextIdx = lastLoadedIndex + 1;
+             await this.renderChapter(nextIdx, 'append');
+             // Recursive check
+             await this.ensureContentFillsScreen(nextIdx);
+        }
     },
 
     async renderChapter(index, method = 'append') {
@@ -215,12 +229,14 @@ export const Engine = {
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
         
-        setTimeout(this.updatePageCounts, 100);
+        // After rendering, check if we need to load more (e.g. if this chapter was tiny)
+        // But only if we are in 'append' mode to prevent recursion issues during initial load loop
+        if (method === 'append') {
+             // We do a light check here, main check is in ensureContentFillsScreen or scroll handler
+        }
     },
 
     initObservers() {
-        if (Epubly.settings.get().viewMode === 'paged') return;
-
         Epubly.state.observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -242,52 +258,33 @@ export const Engine = {
 
     handleNavigation() {
         const viewer = document.getElementById('viewer');
-        const settings = Epubly.settings.get();
-        
-        if (settings.viewMode === 'scroll') {
-             if (Epubly.state.currentFormat === 'epub') {
-                if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
-                    const lastIdx = Math.max(...Epubly.state.renderedChapters);
-                    if (lastIdx < Epubly.state.spine.length - 1) {
-                        Epubly.state.isLoadingNext = true;
-                        document.getElementById('scroll-loader').style.display = 'block';
-                        this.renderChapter(lastIdx + 1, 'append').then(() => {
-                             document.getElementById('scroll-loader').style.display = 'none';
-                             Epubly.state.isLoadingNext = false;
-                        });
-                    }
-                }
-                const firstChapter = document.querySelector('.chapter-container');
-                if(firstChapter) {
-                     const idx = parseInt(firstChapter.dataset.index);
-                     Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
-                }
-             } else {
-                 Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
-             }
+        // Scroll Logic for EPUB Infinite Scroll
+        if (Epubly.state.currentFormat === 'epub') {
+           // Load next if close to bottom
+           if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
+               const lastIdx = Math.max(...Epubly.state.renderedChapters);
+               if (lastIdx < Epubly.state.spine.length - 1) {
+                   Epubly.state.isLoadingNext = true;
+                   document.getElementById('scroll-loader').style.display = 'block';
+                   
+                   this.renderChapter(lastIdx + 1, 'append').then(async () => {
+                        document.getElementById('scroll-loader').style.display = 'none';
+                        // Keep loading if still small (nested empty chapters)
+                        await this.ensureContentFillsScreen(lastIdx + 1);
+                        Epubly.state.isLoadingNext = false;
+                   });
+               }
+           }
+           // Update position
+           const firstChapter = document.querySelector('.chapter-container');
+           if(firstChapter) {
+                const idx = parseInt(firstChapter.dataset.index);
+                Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+           }
         } else {
-            this.updatePageCounts();
-            if (Epubly.state.currentFormat === 'epub') {
-                const currentChapterIdx = Math.max(...Epubly.state.renderedChapters);
-                Epubly.storage.saveLocation(Epubly.state.currentBookId, currentChapterIdx, viewer.scrollLeft);
-            } else {
-                 Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
-            }
+            // PDF Scroll Position
+            Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
         }
-    },
-
-    updatePageCounts() {
-        const viewer = document.getElementById('viewer');
-        if(Epubly.settings.get().viewMode !== 'paged' || Epubly.state.currentFormat !== 'epub') {
-            document.getElementById('header-page').textContent = "";
-            return;
-        }
-        const totalWidth = viewer.scrollWidth;
-        const viewWidth = viewer.clientWidth;
-        const currentPos = viewer.scrollLeft;
-        const totalPages = Math.ceil(totalWidth / viewWidth);
-        const currentPage = Math.round(currentPos / viewWidth) + 1;
-        document.getElementById('header-page').textContent = `${currentPage} / ${totalPages}`;
     },
 
     async parseTOC(opfDoc) {
