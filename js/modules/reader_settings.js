@@ -17,26 +17,20 @@ export const Reader = {
         const viewer = document.getElementById('viewer-content');
         if(!viewer) return;
         
+        // Add classes to settings sidebar DOM elements for filtering in PDF mode
+        this.tagSettingsDOM();
+
         const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // Scale margin with zoom
-        let scrollMargin = parseFloat(settings.marginScroll) || 10;
+        // PDF ignores margin sliders (uses Transform Zoom)
+        // EPUB uses margin sliders
         
-        // Ensure margin doesn't become negative or too small if zoomed way out, 
-        // but respect user setting primarily.
-        // We multiply by zoom to give "More space" when zoomed in, or maintain ratio.
-        // Actually, for margins, users usually want them fixed %, but let's scale it slightly
-        // or just apply as is. User asked: "globális zoomnál a margót is állítsuk"
-        // Interpreted as: Zoom affects margin size.
+        let scrollMargin = parseFloat(settings.marginScroll) || 10;
         let effectiveMargin = scrollMargin * zoom; 
-
-        // Cap margin at 40% to prevent unreadable text
         if (effectiveMargin > 40) effectiveMargin = 40;
 
         const paddingLeft = `${effectiveMargin}%`;
         const paddingRight = `${effectiveMargin}%`;
-        
-        // Vertical margin removed/minimized
         const verticalMargin = 20; 
 
         Object.assign(viewer.style, {
@@ -54,17 +48,17 @@ export const Reader = {
         });
         
         document.body.className = `theme-${settings.theme}`;
+        // Preserve PDF Mode class if set
+        if (Epubly.state.currentFormat === 'pdf') {
+             document.body.classList.add('mode-pdf');
+        }
+
         if (settings.theme === 'terminal') {
             document.body.style.setProperty('--terminal-color', settings.terminalColor);
         }
 
         document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
         document.body.classList.add('view-mode-scroll');
-        
-        // Update PDF Zoom if PDF is active
-        if (Epubly.state.currentFormat === 'pdf') {
-             // Logic in Engine will read settings if needed, but PDF mostly uses own controls
-        }
         
         const scrollControl = document.getElementById('margin-scroll-control');
         const pagedControl = document.getElementById('margin-paged-control');
@@ -73,5 +67,22 @@ export const Reader = {
         if (scrollControl) scrollControl.style.display = 'block';
         if (pagedControl) pagedControl.style.display = 'none';
         if (verticalControl) verticalControl.style.display = 'none';
+    },
+
+    tagSettingsDOM() {
+        // Helper to add 'setting-item-typography' class to relevant divs in sidebar
+        const ids = [
+            'font-family-select', 'font-size-range', 'font-weight-range', 
+            'line-height-range', 'letter-spacing-range', 'margin-scroll-range',
+            'global-zoom-range', 'align-toggle-group'
+        ];
+        
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                const wrapper = el.closest('.setting-item');
+                if (wrapper) wrapper.classList.add('setting-item-typography');
+            }
+        });
     }
 };

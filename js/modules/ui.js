@@ -16,32 +16,35 @@ export const UI = {
         // --- GLOBAL CLICKS ---
         document.body.addEventListener('click', e => this.handleClick(e));
 
-        // --- PDF MOUSE INTERACTIONS (Wheel & Drag) ---
+        // --- PDF MOUSE INTERACTIONS (Canvas Mode) ---
         const viewer = document.getElementById('viewer');
         if (viewer) {
-            // Wheel Zoom
+            // SMART ZOOM (Wheel)
             viewer.addEventListener('wheel', (e) => {
                 if (Epubly.state.currentFormat === 'pdf') {
-                    if (e.ctrlKey || Epubly.engine.pdfState.mode === 'custom') {
-                        e.preventDefault();
-                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                        Epubly.engine.updatePDFTransform(delta);
-                    }
+                    e.preventDefault();
+                    // Get mouse position relative to content area
+                    const rect = document.getElementById('viewer').getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+                    
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    Epubly.engine.updatePDFZoom(delta, mouseX, mouseY);
                 }
             }, { passive: false });
 
-            // Drag Pan
+            // DRAG PAN (Always active for PDF)
             viewer.addEventListener('mousedown', (e) => {
-                if (Epubly.state.currentFormat === 'pdf' && Epubly.engine.pdfState.mode === 'custom') {
+                if (Epubly.state.currentFormat === 'pdf') {
                     Epubly.engine.pdfState.panning = true;
                     Epubly.engine.pdfState.startX = e.clientX;
                     Epubly.engine.pdfState.startY = e.clientY;
-                    viewer.style.cursor = 'grabbing';
+                    // Cursor is handled by CSS
                 }
             });
 
             window.addEventListener('mousemove', (e) => {
-                if (Epubly.engine.pdfState.panning) {
+                if (Epubly.engine.pdfState.panning && Epubly.state.currentFormat === 'pdf') {
                     const deltaX = e.clientX - Epubly.engine.pdfState.startX;
                     const deltaY = e.clientY - Epubly.engine.pdfState.startY;
                     Epubly.engine.panPDF(deltaX, deltaY);
@@ -53,7 +56,6 @@ export const UI = {
             window.addEventListener('mouseup', () => {
                 if (Epubly.engine.pdfState.panning) {
                     Epubly.engine.pdfState.panning = false;
-                    viewer.style.cursor = 'grab';
                 }
             });
         }
@@ -191,17 +193,21 @@ export const UI = {
 
     handlePDFControl(action) {
         if (action === 'fit-width') {
-            Epubly.engine.setPDFMode('native');
-            const pages = document.querySelectorAll('.pdf-page-container');
-            pages.forEach(p => { p.style.width = '100%'; p.style.height = 'auto'; });
+             // Reset transform
+             Epubly.engine.pdfState.scale = 1;
+             Epubly.engine.pdfState.pointX = 0;
+             Epubly.engine.pdfState.pointY = 0;
+             Epubly.engine.renderPDFView();
         } else if (action === 'fit-height') {
-            Epubly.engine.setPDFMode('native');
-            const pages = document.querySelectorAll('.pdf-page-container');
-            pages.forEach(p => { p.style.height = '95vh'; p.style.width = 'auto'; p.style.margin = '10px auto'; });
+             // Heuristic fit
+             Epubly.engine.pdfState.scale = 0.6;
+             Epubly.engine.pdfState.pointX = 0;
+             Epubly.engine.pdfState.pointY = 0;
+             Epubly.engine.renderPDFView();
         } else if (action === 'zoom-in') {
-            Epubly.engine.updatePDFTransform(0.2);
+            Epubly.engine.updatePDFZoom(0.2);
         } else if (action === 'zoom-out') {
-            Epubly.engine.updatePDFTransform(-0.2);
+            Epubly.engine.updatePDFZoom(-0.2);
         }
     },
     
@@ -220,6 +226,7 @@ export const UI = {
 
     showLibraryView() {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.body.classList.remove('mode-pdf');
         document.getElementById('library-view')?.classList.add('active');
         this.updateHeaderInfo("Könyvtár", "", "");
         this.showFloatingBackButton(false);

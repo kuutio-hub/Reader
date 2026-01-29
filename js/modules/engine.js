@@ -15,8 +15,7 @@ export const Engine = {
         startX: 0,
         startY: 0,
         pointX: 0,
-        pointY: 0,
-        mode: 'native' // 'native' (scrolling) or 'custom' (transform)
+        pointY: 0
     },
 
     async loadBook(arrayBuffer, bookId, format = 'epub') {
@@ -30,21 +29,24 @@ export const Engine = {
             isLoadingNext: false, isLoadingPrev: false, history: []
         });
         
-        // Reset PDF State
-        this.pdfState = { scale: 1, panning: false, startX: 0, startY: 0, pointX: 0, pointY: 0, mode: 'native' };
+        // Reset PDF State (Centered by default)
+        const viewer = document.getElementById('viewer');
+        // Initial center approximation will be handled in render
+        this.pdfState = { scale: 1, panning: false, startX: 0, startY: 0, pointX: 0, pointY: 0 };
 
         Epubly.ui.showFloatingBackButton(false);
         if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
         try {
             if (format === 'pdf') {
+                document.body.classList.add('mode-pdf');
                 await this.loadPDF(arrayBuffer, bookId);
             } else {
+                document.body.classList.remove('mode-pdf');
                 await this.loadEPUB(arrayBuffer, bookId);
             }
             
-            // Attach Scroll Saver (Immediate & Touch)
-            const viewer = document.getElementById('viewer');
+            // Attach Events
             viewer.onscroll = this.handleNavigation.bind(this);
             viewer.ontouchend = () => { this.saveCurrentPosition(true); };
 
@@ -79,7 +81,6 @@ export const Engine = {
 
         const viewerContent = document.getElementById('viewer-content');
         
-        // --- OPTIMIZATION: VIRTUALIZATION ---
         const page1 = await Epubly.state.pdfDoc.getPage(1);
         const viewport = page1.getViewport({ scale: 1.5 });
         const aspectRatio = viewport.width / viewport.height;
@@ -94,17 +95,7 @@ export const Engine = {
         }
 
         this.initPDFObserver();
-
-        const savedLoc = Epubly.storage.getLocation(bookId);
-        if(savedLoc) {
-            const parts = savedLoc.split(',');
-            const savedPos = parseInt(parts[1]) || 0;
-            // Stabilize scroll for PDF too
-            this.stabilizeScroll(savedPos);
-        }
-        
-        // Initial Render View
-        this.renderPDFView();
+        this.renderPDFView(); // Apply initial transform
     },
 
     initPDFObserver() {
@@ -118,11 +109,6 @@ export const Engine = {
                     
                     const progress = pageNum / Epubly.state.pdfDoc.numPages;
                     this.throttledStatsUpdate(pageNum, false, progress);
-                    
-                    if (this.pdfState.mode === 'native') {
-                         const viewer = document.getElementById('viewer');
-                         Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
-                    }
                 }
             });
         }, { root: document.getElementById('viewer'), rootMargin: "50% 0px" });
@@ -146,65 +132,41 @@ export const Engine = {
         } catch(e) { console.warn(`Error rendering page ${pageNum}`, e); }
     },
 
-    // --- MODERN PDF TRANSFORM LOGIC ---
-    updatePDFTransform(deltaScale, centerX, centerY) {
-        const viewer = document.getElementById('viewer');
-        if (this.pdfState.mode === 'native') {
-            // Switch to custom mode on first zoom
-            this.pdfState.mode = 'custom';
-            this.pdfState.scale = 1;
-            this.pdfState.pointX = 0;
-            this.pdfState.pointY = -viewer.scrollTop; // compensate initial scroll
-            viewer.classList.add('pdf-drag-mode');
-        }
-
+    // --- PDF TRANSFORM (ZOOM TO POINT) ---
+    updatePDFZoom(delta, mouseX, mouseY) {
         const oldScale = this.pdfState.scale;
-        let newScale = oldScale + deltaScale;
-        newScale = Math.min(Math.max(0.5, newScale), 5); // Clamp
+        let newScale = oldScale + delta;
+        newScale = Math.min(Math.max(0.5, newScale), 8); // Limits
 
-        // Simple zoom logic: zoom towards center of screen (simpler for vanilla)
-        // Adjust translation to keep center stable would require complex math here.
-        // For simplicity in this constraints: simple scale update. 
-        // Improvement: If mouse coordinates provided (centerX/Y), zoom towards that.
+        // Mouse position relative to the content container (considering current transform)
+        // pointX/Y is the current Translation
+        // We want the point under the mouse to remain under the mouse.
+        // Formula: Translate = Mouse - (Mouse - OldTranslate) * (NewScale / OldScale)
+        
+        if (mouseX !== undefined && mouseY !== undefined) {
+             const originX = mouseX - this.pdfState.pointX;
+             const originY = mouseY - this.pdfState.pointY;
+             
+             this.pdfState.pointX = mouseX - (originX * (newScale / oldScale));
+             this.pdfState.pointY = mouseY - (originY * (newScale / oldScale));
+        } else {
+             // Center zoom if no mouse pos
+             // Simplified center zoom not strictly requested but good fallback
+        }
         
         this.pdfState.scale = newScale;
         this.renderPDFView();
     },
 
     panPDF(deltaX, deltaY) {
-        if (this.pdfState.mode !== 'custom') return;
         this.pdfState.pointX += deltaX;
         this.pdfState.pointY += deltaY;
         this.renderPDFView();
     },
-    
-    setPDFMode(mode) {
-        this.pdfState.mode = mode;
-        const viewer = document.getElementById('viewer');
-        const content = document.getElementById('viewer-content');
-        
-        if (mode === 'native') {
-            viewer.classList.remove('pdf-drag-mode');
-            content.style.transform = '';
-            this.pdfState.scale = 1;
-            this.pdfState.pointX = 0;
-            this.pdfState.pointY = 0;
-            // Restore overflow
-            viewer.style.overflow = 'auto';
-        } else {
-            viewer.classList.add('pdf-drag-mode');
-            // Hide scrollbars
-            viewer.style.overflow = 'hidden';
-        }
-    },
 
     renderPDFView() {
         const content = document.getElementById('viewer-content');
-        if (this.pdfState.mode === 'custom') {
-            content.style.transform = `translate(${this.pdfState.pointX}px, ${this.pdfState.pointY}px) scale(${this.pdfState.scale})`;
-        } else {
-            content.style.transform = '';
-        }
+        content.style.transform = `translate(${this.pdfState.pointX}px, ${this.pdfState.pointY}px) scale(${this.pdfState.scale})`;
     },
 
     async loadEPUB(arrayBuffer, bookId) {
@@ -251,44 +213,45 @@ export const Engine = {
         
         Epubly.ui.updateHeaderInfo(title, author, "");
 
+        // --- RELIABLE RESTORE LOGIC ---
         let startIdx = 0;
-        let savedPos = 0;
+        let startOffset = 0;
         const savedLoc = Epubly.storage.getLocation(bookId);
         
         if(savedLoc) {
-            const parts = savedLoc.split(',');
-            const idx = parseInt(parts[0]);
-            if(!isNaN(idx) && idx < Epubly.state.spine.length) startIdx = idx;
-            savedPos = parseInt(parts[1]) || 0;
+            const parts = savedLoc.split('|'); // Using pipe separator now
+            if (parts.length === 2) {
+                startIdx = parseInt(parts[0]);
+                startOffset = parseInt(parts[1]);
+            } else {
+                 // Fallback to old format
+                 const oldParts = savedLoc.split(',');
+                 startIdx = parseInt(oldParts[0]) || 0;
+            }
         }
 
         document.getElementById('viewer-content').innerHTML = '';
         Epubly.ui.showReaderView();
         
-        await this.renderChapter(startIdx, 'clear');
-        await this.ensureContentFillsScreen(startIdx);
-
-        // USE STABILIZATION instead of single set
-        this.stabilizeScroll(savedPos);
-        
-        this.initObservers();
-        this.parseTOC(opfDoc);
-    },
-
-    // --- SCROLL STABILIZATION LOOP ---
-    stabilizeScroll(targetPos) {
+        // Hide viewer briefly to avoid visual jump
         const viewer = document.getElementById('viewer');
-        let attempts = 0;
-        const maxAttempts = 10; // Check for 500ms approx
+        viewer.style.opacity = '0';
+
+        await this.renderChapter(startIdx, 'clear');
         
-        const check = () => {
-            viewer.scrollTop = targetPos;
-            attempts++;
-            if (attempts < maxAttempts) {
-                requestAnimationFrame(check);
-            }
-        };
-        requestAnimationFrame(check);
+        // Wait for render layout
+        requestAnimationFrame(() => {
+             // Scroll to specific offset within that chapter
+             // Note: In single chapter view, offset is just scrollTop
+             if(startOffset > 0) {
+                 viewer.scrollTop = startOffset;
+             }
+             viewer.style.opacity = '1';
+             this.initObservers();
+             this.ensureContentFillsScreen(startIdx);
+        });
+
+        this.parseTOC(opfDoc);
     },
 
     async ensureContentFillsScreen(lastLoadedIndex) {
@@ -355,11 +318,8 @@ export const Engine = {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const idx = parseInt(entry.target.dataset.index);
-                    const scrollTop = document.getElementById('viewer').scrollTop;
                     if (Epubly.state.currentFormat === 'epub') {
-                        // Optimistically save on intersection
-                        Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, scrollTop);
-                        
+                        // Just update UI info, don't save here. Save happens on scroll.
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
@@ -375,52 +335,68 @@ export const Engine = {
     },
 
     handleNavigation() {
-        if (this.pdfState.mode === 'custom') return; // No auto-load in custom zoom mode
+        // PDF navigation is handled by Drag/Zoom logic mostly, but scroll triggers saving
+        if (Epubly.state.currentFormat === 'pdf') {
+             // PDF Save is irrelevant in transform mode, but we can save last page visited via observer
+             return;
+        }
 
         const viewer = document.getElementById('viewer');
-        
         if (Epubly.state.renderedChapters.size === 0 && Epubly.state.currentFormat === 'epub') return;
 
-        if (Epubly.state.currentFormat === 'epub') {
-           // Infinite Scroll Logic
-           if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
-               const lastIdx = Math.max(...Epubly.state.renderedChapters);
-               if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
-                   Epubly.state.isLoadingNext = true;
-                   document.getElementById('scroll-loader').style.display = 'block';
-                   
-                   this.renderChapter(lastIdx + 1, 'append').then(async () => {
-                        document.getElementById('scroll-loader').style.display = 'none';
-                        this.initObservers();
-                        await this.ensureContentFillsScreen(lastIdx + 1);
-                        Epubly.state.isLoadingNext = false;
-                   });
-               }
+        // Infinite Scroll Logic
+        if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
+           const lastIdx = Math.max(...Epubly.state.renderedChapters);
+           if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
+               Epubly.state.isLoadingNext = true;
+               document.getElementById('scroll-loader').style.display = 'block';
+               
+               this.renderChapter(lastIdx + 1, 'append').then(async () => {
+                    document.getElementById('scroll-loader').style.display = 'none';
+                    this.initObservers();
+                    await this.ensureContentFillsScreen(lastIdx + 1);
+                    Epubly.state.isLoadingNext = false;
+               });
            }
         }
         this.saveCurrentPosition();
     },
 
     saveCurrentPosition(force = false) {
-        if (this.pdfState.mode === 'custom') return; // Don't save transformed coordinates as scrollTop
-
-        const viewer = document.getElementById('viewer');
         if (Epubly.state.currentFormat === 'epub') {
-            const firstChapter = document.querySelector('.chapter-container');
-            if(firstChapter) {
-                 const idx = parseInt(firstChapter.dataset.index);
-                 Epubly.storage.saveLocation(Epubly.state.currentBookId, idx, viewer.scrollTop);
+            // New Robust Saving: Find the top-most visible chapter
+            const viewer = document.getElementById('viewer');
+            const chapters = document.querySelectorAll('.chapter-container');
+            let topChapter = null;
+            
+            for (const ch of chapters) {
+                const rect = ch.getBoundingClientRect();
+                // If top of chapter is within viewport or slightly above
+                if (rect.bottom > 60) { // 60px is header
+                    topChapter = ch;
+                    break;
+                }
+            }
+
+            if(topChapter) {
+                 const idx = parseInt(topChapter.dataset.index);
+                 // Calculate offset relative to THIS chapter
+                 // rect.top is position relative to viewport. 
+                 // We want how many pixels "deep" we are into this chapter.
+                 const headerHeight = 54;
+                 const offset = Math.abs(Math.min(0, topChapter.getBoundingClientRect().top - headerHeight));
+                 
+                 // Format: ChapterIndex | PixelOffset
+                 const locString = `${idx}|${Math.round(offset)}`;
+                 localStorage.setItem(`epubly-loc-${Epubly.state.currentBookId}`, locString);
                  this.throttledStatsUpdate(idx, force);
             }
-        } else {
-             // PDF Scroll Position
-             Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
-        }
+        } 
+        // PDF position saving is handled via Page Observer (page number) in initPDFObserver
     },
 
     throttledStatsUpdate(idx, force = false, explicitProgress = null) {
         const now = Date.now();
-        // Save to DB at most once every 3 seconds to update Progress %, OR if forced (touch end)
         if (force || (now - this.lastStatsSave > 3000)) {
             this.lastStatsSave = now;
             let progress = 0;
