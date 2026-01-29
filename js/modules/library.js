@@ -1,3 +1,4 @@
+
 /**
  * Library & Cover Generation
  */
@@ -79,7 +80,7 @@ export const Library = {
         books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
             const card = document.createElement('div');
             card.className = 'book-card';
-            card.onclick = () => Epubly.ui._renderBookInfoModal(book);
+            card.onclick = () => Epubly.ui.showBookInfoModal(book);
             
             const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
             

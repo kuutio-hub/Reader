@@ -1,3 +1,4 @@
+
 :root {
     /* BASE VARIABLES */
     --brand: #D4AF37;
@@ -161,7 +162,6 @@ body {
 /* --- HEADER --- */
 #topbar { height: 54px; min-height: 54px; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); z-index: 100; transition: background 0.3s, border-color 0.3s; position: relative; }
 .header-left { display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1; }
-.header-right { display: flex; align-items: center; gap: 8px; }
 .logo-btn { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 6px 10px; border-radius: var(--radius-s); transition: var(--transition); }
 .logo-btn:hover { background: var(--surface-alt); }
 .logo-icon { width: 22px; height: 22px; }
@@ -170,45 +170,11 @@ body {
 .view-info-container { display: flex; align-items: baseline; gap: 6px; overflow: hidden; white-space: nowrap; color: var(--text); font-size: 0.9rem; }
 .info-author { font-weight: 600; color: var(--brand); }
 .info-title { font-weight: 500; }
-.top-actions { display: flex; gap: 8px; align-items: center; }
-#desktop-controls { display: flex; align-items: center; gap: 8px; }
-#burger-btn { display: none; } /* Hidden by default */
-
-/* Mobile Burger Menu */
-#burger-menu-panel {
-    position: fixed;
-    top: 54px;
-    right: 0;
-    width: 250px;
-    height: calc(100% - 54px);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    box-shadow: var(--shadow-m);
-    z-index: 99;
-    transform: translateX(100%);
-    transition: transform 0.3s ease-out;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-#burger-menu-panel.visible { transform: translateX(0); }
-#mobile-controls-container { display: flex; flex-direction: column; gap: 8px; }
-#mobile-controls-container .icon-btn { 
-    width: 100%; 
-    justify-content: flex-start;
-    gap: 15px;
-    padding: 12px;
-    border-radius: var(--radius-s);
-}
-#mobile-controls-container .icon-btn::after {
-    content: attr(title);
-    font-size: 0.95rem;
-    font-weight: 500;
-}
+.info-chapter { font-weight: 400; color: var(--text-muted); font-size: 0.85rem; margin-left: 4px; }
+.top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 
 /* --- SIDEBARS --- */
-.sidebar { width: 320px; background: var(--bg-glass); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 200; position: fixed; top: 0; right: 0; bottom: 0; transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.19, 1, 0.22, 1); box-shadow: none; }
+.sidebar { width: 320px; background: var(--bg-glass); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 200; position: absolute; top: 0; right: 0; bottom: 0; transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.19, 1, 0.22, 1); box-shadow: none; }
 .sidebar.visible { transform: translateX(0); box-shadow: -10px 0 40px rgba(0,0,0,0.4); }
 .sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .sidebar-header h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); letter-spacing: 0.5px; text-transform: uppercase; }
@@ -297,30 +263,32 @@ body.mode-pdf #sidebar-settings .settings-group:nth-child(2) {
     overflow-y: auto; overflow-x: auto; 
     scroll-behavior: auto; position: relative; z-index: 10; 
     background-color: var(--bg);
-    cursor: grab;
+    cursor: grab; /* Enable grab cursor for EPUB too */ 
 }
 #viewer:active { cursor: grabbing; }
 
-/* PDF Mode: Canvas style */
+/* PDF Mode: Canvas style (Centered Flex) */
 body.mode-pdf #viewer {
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    overflow: hidden;
+    justify-content: center; /* Center Horizontal */
+    align-items: flex-start; /* Start from top */
+    overflow: hidden; /* Handle overflow via Transform, not scrollbars */
+    cursor: grab;
     user-select: none;
 }
+body.mode-pdf #viewer:active { cursor: grabbing; }
 
 #viewer-content { 
     width: 100%; margin: 0 auto; min-height: 80vh; 
     padding: 60px 20px 100px 20px; max-width: 100%; color: var(--text); 
-    transform-origin: 0 0;
+    transform-origin: 0 0; /* Crucial for matrix calculations */
 }
 
 /* PDF Pages */
 .pdf-page-container {
     display: block;
     margin: 10px auto;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5); /* Stronger shadow for PDF feel */
     background: white;
     position: relative;
     overflow: hidden; 
@@ -427,9 +395,9 @@ body.theme-light .btn-primary, body.theme-sepia .btn-primary { color: #fff; }
 .book-detail-layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; overflow: hidden; }
 .detail-left-col { background: var(--surface-alt); padding: 30px; display: flex; flex-direction: column; gap: 20px; border-right: 1px solid var(--border); align-items: center; text-align: center; }
 .detail-right-col { padding: 30px 40px; overflow-y: auto; }
-.book-detail-cover { width: 160px; aspect-ratio: 2/3; background: #000; border-radius: var(--radius-m); overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.3); border: 1px solid var(--border); margin-bottom: 5px; flex-shrink: 0; }
+.book-detail-cover { width: 160px; aspect-ratio: 2/3; background: #000; border-radius: var(--radius-m); overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.3); border: 1px solid var(--border); margin-bottom: 5px; }
 .detail-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: auto; }
-.detail-actions-extra { width: 100%; margin-top: 10px; position: relative; }
+.detail-actions-extra { width: 100%; margin-top: 20px; }
 .book-detail-cover img { width: 100%; height: 100%; object-fit: cover; }
 .detail-meta h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 5px; line-height: 1.2; }
 .detail-meta p { font-size: 1rem; color: var(--brand); font-weight: 600; }
@@ -437,9 +405,7 @@ body.theme-light .btn-primary, body.theme-sepia .btn-primary { color: #fff; }
 .stat-box { background: rgba(128,128,128,0.1); padding: 8px; border-radius: var(--radius-s); text-align: center; }
 .stat-val { display: block; font-size: 1.1rem; font-weight: 700; color: var(--text); }
 .stat-lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
-.book-desc { font-size: 1.05rem; line-height: 1.7; color: var(--text); opacity: 0.9; white-space: pre-wrap; overflow-wrap: break-word; }
-.kebab-menu { display: flex; justify-content: center; }
-.kebab-dropdown { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 10px; background: var(--surface-alt); border-radius: var(--radius-s); padding: 8px; box-shadow: var(--shadow-m); z-index: 10; width: 150px; }
+.book-desc { font-size: 1.05rem; line-height: 1.7; color: var(--text); opacity: 0.9; white-space: pre-wrap; }
 
 /* Settings */
 .settings-group { margin-bottom: 25px; }
@@ -467,14 +433,13 @@ input[type=range]:focus::-webkit-slider-runnable-track { background: var(--brand
 .wiki-nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text); border-radius: 8px; cursor: pointer; text-align: left; font-size: 0.95rem; font-weight: 500; transition: 0.2s; }
 .wiki-nav-btn:hover { background: rgba(128,128,128,0.1); }
 .wiki-nav-btn.active { background: var(--brand); color: #000; }
-.wiki-nav-select { display: none; } /* Hidden by default */
 body.theme-terminal .wiki-nav-btn.active { color: #000; } 
 .wiki-main-area { flex: 1; padding: 30px 40px; overflow-y: auto; }
 .wiki-page { display: none; animation: fadeIn 0.3s ease; }
 .wiki-page.active { display: block; }
 
 .wiki-card { background: var(--surface-alt); border-radius: 12px; padding: 20px; margin-bottom: 15px; display: flex; gap: 15px; border: 1px solid var(--border); }
-.wiki-icon { font-size: 2rem; background: var(--bg); width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 10px; flex-shrink: 0; }
+.wiki-icon { font-size: 2rem; background: var(--bg); width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
 .wiki-text h4 { margin-bottom: 5px; color: var(--brand); }
 .wiki-text p { font-size: 0.9rem; color: var(--text-muted); margin: 0; }
 
@@ -534,8 +499,8 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
 }
 .mohu-card-bg-text { 
     position: absolute; 
-    top: 50%; left: 10%;
-    transform: translate(0, -50%) rotate(-15deg);
+    top: 50%; left: 10%; /* Shifted left */
+    transform: translate(0, -50%) rotate(-15deg); /* Adjusted rotation */
     font-size: 5rem; font-weight: 900; 
     color: rgba(0,0,0,0.08); user-select: none; 
     letter-spacing: -2px; white-space: nowrap; pointer-events: none; 
@@ -590,72 +555,32 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
 
 /* --- MOBILE OPTIMIZATION --- */
 @media (max-width: 768px) {
-    /* Adaptive Header */
-    #desktop-controls { display: none; }
-    #burger-btn { display: flex; }
-
     #viewer-content {
+        /* Full width reading on mobile */
         padding-left: 15px !important;
         padding-right: 15px !important;
     }
 
     #library-grid {
+        /* More compact library on mobile */
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
         gap: 20px;
     }
 
-    /* Book Detail Modal Mobile */
-    .book-detail-layout { grid-template-columns: 1fr; }
-    .detail-left-col { padding: 20px; border-right: none; border-bottom: 1px solid var(--border); }
-    .book-detail-cover { width: 120px; }
-    .detail-right-col { padding: 20px; }
-    #toggle-desc-btn { display: block !important; }
-    #detail-desc-wrapper { display: none; } /* Hide by default on mobile */
-    #detail-desc-wrapper.visible { display: block; }
-    .detail-left-col {
-        grid-template-columns: 120px 1fr;
-        grid-template-rows: auto auto auto;
-        display: grid;
-        gap: 15px;
-        text-align: left;
-        align-items: flex-start;
-    }
-    .book-detail-cover { grid-row: 1 / span 3; }
-    .detail-meta { grid-column: 2; }
-    .detail-stats { grid-column: 2; width: 100%; }
-    .detail-actions { grid-column: 2; margin-top: 0; }
-    .detail-actions-extra { grid-column: 2; margin-top: 0; justify-self: end; }
-
-
+    .book-detail-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .detail-left-col { padding: 20px; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; text-align: left; }
+    .book-detail-cover { width: 100px; margin-bottom: 0; }
+    .detail-actions { flex: 1; }
     .sidebar { width: 85%; }
     .view-info-container { font-size: 0.8rem; }
     .modal-content { width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; border: none; }
     .big-close { width: 50px; height: 50px; font-size: 1.8rem; }
-    
-    /* Wiki Modal Mobile */
     .apple-wiki { flex-direction: column !important; }
-    .wiki-sidebar { 
-        width: 100%; 
-        border-right: none; 
-        border-bottom: 1px solid var(--border); 
-        flex-direction: column;
-        padding: 15px; 
-        gap: 15px; 
-    }
-    .wiki-sidebar h3, .wiki-nav-container { display: none; } /* Hide desktop nav */
-    .wiki-nav-select { 
-        display: block; 
-        width: 100%;
-        padding: 12px;
-        font-size: 1rem;
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-s);
-    }
-    .wiki-sidebar .modal-close { margin-top: 0; }
+    .wiki-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; overflow-x: auto; padding: 10px; gap: 10px; }
+    .wiki-sidebar h3 { display: none; }
+    .wiki-nav-btn { width: auto; white-space: nowrap; background: var(--surface); padding: 8px 12px; border: 1px solid var(--border); }
+    .wiki-nav-btn.active { background: var(--brand); color: #000; border-color: var(--brand); }
     .wiki-main-area { padding: 20px; }
-    .wiki-card { flex-direction: column; text-align: center; align-items: center; }
     
     .donate-grid { grid-template-columns: 1fr; }
 }

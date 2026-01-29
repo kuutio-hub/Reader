@@ -2,4 +2,4 @@
 /**
  * Project version control file.
  */
-export const version = '0.15.5-beta';
+export const version = '0.15.3-beta';

@@ -1,3 +1,4 @@
+
 /**
  * IndexedDB & LocalStorage Management
  */
@@ -6,30 +7,11 @@ export const Storage = {
 
     async getDb() {
         if (this.db) return this.db;
-        
         return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error("Az adatbázis-kapcsolat időtúllépés miatt megszakadt. Próbáld meg frissíteni az oldalt."));
-            }, 5000); // 5 second timeout
-
             const request = indexedDB.open('EpublyDB', 4);
-            
-            request.onerror = (event) => {
-                clearTimeout(timeout);
-                reject(new Error(`Adatbázis hiba: ${event.target.error}`));
-            };
-            
-            request.onblocked = () => {
-                clearTimeout(timeout);
-                reject(new Error("Az adatbázis zárolva van. Kérjük, zárja be az alkalmazás többi példányát."));
-            };
-            
-            request.onsuccess = e => {
-                clearTimeout(timeout);
-                this.db = e.target.result;
-                resolve(this.db);
-            };
-            
+            request.onerror = () => reject("IndexedDB error");
+            request.onblocked = () => reject("Az adatbázis zárolva van. Kérjük, zárja be az alkalmazás többi példányát.");
+            request.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
             request.onupgradeneeded = e => {
                 if (!e.target.result.objectStoreNames.contains('books')) {
                     e.target.result.createObjectStore('books', { keyPath: 'id' });
