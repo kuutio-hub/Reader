@@ -36,6 +36,15 @@ export const Library = {
         if(!grid) return;
         grid.innerHTML = '';
         
+        const books = await Epubly.storage.getAllBooks();
+
+        // Handle Empty State
+        if (books.length === 0) {
+            grid.classList.add('empty');
+        } else {
+            grid.classList.remove('empty');
+        }
+        
         const importCard = document.createElement('div');
         importCard.className = 'import-card';
         importCard.onclick = () => Epubly.ui.showModal('import-modal');
@@ -67,15 +76,12 @@ export const Library = {
             <div class="book-author" style="text-align:center;">Importálás</div>
         `;
         grid.appendChild(importCard);
-
-        const books = await Epubly.storage.getAllBooks();
         
         books.sort((a,b) => (b.stats?.lastRead || 0) - (a.stats?.lastRead || 0)).forEach(book => {
             const card = document.createElement('div');
             card.className = 'book-card';
             card.onclick = () => Epubly.ui.showBookInfoModal(book);
             
-            // Fix: coverUrl is now a base64 string from DB, so it works offline/reload
             const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
             
             card.innerHTML = `

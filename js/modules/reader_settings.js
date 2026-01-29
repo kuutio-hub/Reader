@@ -22,16 +22,19 @@ export const Reader = {
 
         const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // INVERTED MARGIN LOGIC
+        // INVERTED MARGIN LOGIC (Aggressive Reduction)
         // Base margin is from slider (e.g., 28%).
-        // If Zoom > 1 (Getting closer), margin should shrink.
-        // If Zoom < 1 (Moving away), margin should grow.
-        // Formula: baseMargin / zoom
+        // As zoom increases, margin should drop rapidly to 0 to maximize screen space.
         
         let scrollMargin = parseFloat(settings.marginScroll) || 28;
-        let effectiveMargin = scrollMargin / zoom; 
         
-        // Cap margin to prevent text disappearing
+        // At 1.0 zoom -> use base margin
+        // At 1.3 zoom -> almost 0 margin
+        // Formula: margin * (1 - (zoom - 1) * 3) -> Decreases 3x faster than zoom increases
+        let reductionFactor = Math.max(0, 1 - (zoom - 1) * 2.5);
+        let effectiveMargin = scrollMargin * reductionFactor;
+        
+        // Cap margin
         if (effectiveMargin > 45) effectiveMargin = 45;
         if (effectiveMargin < 0) effectiveMargin = 0;
 

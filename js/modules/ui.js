@@ -5,6 +5,8 @@ import { version } from '../../version.js';
  * UI Controller
  */
 export const UI = {
+    dragState: { isDragging: false, startY: 0, startX: 0, startScrollTop: 0, startScrollLeft: 0 },
+
     init() {
         const fileInput = document.getElementById('epub-file');
         if(fileInput) {
@@ -16,47 +18,98 @@ export const UI = {
         // --- GLOBAL CLICKS ---
         document.body.addEventListener('click', e => this.handleClick(e));
 
-        // --- PDF MOUSE INTERACTIONS (Canvas Mode) ---
+        // --- UNIFIED VIEWER CONTROLS (PDF & EPUB) ---
         const viewer = document.getElementById('viewer');
         if (viewer) {
-            // SMART ZOOM (Wheel)
+            
+            // 1. SCROLL & ZOOM & PAN (Wheel)
             viewer.addEventListener('wheel', (e) => {
-                if (Epubly.state.currentFormat === 'pdf') {
+                // CTRL + WHEEL = ZOOM
+                if (e.ctrlKey) {
                     e.preventDefault();
-                    // Get mouse position relative to content area
-                    const rect = document.getElementById('viewer').getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left;
-                    const mouseY = e.clientY - rect.top;
-                    
-                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                    Epubly.engine.updatePDFZoom(delta, mouseX, mouseY);
+                    if (Epubly.state.currentFormat === 'pdf') {
+                        // PDF Transform Zoom
+                        const rect = viewer.getBoundingClientRect();
+                        const mouseX = e.clientX - rect.left;
+                        const mouseY = e.clientY - rect.top;
+                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                        Epubly.engine.updatePDFZoom(delta, mouseX, mouseY);
+                    } else {
+                        // EPUB Font/CSS Zoom
+                        const s = Epubly.settings.get();
+                        let current = parseFloat(s.globalZoom);
+                        let next = e.deltaY > 0 ? current - 0.1 : current + 0.1;
+                        next = Math.min(Math.max(0.8, next), 2.5); // limits
+                        
+                        // Update settings and UI range
+                        Epubly.settings.handleUpdate('globalZoom', next.toFixed(1));
+                        const range = document.getElementById('global-zoom-range');
+                        if(range) range.value = next.toFixed(1);
+                    }
+                    return;
                 }
+
+                // ALT + WHEEL = HORIZONTAL SCROLL
+                if (e.altKey) {
+                    e.preventDefault();
+                    viewer.scrollLeft += e.deltaY;
+                    return;
+                }
+
+                // DEFAULT: Normal Scroll (handled natively unless PDF Canvas Logic needs override)
+                // For PDF Transform Mode, native scroll doesn't move content if it's transformed off-screen without container size changes.
+                // However, our PDF implementation uses CSS Transform. 
+                // Since we allow native scrolling in EPUB, let's leave it.
             }, { passive: false });
 
-            // DRAG PAN (Always active for PDF)
+            // 2. MOUSE DRAG (PANNING)
             viewer.addEventListener('mousedown', (e) => {
+                // Middle click or Left click allowed
+                if (e.button !== 0 && e.button !== 1) return;
+                
+                this.dragState.isDragging = true;
+                this.dragState.startX = e.clientX;
+                this.dragState.startY = e.clientY;
+                this.dragState.startScrollTop = viewer.scrollTop;
+                this.dragState.startScrollLeft = viewer.scrollLeft;
+                
+                // For PDF Transform Pan
                 if (Epubly.state.currentFormat === 'pdf') {
                     Epubly.engine.pdfState.panning = true;
                     Epubly.engine.pdfState.startX = e.clientX;
                     Epubly.engine.pdfState.startY = e.clientY;
-                    // Cursor is handled by CSS
                 }
+                
+                viewer.style.cursor = 'grabbing';
             });
 
             window.addEventListener('mousemove', (e) => {
-                if (Epubly.engine.pdfState.panning && Epubly.state.currentFormat === 'pdf') {
-                    const deltaX = e.clientX - Epubly.engine.pdfState.startX;
-                    const deltaY = e.clientY - Epubly.engine.pdfState.startY;
+                if (!this.dragState.isDragging) return;
+
+                const deltaX = e.clientX - this.dragState.startX;
+                const deltaY = e.clientY - this.dragState.startY;
+
+                if (Epubly.state.currentFormat === 'pdf') {
+                    // PDF: Update Transform
                     Epubly.engine.panPDF(deltaX, deltaY);
-                    Epubly.engine.pdfState.startX = e.clientX;
+                    // Reset start to current to avoid compounding
+                    this.dragState.startX = e.clientX;
+                    this.dragState.startY = e.clientY;
+                    Epubly.engine.pdfState.startX = e.clientX; 
                     Epubly.engine.pdfState.startY = e.clientY;
+                } else {
+                    // EPUB: Update Scroll
+                    viewer.scrollTop = this.dragState.startScrollTop - deltaY;
+                    viewer.scrollLeft = this.dragState.startScrollLeft - deltaX;
                 }
             });
 
             window.addEventListener('mouseup', () => {
-                if (Epubly.engine.pdfState.panning) {
-                    Epubly.engine.pdfState.panning = false;
+                this.dragState.isDragging = false;
+                if (Epubly.state.currentFormat === 'pdf') {
+                     Epubly.engine.pdfState.panning = false;
                 }
+                if(viewer) viewer.style.cursor = 'grab';
             });
         }
 
@@ -107,7 +160,6 @@ export const UI = {
         if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
         if (closest('#btn-theme-toggle')) this.toggleTheme();
         
-        // Fullscreen Toggle
         if (closest('#btn-fullscreen-toggle')) {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(e => {
@@ -193,13 +245,11 @@ export const UI = {
 
     handlePDFControl(action) {
         if (action === 'fit-width') {
-             // Reset transform
              Epubly.engine.pdfState.scale = 1;
              Epubly.engine.pdfState.pointX = 0;
              Epubly.engine.pdfState.pointY = 0;
              Epubly.engine.renderPDFView();
         } else if (action === 'fit-height') {
-             // Heuristic fit
              Epubly.engine.pdfState.scale = 0.6;
              Epubly.engine.pdfState.pointX = 0;
              Epubly.engine.pdfState.pointY = 0;

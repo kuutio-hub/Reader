@@ -87,10 +87,24 @@ export const Engine = {
         for (let pageNum = 1; pageNum <= Epubly.state.pdfDoc.numPages; pageNum++) {
             const container = document.createElement('div');
             container.className = 'pdf-page-container';
+            container.id = `pdf-page-${pageNum}`; // ID for scrolling
             container.dataset.pageNumber = pageNum;
             container.style.aspectRatio = `${aspectRatio}`;
             container.style.width = '100%'; 
             viewerContent.appendChild(container);
+        }
+
+        // Restore PDF Position
+        const savedLoc = Epubly.storage.getLocation(bookId);
+        if (savedLoc) {
+            const pageNum = parseInt(savedLoc.split('|')[0]);
+            if(pageNum > 1) {
+                // Wait for layout
+                requestAnimationFrame(() => {
+                    const el = document.getElementById(`pdf-page-${pageNum}`);
+                    if(el) el.scrollIntoView({ block: 'start' });
+                });
+            }
         }
 
         this.initPDFObserver();
@@ -106,11 +120,14 @@ export const Engine = {
                     const pageNum = parseInt(container.dataset.pageNumber);
                     if (!container.querySelector('canvas')) this.renderPDFPage(container, pageNum);
                     
+                    // SAVE POSITION: Just Page Number
+                    Epubly.storage.saveLocation(Epubly.state.currentBookId, pageNum, 0);
+
                     const progress = pageNum / Epubly.state.pdfDoc.numPages;
                     this.throttledStatsUpdate(pageNum, false, progress);
                 }
             });
-        }, { root: document.getElementById('viewer'), rootMargin: "50% 0px" });
+        }, { root: document.getElementById('viewer'), threshold: 0.5 }); // Require 50% visibility to count as "current page"
         document.querySelectorAll('.pdf-page-container').forEach(el => Epubly.state.observer.observe(el));
     },
 

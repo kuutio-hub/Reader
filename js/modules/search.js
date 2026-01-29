@@ -20,22 +20,40 @@ export const Search = {
             progress.textContent = `${Math.round((i/Epubly.state.spine.length)*100)}%`;
             const file = Epubly.state.zip.file(Epubly.state.spine[i].fullPath);
             if(file) {
-                const text = (await file.async("string")).replace(/<[^>]*>/g, ' '); 
+                const rawText = await file.async("string");
+                const text = rawText.replace(/<[^>]*>/g, ' '); 
+                
                 if(text.toLowerCase().includes(q)) {
                     count++;
-                    const snippet = text.substring(Math.max(0, text.toLowerCase().indexOf(q) - 40), text.toLowerCase().indexOf(q) + 40);
+                    const idx = text.toLowerCase().indexOf(q);
+                    const snippetShort = text.substring(Math.max(0, idx - 40), idx + 40);
+                    const snippetLong = text.substring(Math.max(0, idx - 150), idx + 150);
+                    
                     const item = document.createElement('div');
                     item.className = 'search-result-item';
                     item.innerHTML = `
                         <div style="font-weight:bold; font-size:0.8rem; color:var(--brand);">Fejezet ${i + 1}</div>
-                        <div style="font-size:0.9rem; color:var(--text-muted);">...${snippet.replace(new RegExp(query, 'gi'), m => `<span class="hl-yellow">${m}</span>`)}...</div>
+                        <div class="search-snippet" style="font-size:0.9rem; color:var(--text-muted); line-height:1.4;">
+                            ...${snippetShort.replace(new RegExp(query, 'gi'), m => `<span style="background:var(--brand-dim); color:var(--brand);">${m}</span>`)}...
+                        </div>
+                        <div class="search-actions">
+                            <button class="btn btn-small btn-primary action-jump">Ugrás</button>
+                        </div>
                     `;
-                    item.onclick = () => {
+                    
+                    // Simple hover effect is handled by CSS (showing actions)
+                    // Click handler for Jump
+                    item.querySelector('.action-jump').onclick = (e) => {
+                        e.stopPropagation();
                         Epubly.ui.hideModal('search-modal');
                         document.getElementById('viewer-content').innerHTML = '';
                         Epubly.state.renderedChapters.clear();
                         Epubly.engine.renderChapter(i, 'clear');
                     };
+                    
+                    // Click on body expands/shows context if needed, but for now simple Jump is fine
+                    item.onclick = item.querySelector('.action-jump').onclick;
+
                     resultsDiv.appendChild(item);
                     if(count > 50) break; 
                 }
