@@ -280,7 +280,7 @@
         <div id="library-grid"></div>
     </section>
 
-    <!-- Wiki Modal (Simplified for brevity, existing structure) -->
+    <!-- Wiki Modal -->
     <div id="wiki-modal" class="modal">
         <div class="modal-content apple-wiki">
              <div class="wiki-sidebar">
@@ -292,27 +292,95 @@
                 <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center;">Bezárás</button>
              </div>
             <div class="wiki-main-area">
+                
+                <!-- GUIDE -->
                 <div id="wiki-guide" class="wiki-page active">
-                    <h2>Mi az az Epubly?</h2>
-                    <p class="lead">Az Epubly egy privát, biztonságos és egyszerű e-könyv olvasó.</p>
-                    <!-- Content same as previous -->
+                    <h2>Üdvözöllek az Epubly-ban!</h2>
+                    <p class="lead">Ez a te személyes, privát digitális könyvtárad. Itt minden egyszerűen és biztonságosan működik, közvetlenül a böngésződben.</p>
+
+                    <div class="wiki-card">
+                        <div class="wiki-icon">📚</div>
+                        <div class="wiki-text">
+                            <h4>Hogyan tegyek be könyvet?</h4>
+                            <p>Kattints a "Könyvtár" nézetben a nagy <strong>+ Könyv Importálása</strong> kártyára. Ezután válaszd ki a gépedről az <code>.epub</code> vagy <code>.pdf</code> fájlt. Ha számítógépen vagy, egyszerűen csak húzd rá a fájlt az ablakra!</p>
+                        </div>
+                    </div>
+
+                    <div class="wiki-card">
+                        <div class="wiki-icon">📖</div>
+                        <div class="wiki-text">
+                            <h4>Hogyan olvassak?</h4>
+                            <p>A könyvtárban kattints a borítóra. Az Epubly megjegyzi, hol tartottál! Görgess lefelé a folytatáshoz – a következő fejezet automatikusan betöltődik ("Végtelen Görgetés"), akárcsak a közösségi médiában.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="wiki-card">
+                        <div class="wiki-icon">🔍</div>
+                        <div class="wiki-text">
+                            <h4>PDF Kezelés</h4>
+                            <p>A PDF-eknél egy speciális, "végtelen vászon" módot kapsz. Használd az egérgörgőt a <strong>Zoomoláshoz</strong> (oda közelít, ahova mutatsz), és fogd meg a lapot (bal klikk nyomva tart) a <strong>mozgatáshoz</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="wiki-card" style="border-color:var(--brand-dim);">
+                        <div class="wiki-icon">🔒</div>
+                        <div class="wiki-text">
+                            <h4>100% Privát</h4>
+                            <p>Amit ide feltöltesz, az <strong>SOHA</strong> nem hagyja el az eszközödet. Nincs felhő, nincs szerver, nincs megfigyelés. Ha törlöd a böngészési előzményeket, a könyvek is törlődnek (ezért érdemes biztonsági mentést tartanod az eredeti fájlokról).</p>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top:30px;">Gyakori Kérdések</h3>
+                    <details style="margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:10px;">
+                        <summary style="cursor:pointer; font-weight:600;">Miért tűntek el a könyveim?</summary>
+                        <p style="margin-top:10px; color:var(--text-muted); font-size:0.9rem;">Valószínűleg törölted a böngésző gyorsítótárát (cache/storage), vagy "Incognito" módban használtad az oldalt. Mivel nem tárolunk adatot szerveren, ez végleges.</p>
+                    </details>
+                     <details style="margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:10px;">
+                        <summary style="cursor:pointer; font-weight:600;">Hogyan állíthatom a betűméretet?</summary>
+                        <p style="margin-top:10px; color:var(--text-muted); font-size:0.9rem;">Olvasás közben kattints a jobb felső sarokban a fogaskerék ikonra. Itt találod a "Globális Nagyítás" csúszkát, a "További beállítások" alatt pedig mindent testreszabhatsz.</p>
+                    </details>
                 </div>
+
+                <!-- ABOUT -->
                 <div id="wiki-about" class="wiki-page">
                     <h2>Névjegy</h2>
-                    <p>Verzió: 0.14.16-beta</p>
-                     <button class="btn btn-danger" id="btn-delete-all" style="margin-top:10px;">Minden Adat Törlése</button>
+                    <p>Az Epubly egy nyílt forráskódú, reklámmentes hobbi projekt.</p>
+                    <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
+                        <li><strong>Verzió:</strong> 0.14.17-beta</li>
+                        <li><strong>Fejlesztés:</strong> Vanilla JS (keretrendszerek nélkül)</li>
+                    </ul>
+                    
+                    <div style="background:rgba(255, 69, 58, 0.1); padding:20px; border-radius:12px; border:1px solid var(--danger);">
+                        <h4 style="color:var(--danger); margin-top:0;">Veszélyzóna</h4>
+                        <p style="font-size:0.9rem; margin-bottom:15px;">Ha valami nagyon elromlott, itt alaphelyzetbe állíthatod az alkalmazást. Ez TÖRÖL minden könyvet!</p>
+                        <button class="btn btn-danger" id="btn-delete-all">Minden Adat Törlése</button>
+                    </div>
                 </div>
+
+                <!-- DONATE -->
                 <div id="wiki-donate" class="wiki-page">
                     <h2>Támogatás</h2>
-                    <!-- Content same as previous -->
+                    <p style="margin-bottom:20px;">Az Epubly használata teljesen ingyenes. Ha szeretnéd megköszönni a munkámat, azt egy jópofa módon teheted meg: a MOHU visszaváltó automatáknál.</p>
+                    
                     <div class="mohu-print-area">
+                        <h3 style="color:var(--brand);">MOHU REpont Kártya</h3>
+                        <p style="font-size:0.9rem; margin-bottom:15px;">Mentsd le telefonra, vagy nyomtasd ki ezt a kártyát. Az automatánál válaszd a "Kifizetés banki átutalással" opciót, és olvasd be a QR kódot.</p>
+                        
                         <div class="mohu-card">
                             <div class="mohu-card-bg-text">EPUBLY</div>
-                            <div class="mohu-card-logo"><span>Epubly</span></div>
+                            <div class="mohu-card-logo">
+                                 <svg width="20" height="20" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
+                                <span>Epubly</span>
+                            </div>
                             <div id="mohu-qr-container" class="mohu-qr"></div>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
+                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon</button>
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>

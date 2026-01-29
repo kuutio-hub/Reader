@@ -404,11 +404,35 @@ export const Engine = {
             if (explicitProgress !== null) {
                 progress = explicitProgress;
             } else if (Epubly.state.spine.length > 0) {
-                 // REAL PROGRESS: Simply index / total. 
-                 // No Math.max logic to allow progress to go backward.
                  progress = idx / Epubly.state.spine.length;
             }
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, 0, progress);
         }
+    },
+
+    async parseTOC(opfDoc) {
+        let tocPath = "";
+        const tocId = opfDoc.querySelector("spine")?.getAttribute("toc");
+        if(tocId && Epubly.state.manifest[tocId]) {
+            tocPath = Epubly.state.manifest[tocId].fullPath;
+        } else {
+            const key = Object.keys(Epubly.state.manifest).find(k => Epubly.state.manifest[k].href.includes("toc"));
+            if (key) tocPath = Epubly.state.manifest[key].fullPath;
+        }
+        if(!tocPath) { Epubly.toc.generate([]); return; }
+
+        try {
+            const tocXml = await Epubly.state.zip.file(tocPath).async("string");
+            const tocDoc = new DOMParser().parseFromString(tocXml, "application/xml");
+            const tocItems = Array.from(tocDoc.querySelectorAll("navPoint")).map(point => {
+                const label = point.querySelector("text")?.textContent;
+                const content = point.querySelector("content")?.getAttribute("src");
+                if (!label || !content) return null;
+                const fullHref = this.resolvePath(tocPath.substring(0, tocPath.lastIndexOf('/') + 1), content.split('#')[0]);
+                const spineIdx = Epubly.state.spine.findIndex(s => s.fullPath === fullHref);
+                return spineIdx !== -1 ? { label, index: spineIdx } : null;
+            }).filter(Boolean);
+            Epubly.toc.generate(tocItems);
+        } catch(e) { console.warn("TOC Error", e); Epubly.toc.generate([]); }
     }
 };
