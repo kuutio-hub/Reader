@@ -1,5 +1,12 @@
 # Változási napló
 
+## [0.15.4-beta] - 2024-07-31
+
+### Mobil UI & Fejléc (Strukturális Átalakítás)
+- **Adaptív Fejléc:** A fejléc teljesen át lett alakítva. Mobilon egy letisztult burger menü foglalja magában az összes funkciógombot, megszüntetve a korábbi elrendezési hibákat és a zsúfoltságot.
+- **Súgó (Mobil):** A navigációs gombok helyét egy natív, ujjbarát lenyíló menü vette át a tökéletes használhatóság érdekében.
+- **Könyv Előnézet (Mobil):** A "Könyv törlése" gomb egy helytakarékos menübe került. A fülszöveg tördelése javítva, garantáltan nem lóg ki a kijelzőről.
+
 ## [0.15.3-beta] - 2024-07-30
 
 ### Mobil UI & Stabilitás (Kritikus Javítások)
@@ -23,13 +30,3 @@
 ### UI Finomítások
 - **Mobil nézet:** A könyv részletező és a súgó modális ablakai teljes körű mobil optimalizációt kaptak, biztosítva a tökéletes megjelenést és használhatóságot kisebb képernyőkön is.
 - **Súgó:** A mobilos súgó navigációs sávjának görgetősávja elrejtve a letisztultabb dizájn érdekében.
-
-## [0.15.0-beta] - 2024-07-30
-
-### Újdonságok & Fejlesztések
-- **Mobil UI Optimalizálás:** Az alkalmazás teljes felülete reszponzív lett, kifejezetten mobil eszközökre (pl. iPhone 12 Pro) optimalizálva. A könyvtár, a menük és az olvasó nézet is kompaktabb, jobban használható kisebb képernyőn.
-- **Olvasó nézet:** Mobilon az EPUB könyvek kisebb margóval, a képernyőt jobban kihasználva jelennek meg.
-- **Támogatás Szekció:** A felület átalakult, a REpont opció került előre. A QR kódok egységes, letisztult dizájnt kaptak.
-
-### Változások
-- A "Könyv importálása a számítógépedről" szöveg általánosabb, "eszközödről" megfogalmazásra cserélve.
