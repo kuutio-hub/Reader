@@ -31,7 +31,6 @@ export const Engine = {
         
         // Reset PDF State (Centered by default)
         const viewer = document.getElementById('viewer');
-        // Initial center approximation will be handled in render
         this.pdfState = { scale: 1, panning: false, startX: 0, startY: 0, pointX: 0, pointY: 0 };
 
         Epubly.ui.showFloatingBackButton(false);
@@ -95,7 +94,7 @@ export const Engine = {
         }
 
         this.initPDFObserver();
-        this.renderPDFView(); // Apply initial transform
+        this.renderPDFView(); 
     },
 
     initPDFObserver() {
@@ -132,26 +131,16 @@ export const Engine = {
         } catch(e) { console.warn(`Error rendering page ${pageNum}`, e); }
     },
 
-    // --- PDF TRANSFORM (ZOOM TO POINT) ---
     updatePDFZoom(delta, mouseX, mouseY) {
         const oldScale = this.pdfState.scale;
         let newScale = oldScale + delta;
-        newScale = Math.min(Math.max(0.5, newScale), 8); // Limits
+        newScale = Math.min(Math.max(0.5, newScale), 8); 
 
-        // Mouse position relative to the content container (considering current transform)
-        // pointX/Y is the current Translation
-        // We want the point under the mouse to remain under the mouse.
-        // Formula: Translate = Mouse - (Mouse - OldTranslate) * (NewScale / OldScale)
-        
         if (mouseX !== undefined && mouseY !== undefined) {
              const originX = mouseX - this.pdfState.pointX;
              const originY = mouseY - this.pdfState.pointY;
-             
              this.pdfState.pointX = mouseX - (originX * (newScale / oldScale));
              this.pdfState.pointY = mouseY - (originY * (newScale / oldScale));
-        } else {
-             // Center zoom if no mouse pos
-             // Simplified center zoom not strictly requested but good fallback
         }
         
         this.pdfState.scale = newScale;
@@ -213,18 +202,16 @@ export const Engine = {
         
         Epubly.ui.updateHeaderInfo(title, author, "");
 
-        // --- RELIABLE RESTORE LOGIC ---
         let startIdx = 0;
         let startOffset = 0;
         const savedLoc = Epubly.storage.getLocation(bookId);
         
         if(savedLoc) {
-            const parts = savedLoc.split('|'); // Using pipe separator now
+            const parts = savedLoc.split('|');
             if (parts.length === 2) {
                 startIdx = parseInt(parts[0]);
                 startOffset = parseInt(parts[1]);
             } else {
-                 // Fallback to old format
                  const oldParts = savedLoc.split(',');
                  startIdx = parseInt(oldParts[0]) || 0;
             }
@@ -233,16 +220,12 @@ export const Engine = {
         document.getElementById('viewer-content').innerHTML = '';
         Epubly.ui.showReaderView();
         
-        // Hide viewer briefly to avoid visual jump
         const viewer = document.getElementById('viewer');
         viewer.style.opacity = '0';
 
         await this.renderChapter(startIdx, 'clear');
         
-        // Wait for render layout
         requestAnimationFrame(() => {
-             // Scroll to specific offset within that chapter
-             // Note: In single chapter view, offset is just scrollTop
              if(startOffset > 0) {
                  viewer.scrollTop = startOffset;
              }
@@ -301,11 +284,16 @@ export const Engine = {
         chapterContainer.innerHTML = doc.body ? doc.body.innerHTML : "Hiba a fejezet megjelenítésekor.";
         chapterContainer.addEventListener('click', (e) => Epubly.navigation.handleLinkClick(e));
 
-        const viewer = document.getElementById('viewer-content');
-        if (method === 'clear') viewer.innerHTML = '';
+        const viewerContent = document.getElementById('viewer-content');
         
-        if (method === 'prepend') viewer.insertBefore(chapterContainer, viewer.firstChild);
-        else viewer.appendChild(chapterContainer);
+        if (method === 'clear') {
+            viewerContent.innerHTML = '';
+            viewerContent.appendChild(chapterContainer);
+        } else if (method === 'prepend') {
+            viewerContent.insertBefore(chapterContainer, viewerContent.firstChild);
+        } else {
+            viewerContent.appendChild(chapterContainer);
+        }
 
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
@@ -319,12 +307,10 @@ export const Engine = {
                 if (entry.isIntersecting) {
                     const idx = parseInt(entry.target.dataset.index);
                     if (Epubly.state.currentFormat === 'epub') {
-                        // Just update UI info, don't save here. Save happens on scroll.
                         const hTag = entry.target.querySelector('h1, h2, h3');
                         const chapterName = (hTag && hTag.innerText.length < 50) ? hTag.innerText : `Fejezet ${idx + 1}`;
                         Epubly.ui.updateHeaderInfo(Epubly.state.metadata.title, Epubly.state.metadata.author, chapterName);
                         Epubly.toc.highlight(idx);
-                        
                         this.throttledStatsUpdate(idx);
                     }
                 }
@@ -335,36 +321,56 @@ export const Engine = {
     },
 
     handleNavigation() {
-        // PDF navigation is handled by Drag/Zoom logic mostly, but scroll triggers saving
-        if (Epubly.state.currentFormat === 'pdf') {
-             // PDF Save is irrelevant in transform mode, but we can save last page visited via observer
-             return;
-        }
+        if (Epubly.state.currentFormat === 'pdf') return;
 
         const viewer = document.getElementById('viewer');
-        if (Epubly.state.renderedChapters.size === 0 && Epubly.state.currentFormat === 'epub') return;
+        const viewerContent = document.getElementById('viewer-content');
+        if (Epubly.state.renderedChapters.size === 0) return;
 
-        // Infinite Scroll Logic
+        // INFINITE SCROLL DOWN (APPEND)
         if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
            const lastIdx = Math.max(...Epubly.state.renderedChapters);
            if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
                Epubly.state.isLoadingNext = true;
                document.getElementById('scroll-loader').style.display = 'block';
-               
                this.renderChapter(lastIdx + 1, 'append').then(async () => {
                     document.getElementById('scroll-loader').style.display = 'none';
                     this.initObservers();
-                    await this.ensureContentFillsScreen(lastIdx + 1);
                     Epubly.state.isLoadingNext = false;
                });
            }
         }
+
+        // INFINITE SCROLL UP (PREPEND)
+        // Check if we are near the top and have chapters before us
+        if (viewer.scrollTop < 100 && !Epubly.state.isLoadingPrev) {
+            const firstIdx = Math.min(...Epubly.state.renderedChapters);
+            if (isFinite(firstIdx) && firstIdx > 0) {
+                Epubly.state.isLoadingPrev = true;
+                document.getElementById('top-loader').style.display = 'block';
+                
+                // Capture old scroll height to adjust position after prepend
+                const oldHeight = viewerContent.scrollHeight;
+                const oldTop = viewer.scrollTop;
+
+                this.renderChapter(firstIdx - 1, 'prepend').then(() => {
+                    // Adjust scroll so user stays at the same visual position
+                    const newHeight = viewerContent.scrollHeight;
+                    const diff = newHeight - oldHeight;
+                    viewer.scrollTop = oldTop + diff;
+
+                    document.getElementById('top-loader').style.display = 'none';
+                    this.initObservers();
+                    Epubly.state.isLoadingPrev = false;
+                });
+            }
+        }
+
         this.saveCurrentPosition();
     },
 
     saveCurrentPosition(force = false) {
         if (Epubly.state.currentFormat === 'epub') {
-            // New Robust Saving: Find the top-most visible chapter
             const viewer = document.getElementById('viewer');
             const chapters = document.querySelectorAll('.chapter-container');
             let topChapter = null;
@@ -372,7 +378,7 @@ export const Engine = {
             for (const ch of chapters) {
                 const rect = ch.getBoundingClientRect();
                 // If top of chapter is within viewport or slightly above
-                if (rect.bottom > 60) { // 60px is header
+                if (rect.bottom > 60) {
                     topChapter = ch;
                     break;
                 }
@@ -380,19 +386,14 @@ export const Engine = {
 
             if(topChapter) {
                  const idx = parseInt(topChapter.dataset.index);
-                 // Calculate offset relative to THIS chapter
-                 // rect.top is position relative to viewport. 
-                 // We want how many pixels "deep" we are into this chapter.
                  const headerHeight = 54;
                  const offset = Math.abs(Math.min(0, topChapter.getBoundingClientRect().top - headerHeight));
                  
-                 // Format: ChapterIndex | PixelOffset
                  const locString = `${idx}|${Math.round(offset)}`;
                  localStorage.setItem(`epubly-loc-${Epubly.state.currentBookId}`, locString);
                  this.throttledStatsUpdate(idx, force);
             }
         } 
-        // PDF position saving is handled via Page Observer (page number) in initPDFObserver
     },
 
     throttledStatsUpdate(idx, force = false, explicitProgress = null) {
@@ -403,35 +404,11 @@ export const Engine = {
             if (explicitProgress !== null) {
                 progress = explicitProgress;
             } else if (Epubly.state.spine.length > 0) {
+                 // REAL PROGRESS: Simply index / total. 
+                 // No Math.max logic to allow progress to go backward.
                  progress = idx / Epubly.state.spine.length;
             }
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, 0, progress);
         }
-    },
-
-    async parseTOC(opfDoc) {
-        let tocPath = "";
-        const tocId = opfDoc.querySelector("spine")?.getAttribute("toc");
-        if(tocId && Epubly.state.manifest[tocId]) {
-            tocPath = Epubly.state.manifest[tocId].fullPath;
-        } else {
-            const key = Object.keys(Epubly.state.manifest).find(k => Epubly.state.manifest[k].href.includes("toc"));
-            if (key) tocPath = Epubly.state.manifest[key].fullPath;
-        }
-        if(!tocPath) { Epubly.toc.generate([]); return; }
-
-        try {
-            const tocXml = await Epubly.state.zip.file(tocPath).async("string");
-            const tocDoc = new DOMParser().parseFromString(tocXml, "application/xml");
-            const tocItems = Array.from(tocDoc.querySelectorAll("navPoint")).map(point => {
-                const label = point.querySelector("text")?.textContent;
-                const content = point.querySelector("content")?.getAttribute("src");
-                if (!label || !content) return null;
-                const fullHref = this.resolvePath(tocPath.substring(0, tocPath.lastIndexOf('/') + 1), content.split('#')[0]);
-                const spineIdx = Epubly.state.spine.findIndex(s => s.fullPath === fullHref);
-                return spineIdx !== -1 ? { label, index: spineIdx } : null;
-            }).filter(Boolean);
-            Epubly.toc.generate(tocItems);
-        } catch(e) { console.warn("TOC Error", e); Epubly.toc.generate([]); }
     }
 };

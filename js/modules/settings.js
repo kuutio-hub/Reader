@@ -16,7 +16,6 @@ export const Settings = {
         bind('font-size-range', 'input', 'fontSize');
         bind('line-height-range', 'input', 'lineHeight');
         bind('margin-scroll-range', 'input', 'marginScroll');
-        // bind('margin-vertical-range', 'input', 'marginVertical'); // Removed
         bind('global-zoom-range', 'input', 'globalZoom');
         bind('font-weight-range', 'input', 'fontWeight');
         bind('letter-spacing-range', 'input', 'letterSpacing');
@@ -41,6 +40,17 @@ export const Settings = {
                 this.handleUpdate('terminalColor', color);
             });
         });
+        
+        // Advanced Settings Toggle
+        const toggleBtn = document.getElementById('toggle-advanced-settings');
+        const advSection = document.getElementById('advanced-settings');
+        if (toggleBtn && advSection) {
+            toggleBtn.addEventListener('click', () => {
+                const isHidden = advSection.style.display === 'none';
+                advSection.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.querySelector('svg').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
+        }
     },
 
     get() {
@@ -48,8 +58,8 @@ export const Settings = {
             globalZoom: '1.0',
             fontSize: '100', lineHeight: '1.6', 
             marginScroll: '28', 
-            // marginVertical: '60', // Removed default
-            textAlign: 'left', fontFamily: "'Inter', sans-serif",
+            textAlign: 'justify', // Default Justify
+            fontFamily: "'Inter', sans-serif",
             fontWeight: '400', letterSpacing: '0', fontColor: 'var(--text)',
             theme: 'dark', terminalColor: '#00FF41'
         };
@@ -69,7 +79,6 @@ export const Settings = {
         setVal('font-size-range', s.fontSize);
         setVal('line-height-range', s.lineHeight);
         setVal('margin-scroll-range', s.marginScroll);
-        // setVal('margin-vertical-range', s.marginVertical); // Removed
         setVal('font-weight-range', s.fontWeight);
         setVal('letter-spacing-range', s.letterSpacing);
         setVal('font-color-picker', s.fontColor);

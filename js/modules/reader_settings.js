@@ -22,12 +22,18 @@ export const Reader = {
 
         const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // PDF ignores margin sliders (uses Transform Zoom)
-        // EPUB uses margin sliders
+        // INVERTED MARGIN LOGIC
+        // Base margin is from slider (e.g., 28%).
+        // If Zoom > 1 (Getting closer), margin should shrink.
+        // If Zoom < 1 (Moving away), margin should grow.
+        // Formula: baseMargin / zoom
         
-        let scrollMargin = parseFloat(settings.marginScroll) || 10;
-        let effectiveMargin = scrollMargin * zoom; 
-        if (effectiveMargin > 40) effectiveMargin = 40;
+        let scrollMargin = parseFloat(settings.marginScroll) || 28;
+        let effectiveMargin = scrollMargin / zoom; 
+        
+        // Cap margin to prevent text disappearing
+        if (effectiveMargin > 45) effectiveMargin = 45;
+        if (effectiveMargin < 0) effectiveMargin = 0;
 
         const paddingLeft = `${effectiveMargin}%`;
         const paddingRight = `${effectiveMargin}%`;
