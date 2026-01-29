@@ -67,31 +67,28 @@ export const Engine = {
 
         const viewerContent = document.getElementById('viewer-content');
         
+        // --- OPTIMIZATION: VIRTUALIZATION ---
+        // Instead of rendering all pages, we fetch page 1 size, create placeholders, and render on demand.
+        
+        const page1 = await Epubly.state.pdfDoc.getPage(1);
+        const viewport = page1.getViewport({ scale: 1.5 }); // Base scale
+        const aspectRatio = viewport.width / viewport.height;
+        
+        // Create Placeholders
         for (let pageNum = 1; pageNum <= Epubly.state.pdfDoc.numPages; pageNum++) {
-            const page = await Epubly.state.pdfDoc.getPage(pageNum);
+            const container = document.createElement('div');
+            container.className = 'pdf-page-container';
+            container.dataset.pageNumber = pageNum;
+            // Set aspect ratio using padding-bottom technique or explicit height if width is known.
+            // Simplified: use a min-height and let JS observer handle render
+            container.style.aspectRatio = `${aspectRatio}`;
+            container.style.width = '100%'; 
             
-            const canvas = document.createElement('canvas');
-            canvas.className = 'pdf-page';
-            canvas.dataset.pageNumber = pageNum;
-            
-            const scale = 2.0; 
-            const viewport = page.getViewport({ scale: scale });
-
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            canvas.style.width = '100%';
-            canvas.style.height = 'auto';
-
-            canvas.onclick = (e) => { e.target.classList.toggle('zoomed'); };
-
-            const renderContext = {
-                canvasContext: canvas.getContext('2d'),
-                viewport: viewport
-            };
-            
-            await page.render(renderContext).promise;
-            viewerContent.appendChild(canvas);
+            viewerContent.appendChild(container);
         }
+
+        // Init IntersectionObserver for Lazy Loading
+        this.initPDFObserver();
 
         const savedLoc = Epubly.storage.getLocation(bookId);
         if(savedLoc) {
@@ -100,6 +97,59 @@ export const Engine = {
             requestAnimationFrame(() => {
                 document.getElementById('viewer').scrollTop = savedPos;
             });
+        }
+    },
+
+    initPDFObserver() {
+        if (Epubly.state.observer) Epubly.state.observer.disconnect();
+
+        Epubly.state.observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const container = entry.target;
+                    const pageNum = parseInt(container.dataset.pageNumber);
+                    
+                    // Render if not already rendered
+                    if (!container.querySelector('canvas')) {
+                        this.renderPDFPage(container, pageNum);
+                    }
+                    
+                    // Update stats (current page / total)
+                    const progress = pageNum / Epubly.state.pdfDoc.numPages;
+                    this.throttledStatsUpdate(pageNum, false, progress);
+                    
+                    // Save location
+                    const viewer = document.getElementById('viewer');
+                    Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+                }
+            });
+        }, { root: document.getElementById('viewer'), rootMargin: "50% 0px" }); // Preload a bit
+
+        document.querySelectorAll('.pdf-page-container').forEach(el => Epubly.state.observer.observe(el));
+    },
+
+    async renderPDFPage(container, pageNum) {
+        if(!Epubly.state.pdfDoc) return;
+        try {
+            const page = await Epubly.state.pdfDoc.getPage(pageNum);
+            const scale = 2.0; // High quality for zooming
+            const viewport = page.getViewport({ scale: scale });
+
+            const canvas = document.createElement('canvas');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            const renderContext = {
+                canvasContext: canvas.getContext('2d'),
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+            container.innerHTML = ''; // Clear loading/placeholder logic if any
+            container.appendChild(canvas);
+            
+        } catch(e) {
+            console.warn(`Error rendering page ${pageNum}`, e);
         }
     },
 
@@ -226,11 +276,8 @@ export const Engine = {
         const viewer = document.getElementById('viewer-content');
         if (method === 'clear') viewer.innerHTML = '';
         
-        if (method === 'prepend') {
-            viewer.insertBefore(chapterContainer, viewer.firstChild);
-        } else {
-            viewer.appendChild(chapterContainer);
-        }
+        if (method === 'prepend') viewer.insertBefore(chapterContainer, viewer.firstChild);
+        else viewer.appendChild(chapterContainer);
 
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
@@ -264,10 +311,11 @@ export const Engine = {
 
     handleNavigation() {
         const viewer = document.getElementById('viewer');
-        if (Epubly.state.renderedChapters.size === 0) return;
+        
+        if (Epubly.state.renderedChapters.size === 0 && Epubly.state.currentFormat === 'epub') return;
 
         if (Epubly.state.currentFormat === 'epub') {
-           // 1. SCROLL DOWN (Load Next)
+           // Infinite Scroll Logic
            if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
                const lastIdx = Math.max(...Epubly.state.renderedChapters);
                if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
@@ -282,32 +330,7 @@ export const Engine = {
                    });
                }
            }
-
-           // 2. SCROLL UP (Load Previous)
-           // If we are close to the top and haven't loaded the first chapter yet
-           if (viewer.scrollTop < 100 && !Epubly.state.isLoadingPrev) {
-               const firstIdx = Math.min(...Epubly.state.renderedChapters);
-               if (isFinite(firstIdx) && firstIdx > 0) {
-                   Epubly.state.isLoadingPrev = true;
-                   const loader = document.getElementById('top-loader');
-                   if(loader) loader.style.display = 'block';
-                   
-                   const oldScrollHeight = viewer.scrollHeight;
-                   
-                   this.renderChapter(firstIdx - 1, 'prepend').then(() => {
-                        // Adjust scroll position to maintain visual continuity
-                        const newScrollHeight = viewer.scrollHeight;
-                        const addedHeight = newScrollHeight - oldScrollHeight;
-                        viewer.scrollTop += addedHeight;
-                        
-                        if(loader) loader.style.display = 'none';
-                        this.initObservers();
-                        Epubly.state.isLoadingPrev = false;
-                   });
-               }
-           }
         }
-        
         this.saveCurrentPosition();
     },
 
@@ -321,17 +344,22 @@ export const Engine = {
                  this.throttledStatsUpdate(idx, force);
             }
         } else {
-             // PDF
+             // PDF Scroll Position
              Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
         }
     },
 
-    throttledStatsUpdate(idx, force = false) {
+    throttledStatsUpdate(idx, force = false, explicitProgress = null) {
         const now = Date.now();
-        // Save to DB at most once every 2 seconds to update Progress %, OR if forced (touch end)
-        if (force || (now - this.lastStatsSave > 2000)) {
+        // Save to DB at most once every 3 seconds to update Progress %, OR if forced (touch end)
+        if (force || (now - this.lastStatsSave > 3000)) {
             this.lastStatsSave = now;
-            const progress = Epubly.state.spine.length > 0 ? (idx / Epubly.state.spine.length) : 0;
+            let progress = 0;
+            if (explicitProgress !== null) {
+                progress = explicitProgress;
+            } else if (Epubly.state.spine.length > 0) {
+                 progress = idx / Epubly.state.spine.length;
+            }
             Epubly.storage.updateBookStats(Epubly.state.currentBookId, 0, progress);
         }
     },

@@ -75,6 +75,7 @@ export const Library = {
             card.className = 'book-card';
             card.onclick = () => Epubly.ui.showBookInfoModal(book);
             
+            // Fix: coverUrl is now a base64 string from DB, so it works offline/reload
             const coverSrc = book.metadata.coverUrl || this.generateCover(book.metadata.title, book.metadata.creator);
             
             card.innerHTML = `

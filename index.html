@@ -122,8 +122,6 @@
             <!-- PDF Floating Controls -->
             <div id="pdf-controls" style="display:none;">
                 <button class="pdf-btn" data-action="fit-width" title="Szélességhez igazítás">↔</button>
-                <button class="pdf-btn" data-action="fit-height" title="Magassághoz igazítás">↕</button>
-                <div class="pdf-sep"></div>
                 <button class="pdf-btn" data-action="zoom-out" title="Kicsinyítés">-</button>
                 <button class="pdf-btn" data-action="zoom-in" title="Nagyítás">+</button>
             </div>
@@ -258,11 +256,6 @@
                         <label>Oldalsó Margó</label>
                         <input type="range" id="margin-scroll-range" min="0" max="40" step="1">
                     </div>
-
-                    <div class="setting-item" id="margin-vertical-control">
-                        <label>Függőleges Margó</label>
-                        <input type="range" id="margin-vertical-range" min="0" max="150" step="10">
-                    </div>
                 </div>
             </div>
         </aside>
@@ -332,12 +325,6 @@
                             <p>Az alkalmazás automatikusan alkalmazkodik az álló és fekvő nézethez. Teljes képernyőhöz használd a felső menüben található gombot.</p>
                         </div>
                     </div>
-                    
-                    <h3 style="margin-top:30px;">Hibaelhárítás</h3>
-                    <p>Ha az alkalmazás furcsán viselkedik, a "Minden Adat Törlése" gomb alaphelyzetbe állítja.</p>
-                     <button class="btn btn-danger" id="btn-delete-all" style="margin-top:10px;">
-                        Minden Adat Végleges Törlése
-                    </button>
                 </div>
 
                 <!-- ABOUT -->
@@ -349,11 +336,17 @@
                         <h4>Technikai részletek</h4>
                         <p style="font-size:0.9rem; color:var(--text-muted);">Mivel nincs központi szerver ("felhő"), ha törlöd a böngészési adataidat, a könyvek is törlődnek. Erre figyelj!</p>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.10-beta</li>
+                            <li>Verzió: 0.14.13-beta</li>
                             <li>Motor: Vanilla JS + JSZip + PDF.js</li>
                             <li>Tárhely: Helyi IndexedDB</li>
                         </ul>
                     </div>
+
+                    <h3 style="margin-top:30px;">Hibaelhárítás</h3>
+                    <p>Ha az alkalmazás furcsán viselkedik, a "Minden Adat Törlése" gomb alaphelyzetbe állítja.</p>
+                     <button class="btn btn-danger" id="btn-delete-all" style="margin-top:10px;">
+                        Minden Adat Végleges Törlése
+                    </button>
                 </div>
 
                 <!-- DONATE -->

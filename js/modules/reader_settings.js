@@ -17,19 +17,27 @@ export const Reader = {
         const viewer = document.getElementById('viewer-content');
         if(!viewer) return;
         
-        const zoom = settings.globalZoom || 1.0;
+        const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // Scroll mode only now
-        let scrollMargin = settings.marginScroll || 10;
+        // Scale margin with zoom
+        let scrollMargin = parseFloat(settings.marginScroll) || 10;
         
-        // MOBILE OVERRIDE: Force small margins if screen width < 600px
-        if (window.innerWidth < 600) {
-            scrollMargin = 3; // Max 3% margin on mobile
-        }
+        // Ensure margin doesn't become negative or too small if zoomed way out, 
+        // but respect user setting primarily.
+        // We multiply by zoom to give "More space" when zoomed in, or maintain ratio.
+        // Actually, for margins, users usually want them fixed %, but let's scale it slightly
+        // or just apply as is. User asked: "globális zoomnál a margót is állítsuk"
+        // Interpreted as: Zoom affects margin size.
+        let effectiveMargin = scrollMargin * zoom; 
 
-        const paddingLeft = `${scrollMargin}%`;
-        const paddingRight = `${scrollMargin}%`;
-        const verticalMargin = settings.marginVertical || 60;
+        // Cap margin at 40% to prevent unreadable text
+        if (effectiveMargin > 40) effectiveMargin = 40;
+
+        const paddingLeft = `${effectiveMargin}%`;
+        const paddingRight = `${effectiveMargin}%`;
+        
+        // Vertical margin removed/minimized
+        const verticalMargin = 20; 
 
         Object.assign(viewer.style, {
             fontFamily: settings.fontFamily,
@@ -53,12 +61,17 @@ export const Reader = {
         document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
         document.body.classList.add('view-mode-scroll');
         
+        // Update PDF Zoom if PDF is active
+        if (Epubly.state.currentFormat === 'pdf') {
+             // Logic in Engine will read settings if needed, but PDF mostly uses own controls
+        }
+        
         const scrollControl = document.getElementById('margin-scroll-control');
         const pagedControl = document.getElementById('margin-paged-control');
         const verticalControl = document.getElementById('margin-vertical-control');
 
         if (scrollControl) scrollControl.style.display = 'block';
         if (pagedControl) pagedControl.style.display = 'none';
-        if (verticalControl) verticalControl.style.display = 'block';
+        if (verticalControl) verticalControl.style.display = 'none';
     }
 };

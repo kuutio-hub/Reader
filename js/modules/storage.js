@@ -63,6 +63,16 @@ export const Storage = {
         return this.transaction('books', 'readwrite', (s, res, rej) => { s.clear().onsuccess = res; });
     },
 
+    // Helper to convert Blob to Base64 String for persistence
+    blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    },
+
     async handleFileUpload(file) {
         // Needs access to UI and Library which are globals in Epubly namespace
         Epubly.ui.showLoader();
@@ -76,7 +86,7 @@ export const Storage = {
 
             const arrayBuffer = await file.arrayBuffer();
             let metadata = { title: file.name, creator: "Ismeretlen" };
-            let coverUrl = null;
+            let coverData = null; // Changed from coverUrl to coverData (Base64)
             let format = 'epub';
 
             if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
@@ -96,7 +106,7 @@ export const Storage = {
                         canvas.height = viewport.height;
                         const ctx = canvas.getContext('2d');
                         await page.render({ canvasContext: ctx, viewport }).promise;
-                        coverUrl = canvas.toDataURL();
+                        coverData = canvas.toDataURL(); // Canvas gives DataURL directly
                         try {
                             const meta = await pdf.getMetadata();
                             if (meta.info.Title) metadata.title = meta.info.Title;
@@ -115,12 +125,12 @@ export const Storage = {
                     
                     const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
                     if (coverItem) {
-                        const href = Epubly.engine.resolvePath(opfPath, coverItem.getAttribute("href")); // Epubly.engine acts as proxy to utils if needed, or use Utils direct
-                        // Note: Circular dep risk if we use Epubly.engine.resolvePath. 
-                        // Better to use local resolve logic or import Utils. 
-                        // Since this is inside a method called at runtime, Epubly.engine will exist.
+                        const href = Epubly.engine.resolvePath(opfPath, coverItem.getAttribute("href")); 
                         const coverFile = zip.file(href);
-                        if(coverFile) coverUrl = URL.createObjectURL(await coverFile.async("blob"));
+                        if(coverFile) {
+                            const blob = await coverFile.async("blob");
+                            coverData = await this.blobToBase64(blob); // Save as Base64
+                        }
                     }
                 }
             }
@@ -130,7 +140,7 @@ export const Storage = {
                 id: bookId, 
                 data: arrayBuffer, 
                 format: format,
-                metadata: {...metadata, coverUrl},
+                metadata: {...metadata, coverUrl: coverData}, // Save base64 here
                 stats: { totalTime: 0, progress: 0, lastRead: Date.now() }
             });
             await Epubly.library.render();
