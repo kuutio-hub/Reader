@@ -93,8 +93,11 @@
                 </div>
                 
                 <button class="icon-btn" id="btn-fullscreen-toggle" title="Teljes Képernyő">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg id="fullscreen-enter-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                    </svg>
+                    <svg id="fullscreen-exit-icon" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 0-2-2h-3m-12 0H5a2 2 0 0 0-2 2v3"></path>
                     </svg>
                 </button>
 
@@ -365,7 +368,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.15.5-beta</li>
+                        <li><strong>Verzió:</strong> 0.15.6-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -453,14 +456,7 @@
                         <button class="btn btn-secondary modal-close" style="width:100%;">Bezárás</button>
                     </div>
                     <div class="detail-actions-extra">
-                         <div class="kebab-menu">
-                            <button id="kebab-menu-btn" class="icon-btn">
-                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-                            </button>
-                            <div id="kebab-menu-dropdown" class="kebab-dropdown">
-                                <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">Könyv törlése</button>
-                            </div>
-                        </div>
+                         <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">KÖNYV TÖRLÉSE</button>
                     </div>
                 </div>
                 <div class="detail-right-col">

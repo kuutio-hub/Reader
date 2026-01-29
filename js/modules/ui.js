@@ -46,6 +46,9 @@ export const UI = {
         window.addEventListener('beforeunload', () => {
              if (Epubly.reader && Epubly.reader.updateSessionStats) Epubly.reader.updateSessionStats(true);
         });
+        
+        // Listen for fullscreen changes to update icon
+        document.addEventListener('fullscreenchange', () => this.updateFullscreenIcons());
 
         this.setupViewerControls();
 
@@ -88,6 +91,7 @@ export const UI = {
              // Ensure panel is closed on resize to desktop
             document.getElementById('burger-menu-panel')?.classList.remove('visible');
         }
+        this.updateFullscreenIcons();
     },
     
     toggleBurgerMenu() {
@@ -102,7 +106,12 @@ export const UI = {
         const target = e.target;
         const closest = (selector) => target.closest(selector);
 
-        // New Burger Menu Handler
+        // Burger Menu auto-close logic
+        const panel = document.getElementById('burger-menu-panel');
+        if (panel && panel.classList.contains('visible') && !closest('#burger-menu-panel') && !closest('#burger-btn')) {
+            this.toggleBurgerMenu();
+        }
+
         if (closest('#burger-btn')) this.toggleBurgerMenu();
         
         if (closest('.pdf-btn')) this.handlePDFControl(closest('.pdf-btn').dataset.action);
@@ -111,8 +120,11 @@ export const UI = {
         
         if (closest('.close-sidebar')) this.toggleSidebar(closest('.close-sidebar').dataset.target);
         if (closest('.sidebar-tab')) this.handleTabClick(target);
-        if (closest('#btn-help')) this.showModal('wiki-modal'); // Changed from generic click to ID
+        if (closest('#btn-help')) this.showModal('wiki-modal');
         if (closest('.wiki-nav-btn')) this.handleWikiNav(closest('.wiki-nav-btn'));
+        
+        const wikiSelect = document.getElementById('wiki-nav-select');
+        if (target === wikiSelect) this.handleWikiNav(target);
 
         if (closest('#app-logo-btn')) { 
             if(Epubly.reader.updateSessionStats) Epubly.reader.updateSessionStats(true);
@@ -134,18 +146,44 @@ export const UI = {
         if (closest('#floating-back-btn')) Epubly.navigation.popState();
     },
 
-    handleWikiNav(btn) {
-        const targetId = btn.dataset.target;
-        document.querySelectorAll('.wiki-nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    handleWikiNav(target) {
+        const isSelect = target.tagName === 'SELECT';
+        const targetId = isSelect ? target.value : target.dataset.target;
+
+        if (isSelect) {
+            // No visual active state for select options, just switch content
+        } else {
+            document.querySelectorAll('.wiki-nav-btn').forEach(b => b.classList.remove('active'));
+            target.classList.add('active');
+        }
+        
         document.querySelectorAll('.wiki-page').forEach(p => p.classList.remove('active'));
         document.getElementById(targetId).classList.add('active');
+    },
+    
+    updateFullscreenIcons() {
+        const isFullscreen = !!document.fullscreenElement;
+        
+        const updateIconsInContainer = (container) => {
+            const enterIcon = container.querySelector('#fullscreen-enter-icon');
+            const exitIcon = container.querySelector('#fullscreen-exit-icon');
+            if (enterIcon && exitIcon) {
+                enterIcon.style.display = isFullscreen ? 'none' : 'block';
+                exitIcon.style.display = isFullscreen ? 'block' : 'none';
+            }
+        };
+
+        const desktopContainer = document.getElementById('desktop-controls');
+        const mobileContainer = document.getElementById('mobile-controls-container');
+        
+        if(desktopContainer) updateIconsInContainer(desktopContainer);
+        if(mobileContainer) updateIconsInContainer(mobileContainer);
     },
 
     toggleFullscreen() {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(e => {
-                console.warn("Fullscreen error", e);
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Hiba a teljes képernyős mód aktiválásakor: ${err.message}`);
             });
         } else if (document.exitFullscreen) {
             document.exitFullscreen();
@@ -234,6 +272,7 @@ export const UI = {
     },
     
     showReaderView() {
+        document.body.classList.add('in-reader-mode');
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.getElementById('reader-view')?.classList.add('active');
         
@@ -249,6 +288,7 @@ export const UI = {
     },
 
     showLibraryView() {
+        document.body.classList.remove('in-reader-mode');
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.body.classList.remove('mode-pdf');
         document.getElementById('library-view')?.classList.add('active');
@@ -295,8 +335,17 @@ export const UI = {
         
         document.getElementById('btn-read-book').textContent = stats.progress > 0.01 ? 'FOLYTATÁS' : 'OLVASÁS';
         
+        // --- EVENT HANDLERS ---
         document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id, book.format); };
         
+        const toggleDescBtn = document.getElementById('toggle-desc-btn');
+        const descWrapper = document.getElementById('detail-desc-wrapper');
+        if(toggleDescBtn && descWrapper) {
+            toggleDescBtn.onclick = () => {
+                descWrapper.classList.toggle('visible');
+            };
+        }
+
         document.getElementById('btn-delete-book').onclick = async () => { 
             if(confirm('Biztosan törlöd?')) { 
                 await Epubly.storage.deleteBook(book.id); 

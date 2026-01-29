@@ -1,5 +1,13 @@
 # Változási napló
 
+## [0.15.6-beta] - 2024-07-31
+
+### Mobil Használhatóság (Kritikus Javítások)
+- **Teljes Képernyő Javítva:** A teljes képernyő gomb mostantól mobilon is működik. Az ikonja dinamikusan jelzi a belépési/kilépési állapotot.
+- **Rejtett Lábléc:** Olvasó nézetben a lábléc automatikusan elrejtőzik, több helyet hagyva a tartalomnak.
+- **Önzáró Menü Javítva:** A hamburger menü mostantól bezáródik, ha a menün kívüli területre kattint a felhasználó.
+- **Könyv Előnézet Javítva:** A "Leírás" gomb ismét működik. A felesleges 3-pöttyös menü eltávolítva, a törlés gomb ismét közvetlenül elérhető.
+
 ## [0.15.5-beta] - 2024-07-31
 
 ### Mobil Finomhangolás (UX)
