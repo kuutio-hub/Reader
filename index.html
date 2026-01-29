@@ -342,7 +342,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.14.25-beta</li>
+                        <li><strong>Verzió:</strong> 0.14.26-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -356,17 +356,49 @@
                 <!-- DONATE -->
                 <div id="wiki-donate" class="wiki-page">
                     <h2>Támogatás</h2>
-                    <p class="lead" style="margin-bottom:15px;">Az Epubly egy teljesen ingyenes, nyílt forráskódú projekt, amely nem gyűjt adatokat és nem tartalmaz reklámokat.</p>
+                    <p class="lead" style="margin-bottom:15px;">Az Epubly egy teljesen ingyenes, nyílt forráskódú projekt.</p>
                     
-                    <p style="margin-bottom:20px; color:var(--text);">Ha szeretnéd támogatni a munkámat, azt a legegyszerűbben a MOHU REpont automatáknál teheted meg. Minden támogatást hálásan köszönök!</p>
+                    <p style="margin-bottom:20px; color:var(--text);">Ha szeretnéd támogatni a munkámat, azt az alábbi módokon teheted meg. Minden támogatást hálásan köszönök!</p>
                     
-                    <p style="margin-bottom:20px; font-size:0.9rem; color:var(--text-muted); padding: 15px; background: var(--surface-alt); border-radius: 8px;">
+                    <p style="margin-bottom:25px; font-size:0.9rem; color:var(--text-muted); padding: 15px; background: var(--surface-alt); border-radius: 8px;">
                         <strong>Fontos:</strong> a támogatásért cserébe nem jár semmilyen extra funkció vagy juttatás. Az alkalmazást továbbra is mindenki teljesen ingyen és korlátozások nélkül használhatja.
                     </p>
+
+                    <!-- DIRECT DONATION GRID -->
+                    <div class="donate-grid">
+                        <!-- REVOLUT -->
+                        <div class="donate-card revolut">
+                            <h3 style="color:#fff; margin-bottom:10px;">Revolut</h3>
+                            <div class="qr-wrapper">
+                                <div id="revolut-qr"></div>
+                                <div class="qr-logo-overlay">
+                                    <!-- Revolut R logo path -->
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="#000"><path d="M4.54 18.9h12.18c2.95 0 5.38-2.32 5.38-5.12 0-2.8-2.43-5.11-5.38-5.11H10.9L8.63 4.2H2.1l5.44 11.23h-3z" /></svg>
+                                </div>
+                            </div>
+                            <p style="margin-top:10px; font-size:0.85rem; color:#fff; opacity:0.9;">Küldj annyit, amennyit jónak gondolsz.</p>
+                        </div>
+
+                        <!-- PAYPAL -->
+                        <div class="donate-card paypal">
+                            <h3 style="color:#003087; margin-bottom:10px;">PayPal</h3>
+                            <div class="qr-wrapper">
+                                <div id="paypal-qr"></div>
+                                <div class="qr-logo-overlay">
+                                     <!-- PayPal P logo path -->
+                                     <svg viewBox="0 0 24 24" width="24" height="24" fill="#003087"><path d="M17.03 9.475c-.328 2.254-2.182 3.656-4.992 3.656h-1.53c-.312 0-.575.215-.64.516l-.85 4.305-.157.75c-.06.308-.33.527-.643.527H5.66c-.4 0-.7-.367-.624-.757L7.33 3.64c.075-.39.418-.676.816-.676h3.695c3.55 0 6.098 1.93 5.19 6.51z"/></svg>
+                                </div>
+                            </div>
+                             <p style="margin-top:10px; font-size:0.85rem; color:#003087;">Biztonságos és gyors támogatás.</p>
+                        </div>
+                    </div>
                     
+                    <div style="height: 1px; background: var(--border); margin: 30px 0;"></div>
+
+                    <!-- MOHU -->
                     <div class="mohu-print-area">
-                        <h3 style="color:var(--brand); margin-bottom:5px;">MOHU REpont Kártya</h3>
-                        <p style="font-size:0.8rem; margin-bottom:15px; color:var(--text-muted);">Nyomtasd ki ezt a kártyát, és tartsd magadnál a következő visszaváltáskor.</p>
+                        <h3 style="color:var(--brand); margin-bottom:5px;">MOHU REpont (Ingyenes támogatás)</h3>
+                        <p style="font-size:0.8rem; margin-bottom:15px; color:var(--text-muted);">Támogass a visszaváltott palackjaid árával. Nyomtasd ki ezt a kártyát, és tartsd magadnál.</p>
                         
                         <div class="mohu-card">
                             <div class="mohu-card-bg-text">EPUBLY</div>

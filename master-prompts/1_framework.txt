@@ -1,19 +1,27 @@
-Prompt_0 – Kötelező Érvényű Fejlesztési Keretrendszer (Epubly.hu)
 
-Feladatod egy teljesen működő webalkalmazás rekonstruálása az alábbi szigorú feltételek szerint.
+Prompt_0 – Kötelező Érvényű Fejlesztési Keretrendszer (Epubly.hu v0.14.25-beta)
+
+Feladatod egy teljesen működő, kliens oldali e-könyv olvasó webalkalmazás rekonstruálása az alábbi szigorú feltételek szerint.
 
 Technikai megkötések (Kötelező):
 1. A kód 100%-ban GitHub Pages kompatibilis legyen.
-2. Kizárólag HTML, CSS és JavaScript használható.
-3. TILOS TypeScript (.ts), TSX, keretrendszerek (React, Vue) vagy build eszközök (Vite, Webpack) használata.
-4. Minden fájl közvetlenül futtatható legyen statikus környezetben (böngészőben).
-5. Külső könyvtárak csak CDN-ről: JSZip (epub kibontás), PDF.js (pdf renderelés), QRCode.js (támogatás).
+2. Kizárólag HTML, CSS és JavaScript (ES6 Modules) használható.
+3. TILOS TypeScript (.ts), TSX, keretrendszerek (React, Vue) vagy build eszközök (Vite, Webpack, NPM) használata.
+4. Minden fájl közvetlenül futtatható legyen statikus környezetben.
+5. Külső könyvtárak csak CDN-ről: 
+   - JSZip (epub kibontás)
+   - PDF.js (pdf renderelés)
+   - QRCode.js (támogatási kód)
 
 Kódszervezés:
 - `index.html`: A teljes DOM struktúra, modális ablakok, sablonok.
-- `style.css`: Minden stílus, CSS változók (themes), reszponzivitás.
-- `app.js`: A teljes üzleti logika, Vanilla JS modul (`type="module"`), Epubly névtérben.
+- `style.css`: Minden stílus, CSS változók (themes), reszponzivitás, nyomtatási nézet.
+- `app.js`: Belépési pont, modulok importálása.
+- `js/modules/*.js`: Üzleti logika modulokra bontva.
 - `version.js`: Verziókövetés.
-- `manifest.json`: PWA konfiguráció.
 
-Ez az első lépés. Kérlek, erősítsd meg, hogy érted a keretrendszert, és várd a következő utasítást a logikai felépítésről! Ne generálj még kódot.
+Minőségbiztosítás:
+- A kódnak első futásra hibamentesen kell működnie.
+- Nincs "TODO", nincs "placeholder" logika. Teljes implementáció szükséges.
+
+Ez az első lépés. Kérlek, erősítsd meg, hogy érted a keretrendszert!

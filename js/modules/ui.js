@@ -413,11 +413,15 @@ export const UI = {
 
     injectQRCode() {
         const containers = [
-            { id: 'mohu-qr-container', size: 80 },
-            { id: 'print-qr-container', size: 90 },
-            { id: 'mobile-qr-target', size: 250 }
+            // MOHU
+            { id: 'mohu-qr-container', size: 80, text: "d0a663f6-b055-40e8-b3d5-399236cb6b94" },
+            { id: 'print-qr-container', size: 90, text: "d0a663f6-b055-40e8-b3d5-399236cb6b94" },
+            { id: 'mobile-qr-target', size: 250, text: "d0a663f6-b055-40e8-b3d5-399236cb6b94" },
+            // REVOLUT
+            { id: 'revolut-qr', size: 160, text: "https://revolut.me/hrvthgrgly" },
+            // PAYPAL
+            { id: 'paypal-qr', size: 160, text: "https://www.paypal.com/qrcodes/managed/62bb969f-4f6e-48ad-9796-9cb14b1fa07a?utm_source=consapp_download" }
         ];
-        const mohuCode = "d0a663f6-b055-40e8-b3d5-399236cb6b94"; 
 
         containers.forEach(item => {
             const el = document.getElementById(item.id);
@@ -425,7 +429,7 @@ export const UI = {
                 el.innerHTML = ''; 
                 try {
                     new QRCode(el, {
-                        text: mohuCode,
+                        text: item.text,
                         width: item.size,
                         height: item.size,
                         colorDark : "#000000",

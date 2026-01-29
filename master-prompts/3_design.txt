@@ -1,19 +1,29 @@
-Prompt_3 – Dizájn és UI (Epubly.hu)
 
-A vizuális megjelenésnek (`style.css` és HTML szerkezet) az alábbiakat kell követnie:
+Prompt_3 – Dizájn és UI (Epubly.hu - Aesthetic)
 
-1. Stílus: Modern, letisztult, "Apple-szerű" esztétika. Sötét mód az alapértelmezett.
-2. Felépítés:
-   - Header: Logó, Könyv címe/Szerző, Gombok (Keresés, TOC, Beállítások).
-   - Reader View: Központi olvasó felület. Két mód: Görgetés (Scroll) és Lapozás (Paged - CSS Columns 100vw).
-   - Sidebarok: Jobbról beúszó panelek (Tartalomjegyzék, Beállítások).
-3. Modális Ablakok:
-   - Importálás: Drag & Drop felület.
-   - Könyvtár: Grid elrendezésű kártyák, generált borítókkal (SVG minta) vagy a könyv saját borítójával.
-   - Wiki/Súgó: iOS stílusú, bal oldali navigációs sávval rendelkező ablak. Itt kell leírni a PWA telepítést is.
-4. Speciális elemek:
-   - Támogatói Kártya: Bankkártya méretű (85.6x54mm), nyomtatható elem QR kóddal.
-   - PDF Vezérlő: Lebegő gombsor (szélességhez igazítás, nagyítás) csak PDF nézetben.
-   - Globális Zoom: A beállításokban egy csúszka, ami mindent skáláz a szövegben.
+A vizuális megjelenésnek (`style.css` és HTML) az alábbiakat kell követnie:
 
-Ez a harmadik, végső utasítás. Mostantól, ha egy új projektben ezeket a prompteokat megkapod sorban, képesnek kell lenned rekonstruálni a jelenlegi 0.14.7-alpha állapotot.
+1. Stílus és Hangvétel:
+   - **Modern, Apple-szerű esztétika:** Lekerekített sarkok, blur effektek (backdrop-filter), finom árnyékok.
+   - **Hangvétel:** Közvetlen, barátságos, tegeződő stílus mindenhol (pl. "Vágd ki", "Nyisd meg").
+   - **Sötét mód:** Alapértelmezett.
+
+2. Témák:
+   - Light / Dark / Sepia.
+   - **Terminal Mode:** Fekete háttér, neon zöld/borostyán/cián szöveg, monospaced fontok preferálása, minden elem (gombok, borítók) átszínezése CSS filterekkel.
+
+3. Felépítés:
+   - **Header:** Üveg-hatású, fix felső sáv. Cím, szerző, akciógombok.
+   - **Reader View:** Kizárólag "Scroll" mód támogatott (a paged mód kivezetve/elrejtve a stabilitás érdekében). PDF nézetben lebegő vezérlőpanel alul.
+   - **Sidebarok:** Jobbról beúszó panelek (Tartalom, Beállítások).
+
+4. Speciális Elemek:
+   - **Támogatási Kártyák:** A Wiki "Támogatás" fülén egy gridben elhelyezett Revolut és PayPal kártyák. A QR kódok közepén kis fehér körben a szolgáltató logója (SVG) jelenik meg CSS overlay segítségével.
+   - **MOHU Támogatói Kártya:** Bankkártya méretű (85.6x54mm), nyomtatható elem QR kóddal. A CSS `@media print` szabályoknak biztosítaniuk kell, hogy csak ez a kártya nyomtatódjon ki A4-es lap közepére.
+   - **Wiki / Súgó:** iOS beállítások stílusú, bal oldali navigációs sávval rendelkező modális ablak.
+   - **Import Kártya:** A könyvtár nézet első eleme, Drag & Drop támogatással.
+
+5. Reszponzivitás:
+   - Mobilbarát nézet, érintésvezérlés támogatása (swipe nem szükséges, de a gombok mérete ujjhoz igazított).
+
+Ez a harmadik utasítás. A designnak tükröznie kell a "profi, de barátságos" irányelvet.

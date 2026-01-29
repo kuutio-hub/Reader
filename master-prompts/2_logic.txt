@@ -1,22 +1,31 @@
-Prompt_2 – Logikai Felépítés (Epubly.hu - Modular Refactor)
 
-Az alkalmazás üzleti logikáját ES6 modulokra bontva, a `js/modules/` mappában kell megvalósítani. Az `app.js` feladata kizárólag a modulok importálása és a globális `Epubly` névtér összeállítása.
+Prompt_2 – Logikai Felépítés (Epubly.hu - Advanced Logic)
 
-Modul Struktúra:
-1. `state.js`: Központi állapot (zip, spine, metadata, currentBookId) exportálása `State` néven.
-2. `storage.js`: IndexedDB (`getDb`, `saveBook`, `handleFileUpload`) és LocalStorage kezelés exportálása `Storage` néven.
-3. `engine.js`: EPUB parse, PDF render, fejezetek DOM-ba illesztése. Export: `Engine`.
-4. `ui.js`: DOM eseménykezelők, modális ablakok (Modal), oldalsávok (Sidebar) vezérlése. Export: `UI`.
-5. `library.js`: Könyvtár nézet (Grid) és borító generálás (SVG). Export: `Library`.
-6. `settings.js`: Beállítások (betűméret, téma, zoom) betöltése és mentése. Export: `Settings`.
-7. `reader_settings.js`: A beállítások vizuális alkalmazása (`applySettings`) a DOM-ra. Export: `Reader`.
-8. `navigation.js`: Lapozás (`turnPage`) és előzmények (`pushState`). Export: `Navigation`.
-9. `search.js`: Keresési algoritmus. Export: `Search`.
-10. `toc.js`: Tartalomjegyzék generálás. Export: `TOC`.
-11. `utils.js`: Segédfüggvények (path resolve) és hibakezelés.
+Az alkalmazás üzleti logikáját ES6 modulokra bontva, a `js/modules/` mappában kell megvalósítani.
 
-Működési elv:
-- A modulok egymást a globális `window.Epubly` objektumon keresztül érik el futásidőben (pl. `Epubly.storage.saveBook`).
-- Az `app.js` inicializálja (`init()`) a rendszert a DOMContentLoaded eseménykor.
+Modul Struktúra és Specifikus Logika:
 
-Ez a második lépés. Kérlek, erősítsd meg, hogy érted a moduláris logikát, és várd a következő utasítást a dizájnról! Ne generálj még kódot.
+1. `engine.js` (Core Rendering):
+   - **EPUB:** Infinite Scroll megvalósítás. A következő fejezet betöltése automatikusan elindul, ha a felhasználó 4000px-re megközelíti az oldal alját.
+   - **PDF:** "Buffering" stratégia. Az aktuális oldal renderelésekor a rendszer előtölti az előtte és utána lévő 3-3 oldalt (canvas), hogy görgetéskor ne legyen fehér villanás.
+   - **Prepend:** Felfelé görgetéskor az előző fejezet beszúrása és a görgetési pozíció korrekciója, hogy a nézet ne ugráljon.
+
+2. `toc.js` (Tartalomjegyzék):
+   - **Instant Back-Scroll:** Ha a felhasználó egy fejezetre ugrik, a rendszer nem csak azt, hanem az *előző* fejezetet is azonnal rendereli a DOM-ba (a látható terület fölé), így azonnal lehet visszafelé is görgetni.
+
+3. `storage.js` (Perzisztencia):
+   - **Metadata:** EPUB importáláskor a `dc:description` és a borítókép (Base64) kinyerése és mentése IndexedDB-be.
+   - **Progress:** Olvasási pozíció és statisztikák (eltöltött idő) automatikus mentése.
+
+4. `ui.js` (Interakciók):
+   - Globális eseménykezelés (Delegation).
+   - "Tegező" (informal) nyelvezet minden üzenetben.
+   - PDF lebegő vezérlők kezelése.
+
+5. `reader_settings.js` (Megjelenés):
+   - **Global Zoom:** Egyetlen szorzó, ami skálázza a betűméretet, sorközt és betűközt is.
+   - **Dynamic Margins:** Nagyításkor a margók dinamikus csökkentése a helykihasználás érdekében.
+
+További modulok: `state.js` (adattároló), `library.js` (grid nézet), `settings.js` (localStorage config), `navigation.js` (history API), `search.js` (kliens oldali keresés), `utils.js`.
+
+Ez a második lépés. A logika a fenti, teljesítményre optimalizált elveket kövesse.
