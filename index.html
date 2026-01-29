@@ -122,14 +122,15 @@
             </button>
         </div>
     </header>
-
+    
     <!-- Mobile Burger Menu Panel -->
     <div id="burger-menu-panel">
         <div id="mobile-controls-container">
             <!-- Mobile controls will be injected here by JS -->
         </div>
     </div>
-    
+
+
     <!-- READER VIEW -->
     <section id="reader-view" class="view-section">
         <div id="reader-main">
@@ -219,7 +220,7 @@
                     <!-- Global Zoom -->
                     <div class="setting-item" style="background:var(--surface-alt); padding:10px; border-radius:8px; border:1px solid var(--brand-dim);">
                         <label style="font-weight:600; color:var(--brand);">Nagyítás</label>
-                        <input type="range" id="global-zoom-range" min="0.8" max="2.0" step="0.1">
+                        <input type="range" id="global-zoom-range" min="0.8" max="2.0" step="0.025">
                     </div>
                 </div>
 
@@ -299,11 +300,18 @@
         <div class="modal-content apple-wiki">
              <div class="wiki-sidebar">
                 <h3>Segítség</h3>
+                <!-- Desktop Nav -->
                 <div class="wiki-nav-container">
                     <button class="wiki-nav-btn active" data-target="wiki-guide">Útmutató</button>
                     <button class="wiki-nav-btn" data-target="wiki-about">Névjegy</button>
                     <button class="wiki-nav-btn" data-target="wiki-donate">Támogatás</button>
                 </div>
+                <!-- Mobile Nav -->
+                <select id="wiki-nav-select" class="wiki-nav-select">
+                    <option value="wiki-guide">Útmutató</option>
+                    <option value="wiki-about">Névjegy</option>
+                    <option value="wiki-donate">Támogatás</option>
+                </select>
                 <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center; margin-top: auto;">Bezárás</button>
              </div>
             <div class="wiki-main-area">
@@ -357,7 +365,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.15.4-beta</li>
+                        <li><strong>Verzió:</strong> 0.15.5-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -441,11 +449,18 @@
                     </div>
                     <div class="detail-actions">
                         <button id="btn-read-book" class="btn btn-primary" style="width:100%;">OLVASÁS</button>
-                        <button id="toggle-desc-btn" class="btn btn-secondary" style="width:100%; display:none;">Leírás</button>
+                        <button id="toggle-desc-btn" class="btn btn-secondary" style="width:100%;">Leírás</button>
                         <button class="btn btn-secondary modal-close" style="width:100%;">Bezárás</button>
                     </div>
                     <div class="detail-actions-extra">
-                         <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">KÖNYV TÖRLÉSE</button>
+                         <div class="kebab-menu">
+                            <button id="kebab-menu-btn" class="icon-btn">
+                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                            </button>
+                            <div id="kebab-menu-dropdown" class="kebab-dropdown">
+                                <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">Könyv törlése</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="detail-right-col">
