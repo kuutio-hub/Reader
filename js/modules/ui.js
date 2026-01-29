@@ -13,7 +13,50 @@ export const UI = {
             });
         }
 
+        // --- GLOBAL CLICKS ---
         document.body.addEventListener('click', e => this.handleClick(e));
+
+        // --- PDF MOUSE INTERACTIONS (Wheel & Drag) ---
+        const viewer = document.getElementById('viewer');
+        if (viewer) {
+            // Wheel Zoom
+            viewer.addEventListener('wheel', (e) => {
+                if (Epubly.state.currentFormat === 'pdf') {
+                    if (e.ctrlKey || Epubly.engine.pdfState.mode === 'custom') {
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                        Epubly.engine.updatePDFTransform(delta);
+                    }
+                }
+            }, { passive: false });
+
+            // Drag Pan
+            viewer.addEventListener('mousedown', (e) => {
+                if (Epubly.state.currentFormat === 'pdf' && Epubly.engine.pdfState.mode === 'custom') {
+                    Epubly.engine.pdfState.panning = true;
+                    Epubly.engine.pdfState.startX = e.clientX;
+                    Epubly.engine.pdfState.startY = e.clientY;
+                    viewer.style.cursor = 'grabbing';
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (Epubly.engine.pdfState.panning) {
+                    const deltaX = e.clientX - Epubly.engine.pdfState.startX;
+                    const deltaY = e.clientY - Epubly.engine.pdfState.startY;
+                    Epubly.engine.panPDF(deltaX, deltaY);
+                    Epubly.engine.pdfState.startX = e.clientX;
+                    Epubly.engine.pdfState.startY = e.clientY;
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (Epubly.engine.pdfState.panning) {
+                    Epubly.engine.pdfState.panning = false;
+                    viewer.style.cursor = 'grab';
+                }
+            });
+        }
 
         const dropZone = document.getElementById('import-drop-zone');
          if(dropZone) {
@@ -27,7 +70,7 @@ export const UI = {
         
         this.injectQRCode();
         const footer = document.getElementById('footer-year');
-        if(footer) footer.textContent = `Epubly.hu v${version} © ${new Date().getFullYear()}`;
+        if(footer) footer.textContent = `Epubly v${version} © ${new Date().getFullYear()}`;
     },
 
     handleClick(e) {
@@ -147,15 +190,18 @@ export const UI = {
     },
 
     handlePDFControl(action) {
-        const pages = document.querySelectorAll('.pdf-page');
         if (action === 'fit-width') {
-            pages.forEach(p => { p.classList.remove('zoomed'); p.style.width = '100%'; p.style.height = 'auto'; });
+            Epubly.engine.setPDFMode('native');
+            const pages = document.querySelectorAll('.pdf-page-container');
+            pages.forEach(p => { p.style.width = '100%'; p.style.height = 'auto'; });
         } else if (action === 'fit-height') {
-            pages.forEach(p => { p.classList.remove('zoomed'); p.style.height = '90vh'; p.style.width = 'auto'; p.style.maxWidth = 'none'; p.style.margin = '20px auto'; });
+            Epubly.engine.setPDFMode('native');
+            const pages = document.querySelectorAll('.pdf-page-container');
+            pages.forEach(p => { p.style.height = '95vh'; p.style.width = 'auto'; p.style.margin = '10px auto'; });
         } else if (action === 'zoom-in') {
-            pages.forEach(p => p.classList.add('zoomed'));
+            Epubly.engine.updatePDFTransform(0.2);
         } else if (action === 'zoom-out') {
-            pages.forEach(p => p.classList.remove('zoomed'));
+            Epubly.engine.updatePDFTransform(-0.2);
         }
     },
     

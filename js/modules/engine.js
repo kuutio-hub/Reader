@@ -6,7 +6,18 @@ import { Utils } from './utils.js';
  */
 export const Engine = {
     resolvePath: Utils.resolvePath,
-    lastStatsSave: 0, // Timestamp for throttling DB writes
+    lastStatsSave: 0, 
+
+    // PDF STATE
+    pdfState: {
+        scale: 1,
+        panning: false,
+        startX: 0,
+        startY: 0,
+        pointX: 0,
+        pointY: 0,
+        mode: 'native' // 'native' (scrolling) or 'custom' (transform)
+    },
 
     async loadBook(arrayBuffer, bookId, format = 'epub') {
         Epubly.ui.showLoader();
@@ -18,6 +29,10 @@ export const Engine = {
             toc: [], rootPath: '', currentBookId: bookId, activeBookSessionStart: Date.now(),
             isLoadingNext: false, isLoadingPrev: false, history: []
         });
+        
+        // Reset PDF State
+        this.pdfState = { scale: 1, panning: false, startX: 0, startY: 0, pointX: 0, pointY: 0, mode: 'native' };
+
         Epubly.ui.showFloatingBackButton(false);
         if(Epubly.state.observer) Epubly.state.observer.disconnect();
 
@@ -31,10 +46,7 @@ export const Engine = {
             // Attach Scroll Saver (Immediate & Touch)
             const viewer = document.getElementById('viewer');
             viewer.onscroll = this.handleNavigation.bind(this);
-            // Ensure position saves on touch end (mobile optimization)
-            viewer.ontouchend = () => {
-                this.saveCurrentPosition(true); // true = force update
-            };
+            viewer.ontouchend = () => { this.saveCurrentPosition(true); };
 
             Epubly.ui.hideLoader();
 
@@ -68,63 +80,52 @@ export const Engine = {
         const viewerContent = document.getElementById('viewer-content');
         
         // --- OPTIMIZATION: VIRTUALIZATION ---
-        // Instead of rendering all pages, we fetch page 1 size, create placeholders, and render on demand.
-        
         const page1 = await Epubly.state.pdfDoc.getPage(1);
-        const viewport = page1.getViewport({ scale: 1.5 }); // Base scale
+        const viewport = page1.getViewport({ scale: 1.5 });
         const aspectRatio = viewport.width / viewport.height;
         
-        // Create Placeholders
         for (let pageNum = 1; pageNum <= Epubly.state.pdfDoc.numPages; pageNum++) {
             const container = document.createElement('div');
             container.className = 'pdf-page-container';
             container.dataset.pageNumber = pageNum;
-            // Set aspect ratio using padding-bottom technique or explicit height if width is known.
-            // Simplified: use a min-height and let JS observer handle render
             container.style.aspectRatio = `${aspectRatio}`;
             container.style.width = '100%'; 
-            
             viewerContent.appendChild(container);
         }
 
-        // Init IntersectionObserver for Lazy Loading
         this.initPDFObserver();
 
         const savedLoc = Epubly.storage.getLocation(bookId);
         if(savedLoc) {
             const parts = savedLoc.split(',');
             const savedPos = parseInt(parts[1]) || 0;
-            requestAnimationFrame(() => {
-                document.getElementById('viewer').scrollTop = savedPos;
-            });
+            // Stabilize scroll for PDF too
+            this.stabilizeScroll(savedPos);
         }
+        
+        // Initial Render View
+        this.renderPDFView();
     },
 
     initPDFObserver() {
         if (Epubly.state.observer) Epubly.state.observer.disconnect();
-
         Epubly.state.observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const container = entry.target;
                     const pageNum = parseInt(container.dataset.pageNumber);
+                    if (!container.querySelector('canvas')) this.renderPDFPage(container, pageNum);
                     
-                    // Render if not already rendered
-                    if (!container.querySelector('canvas')) {
-                        this.renderPDFPage(container, pageNum);
-                    }
-                    
-                    // Update stats (current page / total)
                     const progress = pageNum / Epubly.state.pdfDoc.numPages;
                     this.throttledStatsUpdate(pageNum, false, progress);
                     
-                    // Save location
-                    const viewer = document.getElementById('viewer');
-                    Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+                    if (this.pdfState.mode === 'native') {
+                         const viewer = document.getElementById('viewer');
+                         Epubly.storage.saveLocation(Epubly.state.currentBookId, 0, viewer.scrollTop);
+                    }
                 }
             });
-        }, { root: document.getElementById('viewer'), rootMargin: "50% 0px" }); // Preload a bit
-
+        }, { root: document.getElementById('viewer'), rootMargin: "50% 0px" });
         document.querySelectorAll('.pdf-page-container').forEach(el => Epubly.state.observer.observe(el));
     },
 
@@ -132,24 +133,77 @@ export const Engine = {
         if(!Epubly.state.pdfDoc) return;
         try {
             const page = await Epubly.state.pdfDoc.getPage(pageNum);
-            const scale = 2.0; // High quality for zooming
+            const scale = 2.0; 
             const viewport = page.getViewport({ scale: scale });
-
             const canvas = document.createElement('canvas');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
             
-            const renderContext = {
-                canvasContext: canvas.getContext('2d'),
-                viewport: viewport
-            };
-            
+            const renderContext = { canvasContext: canvas.getContext('2d'), viewport: viewport };
             await page.render(renderContext).promise;
-            container.innerHTML = ''; // Clear loading/placeholder logic if any
+            container.innerHTML = '';
             container.appendChild(canvas);
-            
-        } catch(e) {
-            console.warn(`Error rendering page ${pageNum}`, e);
+        } catch(e) { console.warn(`Error rendering page ${pageNum}`, e); }
+    },
+
+    // --- MODERN PDF TRANSFORM LOGIC ---
+    updatePDFTransform(deltaScale, centerX, centerY) {
+        const viewer = document.getElementById('viewer');
+        if (this.pdfState.mode === 'native') {
+            // Switch to custom mode on first zoom
+            this.pdfState.mode = 'custom';
+            this.pdfState.scale = 1;
+            this.pdfState.pointX = 0;
+            this.pdfState.pointY = -viewer.scrollTop; // compensate initial scroll
+            viewer.classList.add('pdf-drag-mode');
+        }
+
+        const oldScale = this.pdfState.scale;
+        let newScale = oldScale + deltaScale;
+        newScale = Math.min(Math.max(0.5, newScale), 5); // Clamp
+
+        // Simple zoom logic: zoom towards center of screen (simpler for vanilla)
+        // Adjust translation to keep center stable would require complex math here.
+        // For simplicity in this constraints: simple scale update. 
+        // Improvement: If mouse coordinates provided (centerX/Y), zoom towards that.
+        
+        this.pdfState.scale = newScale;
+        this.renderPDFView();
+    },
+
+    panPDF(deltaX, deltaY) {
+        if (this.pdfState.mode !== 'custom') return;
+        this.pdfState.pointX += deltaX;
+        this.pdfState.pointY += deltaY;
+        this.renderPDFView();
+    },
+    
+    setPDFMode(mode) {
+        this.pdfState.mode = mode;
+        const viewer = document.getElementById('viewer');
+        const content = document.getElementById('viewer-content');
+        
+        if (mode === 'native') {
+            viewer.classList.remove('pdf-drag-mode');
+            content.style.transform = '';
+            this.pdfState.scale = 1;
+            this.pdfState.pointX = 0;
+            this.pdfState.pointY = 0;
+            // Restore overflow
+            viewer.style.overflow = 'auto';
+        } else {
+            viewer.classList.add('pdf-drag-mode');
+            // Hide scrollbars
+            viewer.style.overflow = 'hidden';
+        }
+    },
+
+    renderPDFView() {
+        const content = document.getElementById('viewer-content');
+        if (this.pdfState.mode === 'custom') {
+            content.style.transform = `translate(${this.pdfState.pointX}px, ${this.pdfState.pointY}px) scale(${this.pdfState.scale})`;
+        } else {
+            content.style.transform = '';
         }
     },
 
@@ -214,16 +268,27 @@ export const Engine = {
         await this.renderChapter(startIdx, 'clear');
         await this.ensureContentFillsScreen(startIdx);
 
-        // Stabilize scroll
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                const viewer = document.getElementById('viewer');
-                viewer.scrollTop = savedPos;
-            });
-        });
+        // USE STABILIZATION instead of single set
+        this.stabilizeScroll(savedPos);
         
         this.initObservers();
         this.parseTOC(opfDoc);
+    },
+
+    // --- SCROLL STABILIZATION LOOP ---
+    stabilizeScroll(targetPos) {
+        const viewer = document.getElementById('viewer');
+        let attempts = 0;
+        const maxAttempts = 10; // Check for 500ms approx
+        
+        const check = () => {
+            viewer.scrollTop = targetPos;
+            attempts++;
+            if (attempts < maxAttempts) {
+                requestAnimationFrame(check);
+            }
+        };
+        requestAnimationFrame(check);
     },
 
     async ensureContentFillsScreen(lastLoadedIndex) {
@@ -310,6 +375,8 @@ export const Engine = {
     },
 
     handleNavigation() {
+        if (this.pdfState.mode === 'custom') return; // No auto-load in custom zoom mode
+
         const viewer = document.getElementById('viewer');
         
         if (Epubly.state.renderedChapters.size === 0 && Epubly.state.currentFormat === 'epub') return;
@@ -335,6 +402,8 @@ export const Engine = {
     },
 
     saveCurrentPosition(force = false) {
+        if (this.pdfState.mode === 'custom') return; // Don't save transformed coordinates as scrollTop
+
         const viewer = document.getElementById('viewer');
         if (Epubly.state.currentFormat === 'epub') {
             const firstChapter = document.querySelector('.chapter-container');

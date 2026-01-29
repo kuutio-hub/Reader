@@ -25,17 +25,18 @@ export const Navigation = {
     popState() {
         if(Epubly.state.history.length === 0) return;
         const state = Epubly.state.history.pop();
-        Epubly.ui.showFloatingBackButton(false);
+        
+        if (Epubly.state.history.length === 0) Epubly.ui.showFloatingBackButton(false);
         
         if (Epubly.state.currentFormat === 'epub') {
+            // Force reload of that specific chapter state
             document.getElementById('viewer-content').innerHTML = '';
             Epubly.state.renderedChapters.clear();
+            
             Epubly.engine.renderChapter(state.chapterIndex, 'clear').then(() => {
                 const viewer = document.getElementById('viewer');
-                setTimeout(() => {
-                    viewer.scrollTop = state.scrollTop;
-                    viewer.scrollLeft = state.scrollLeft || 0;
-                }, 50);
+                // Use stabilization logic here too
+                Epubly.engine.stabilizeScroll(state.scrollTop);
             });
         } else {
             // PDF Restore
@@ -58,24 +59,33 @@ export const Navigation = {
         }
 
         e.preventDefault();
+        
+        // 1. Save current position BEFORE navigating away
         this.pushState();
 
         if (Epubly.state.currentFormat === 'epub') {
             const [path, hash] = href.split('#');
-            // Assuming Epubly.engine.resolvePath maps to Utils.resolvePath
+            // Resolve path relative to current chapter
             const targetPath = Epubly.engine.resolvePath(Epubly.state.currentChapterPath, path);
             
             let targetIndex = Epubly.state.spine.findIndex(s => s.fullPath === targetPath);
 
             if (targetIndex !== -1) {
                 const isSameChapter = Array.from(Epubly.state.renderedChapters).includes(targetIndex);
+                
                 if (isSameChapter && hash) {
                     this.scrollToHash(hash);
                 } else {
+                    // Different chapter (e.g. Footnotes at end of book)
                     document.getElementById('viewer-content').innerHTML = '';
                     Epubly.state.renderedChapters.clear();
                     Epubly.engine.renderChapter(targetIndex, 'clear').then(() => {
-                        if (hash) this.scrollToHash(hash);
+                        if (hash) {
+                            // Wait a tiny bit for render to settle
+                            setTimeout(() => this.scrollToHash(hash), 100);
+                        } else {
+                            document.getElementById('viewer').scrollTop = 0;
+                        }
                     });
                 }
             } else {
@@ -87,11 +97,22 @@ export const Navigation = {
 
     scrollToHash(hash) {
         if (!hash) return;
-        setTimeout(() => {
-            const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }, 100);
+        const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
+        if (target) {
+            // Calculate position including header offset
+            const headerOffset = 60;
+            const elementPosition = target.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + document.getElementById('viewer').scrollTop - headerOffset;
+
+            document.getElementById('viewer').scrollTo({
+                top: offsetPosition,
+                behavior: "smooth"
+            });
+            
+            // Highlight effect for footnotes
+            target.style.transition = 'background 0.5s';
+            target.style.backgroundColor = 'var(--brand-dim)';
+            setTimeout(() => { target.style.backgroundColor = 'transparent'; }, 2000);
+        }
     }
 };

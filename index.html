@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Epubly.hu</title>
+    <title>Epubly</title>
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -41,7 +41,7 @@
                 <div class="mohu-card-bg-text">EPUBLY</div>
                 <div class="mohu-card-logo">
                      <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
-                    <span>Epubly.hu</span>
+                    <span>Epubly</span>
                 </div>
                 <div id="print-qr-container" class="mohu-qr"></div>
             </div>
@@ -73,7 +73,7 @@
                 <svg width="24" height="24" viewBox="0 0 100 100" class="logo-icon">
                     <path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--brand)' />
                 </svg>
-                <span class="logo-text">Epubly.hu</span>
+                <span class="logo-text">Epubly</span>
             </div>
             
             <div class="view-separator"></div>
@@ -122,6 +122,8 @@
             <!-- PDF Floating Controls -->
             <div id="pdf-controls" style="display:none;">
                 <button class="pdf-btn" data-action="fit-width" title="Szélességhez igazítás">↔</button>
+                <button class="pdf-btn" data-action="fit-height" title="Magassághoz igazítás">↕</button>
+                <div class="pdf-sep"></div>
                 <button class="pdf-btn" data-action="zoom-out" title="Kicsinyítés">-</button>
                 <button class="pdf-btn" data-action="zoom-in" title="Nagyítás">+</button>
             </div>
@@ -131,7 +133,7 @@
                     Előző fejezet betöltése...
                 </div>
                 <div id="viewer-content">
-                    <!-- Chapters -->
+                    <!-- Chapters or PDF Pages -->
                 </div>
                 <div id="scroll-loader" style="text-align:center; padding: 20px; display:none; color:var(--text-muted);">
                     <div class="spinner" style="width:20px; height:20px; border-width:2px; margin:0 auto 5px auto;"></div>
@@ -266,7 +268,8 @@
         <div id="library-grid"></div>
     </section>
 
-    <!-- Modal: Apple Style Wiki / Help / Donate -->
+    <!-- Wiki Modal (Content omitted for brevity, same as previous but with branding change) -->
+    <!-- See app.js logic for modal population if dynamic, but here it's static -->
     <div id="wiki-modal" class="modal">
         <div class="modal-content apple-wiki">
              <div class="wiki-sidebar">
@@ -336,7 +339,7 @@
                         <h4>Technikai részletek</h4>
                         <p style="font-size:0.9rem; color:var(--text-muted);">Mivel nincs központi szerver ("felhő"), ha törlöd a böngészési adataidat, a könyvek is törlődnek. Erre figyelj!</p>
                         <ul style="list-style:none; padding:0; margin:10px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-                            <li>Verzió: 0.14.13-beta</li>
+                            <li>Verzió: 0.14.14-beta</li>
                             <li>Motor: Vanilla JS + JSZip + PDF.js</li>
                             <li>Tárhely: Helyi IndexedDB</li>
                         </ul>
@@ -362,7 +365,7 @@
                             <div class="mohu-card-bg-text">EPUBLY</div>
                             <div class="mohu-card-logo">
                                  <svg width="20" height="20" viewBox="0 0 100 100" class="logo-icon"><path d='M10 15 L45 15 Q50 15 50 25 L50 90 Q50 80 45 80 L10 80 Z M90 15 L55 15 Q50 15 50 25 L50 90 Q50 80 55 80 L90 80 Z' fill='var(--card-text)' /></svg>
-                                <span>Epubly.hu</span>
+                                <span>Epubly</span>
                             </div>
                             <div id="mohu-qr-container" class="mohu-qr"></div>
                         </div>
@@ -453,7 +456,7 @@
     <div id="mobile-qr-modal" class="modal">
         <div class="modal-content" style="background:#000; color:#fff; width:100%; height:100%; max-width:100%; max-height:100%; border:none; border-radius:0; display:flex; flex-direction:column; justify-content:center; align-items:center;">
             <div style="padding:20px; text-align:center;">
-                <h2 style="margin-bottom:20px; color:#D4AF37;">EPUBLY.HU</h2>
+                <h2 style="margin-bottom:20px; color:#D4AF37;">EPUBLY</h2>
                 <div style="background:#fff; padding:20px; display:inline-block; border-radius:20px; box-shadow:0 0 50px rgba(255,255,255,0.2);">
                     <div id="mobile-qr-target" style="width:250px; height:250px;"></div>
                 </div>
