@@ -1,5 +1,11 @@
 # Változási napló
 
+## [0.15.1-beta] - 2024-07-30
+
+### UI Finomítások
+- **Mobil nézet:** A könyv részletező és a súgó modális ablakai teljes körű mobil optimalizációt kaptak, biztosítva a tökéletes megjelenést és használhatóságot kisebb képernyőkön is.
+- **Súgó:** A mobilos súgó navigációs sávjának görgetősávja elrejtve a letisztultabb dizájn érdekében.
+
 ## [0.15.0-beta] - 2024-07-30
 
 ### Újdonságok & Fejlesztések
