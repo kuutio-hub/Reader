@@ -1,5 +1,11 @@
 # Változási napló
 
+## [0.15.7-beta] - 2024-07-31
+
+### Mobil UI Finomhangolás
+- **Fókuszált Leírás Nézet:** A könyv előnézetén a "Leírás" gombra kattintva mobilon egy új, dedikált nézet jelenik meg. A borító és a gombok elrejtőznek, helyet adva a teljes képernyős fülszövegnek. Egy "Vissza" gombbal lehet visszatérni.
+- **Súgó Navigáció Javítva:** A súgó ablakban mobilon mostantól csak a helytakarékos lenyíló menü látszik, a felesleges asztali gombok elrejtőznek.
+
 ## [0.15.6-beta] - 2024-07-31
 
 ### Mobil Használhatóság (Kritikus Javítások)
