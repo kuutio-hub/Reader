@@ -25,56 +25,39 @@ export const Reader = {
         const viewer = document.getElementById('viewer-content');
         if(!viewer) return;
         
-        this.tagSettingsDOM();
-
         const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // --- DYNAMIC MARGIN LOGIC ---
-        // As zoom increases, margins disappear quickly to maximize screen space.
-        let scrollMargin = parseFloat(settings.marginScroll) || 28;
-        let reductionFactor = Math.max(0, 1 - (zoom - 1) * 2.5);
-        let effectiveMargin = scrollMargin * reductionFactor;
-        
-        // Cap margin
-        if (effectiveMargin > 45) effectiveMargin = 45;
-        if (effectiveMargin < 0) effectiveMargin = 0;
+        // --- DYNAMIC MARGIN LOGIC (Fix for Browser Zoom) ---
+        const marginValue = parseFloat(settings.marginScroll) || 28; // 0-40 from slider
+        // Map slider value to a responsive percentage margin. Higher value = more margin.
+        // Range: 5% (max width) to 35% (min width) margin on each side.
+        let baseMarginPercent = 5 + (marginValue / 40) * 30;
 
-        // --- DYNAMIC TYPOGRAPHY ---
-        // Base Font Size scaled by zoom
-        const finalFontSize = settings.fontSize * zoom;
-        
-        // Base Font Weight logic: 
-        // As we zoom in ("get closer"), letters feel heavier/bolder naturally.
-        // We add a slight weight increase based on zoom > 1.0
-        let baseWeight = parseInt(settings.fontWeight) || 400;
-        let dynamicWeight = baseWeight;
-        if (zoom > 1.0) {
-            // e.g. at 1.5x zoom, add ~50-100 to weight if possible
-            dynamicWeight += Math.round((zoom - 1) * 100);
-        }
-        // Cap weight
-        if(dynamicWeight > 900) dynamicWeight = 900;
+        // When using the IN-APP zoom, reduce the margin to use screen space better.
+        // This does not affect browser (Ctrl+wheel) zoom, which works correctly with percentages.
+        const reductionFactor = Math.max(0, 1 - (zoom - 1) * 2);
+        let effectiveMarginPercent = baseMarginPercent * reductionFactor;
 
-        const paddingLeft = `${effectiveMargin}%`;
-        const paddingRight = `${effectiveMargin}%`;
-        const verticalMargin = 20; 
+        const finalFontSize = (settings.fontSize || 100) * zoom;
+        const verticalMargin = 60; 
 
+        // Apply styles
         Object.assign(viewer.style, {
             fontFamily: settings.fontFamily,
             fontSize: `${finalFontSize}%`,
             lineHeight: settings.lineHeight, 
             textAlign: settings.textAlign,
-            fontWeight: dynamicWeight, // Apply dynamic weight
+            fontWeight: settings.fontWeight,
             color: settings.fontColor,
-            letterSpacing: `${settings.letterSpacing * zoom}px`, // Scale spacing too
-            paddingLeft: paddingLeft,
-            paddingRight: paddingRight,
+            letterSpacing: `${settings.letterSpacing * zoom}px`,
+            maxWidth: 'none', // This is the key fix for browser zoom.
             paddingTop: `${verticalMargin}px`,
             paddingBottom: `${verticalMargin}px`,
-            maxWidth: '100vw', // Prevent horizontal overflow
-            overflowX: 'hidden' // Force hidden overflow
+            paddingLeft: `${effectiveMarginPercent}%`,
+            paddingRight: `${effectiveMarginPercent}%`,
         });
         
+        // --- THEME & MODE ---
         document.body.className = `theme-${settings.theme}`;
         if (Epubly.state.currentFormat === 'pdf') {
              document.body.classList.add('mode-pdf');
@@ -83,33 +66,5 @@ export const Reader = {
         if (settings.theme === 'terminal') {
             document.body.style.setProperty('--terminal-color', settings.terminalColor);
         }
-
-        document.body.classList.remove('view-mode-scroll', 'view-mode-paged', 'double-page');
-        document.body.classList.add('view-mode-scroll');
-        
-        const scrollControl = document.getElementById('margin-scroll-control');
-        const pagedControl = document.getElementById('margin-paged-control');
-        const verticalControl = document.getElementById('margin-vertical-control');
-
-        if (scrollControl) scrollControl.style.display = 'block';
-        if (pagedControl) pagedControl.style.display = 'none';
-        if (verticalControl) verticalControl.style.display = 'none';
-    },
-
-    tagSettingsDOM() {
-        // Helper to add 'setting-item-typography' class to relevant divs in sidebar
-        const ids = [
-            'font-family-select', 'font-size-range', 'font-weight-range', 
-            'line-height-range', 'letter-spacing-range', 'margin-scroll-range',
-            'global-zoom-range', 'align-toggle-group'
-        ];
-        
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                const wrapper = el.closest('.setting-item');
-                if (wrapper) wrapper.classList.add('setting-item-typography');
-            }
-        });
     }
 };
