@@ -1,5 +1,11 @@
 # Változási napló
 
+## [0.16.0-beta] - 2024-08-02
+
+### Mobil Súgó Javítások
+- **Azonnali Navigáció:** A súgó ablakban a mobil lenyíló menü mostantól azonnal, a kiválasztás pillanatában vált oldalt, a korábbi "két-koppintásos" hiba javítva.
+- **Egységes Dizájn:** A lenyíló menü stílusa teljesen az alkalmazás dizájnjához lett igazítva, lecserélve a böngésző alapértelmezett, idegen kinézetét.
+
 ## [0.15.9-beta] - 2024-08-01
 
 ### Kritikus Javítások

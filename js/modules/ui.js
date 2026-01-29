@@ -28,6 +28,12 @@ export const UI = {
         
         document.body.addEventListener('click', e => this.handleClick(e));
         
+        // FIX: Add a dedicated 'change' event listener for the mobile wiki navigation select
+        const wikiSelect = document.getElementById('wiki-nav-select');
+        if (wikiSelect) {
+            wikiSelect.addEventListener('change', (e) => this.handleWikiNav(e.target));
+        }
+
         // Handle window resize for adaptive UI
         let resizeTimeout;
         window.addEventListener('resize', () => {
@@ -123,9 +129,6 @@ export const UI = {
         if (closest('#btn-help')) this.showModal('wiki-modal');
         if (closest('.wiki-nav-btn')) this.handleWikiNav(closest('.wiki-nav-btn'));
         
-        const wikiSelect = document.getElementById('wiki-nav-select');
-        if (target === wikiSelect) this.handleWikiNav(target);
-
         if (closest('#app-logo-btn')) { 
             if(Epubly.reader.updateSessionStats) Epubly.reader.updateSessionStats(true);
             this.showLibraryView(); 
