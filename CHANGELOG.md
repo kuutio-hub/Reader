@@ -1,5 +1,14 @@
 # Változási napló
 
+## [0.15.3-beta] - 2024-07-30
+
+### Mobil UI & Stabilitás (Kritikus Javítások)
+- **Burger Menü Javítás:** A mobil fejlécben a burger menü frissítés utáni működésképtelensége és az ikonok elcsúszása javítva.
+- **Optimalizált Betűméret:** Az alkalmazás mobilon automatikusan nagyobb, kényelmesebb alap betűmérettel indul.
+- **Súgó Ablak (Mobil):** A navigációs sáv átalakítva függőleges listává a jobb használhatóság érdekében.
+- **Import Szöveg (Mobil):** A "húzd ide a fájlt" utasítás mobil nézetben eltávolítva.
+- **Könyv Előnézet (Mobil):** A felugró ablak elrendezése teljesen mobilbarát lett, a leírás alapból rejtett.
+
 ## [0.15.2-beta] - 2024-07-30
 
 ### UI Finomítások
@@ -7,7 +16,7 @@
 - **PWA Észlelés:** A "Teljes képernyő" gomb automatikusan elrejtésre kerül, ha az alkalmazás telepítve fut (PWA).
 - **Könyv Részletező (Mobil):** A felugró ablak teljesen reszponzív lett, a leírás alapból rejtett és egy gombnyomásra jelenik meg.
 - **Mobil Tipográfia:** Az alapértelmezett betűméret és sorköz mobilon megnövelve a jobb olvashatóság érdekében.
-- **Hibajavítás:** A margó beállítás (szövegszélesség) mostantól mobilon is megfelelően működik.
+- **Hibajavítás:** A margó beállítás (szövegszéllesség) mostantól mobilon is megfelelően működik.
 
 ## [0.15.1-beta] - 2024-07-30
 
@@ -24,9 +33,3 @@
 
 ### Változások
 - A "Könyv importálása a számítógépedről" szöveg általánosabb, "eszközödről" megfogalmazásra cserélve.
-
-
-## [0.13.4-beta] - 2024-07-29
-
-### Hibajavítások
-- **KRITIKUS:** Javítva a hiba, ami miatt a könyvekre kattintva nem jelent meg az információs ablak. Az eseménykezelés mostantól központosított és stabilabb.

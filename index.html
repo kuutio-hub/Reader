@@ -290,11 +290,12 @@
         <div class="modal-content apple-wiki">
              <div class="wiki-sidebar">
                 <h3>Segítség</h3>
-                <button class="wiki-nav-btn active" data-target="wiki-guide">Útmutató</button>
-                <button class="wiki-nav-btn" data-target="wiki-about">Névjegy</button>
-                <button class="wiki-nav-btn" data-target="wiki-donate">Támogatás</button>
-                <div style="flex:1"></div>
-                <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center;">Bezárás</button>
+                <div class="wiki-nav-container">
+                    <button class="wiki-nav-btn active" data-target="wiki-guide">Útmutató</button>
+                    <button class="wiki-nav-btn" data-target="wiki-about">Névjegy</button>
+                    <button class="wiki-nav-btn" data-target="wiki-donate">Támogatás</button>
+                </div>
+                <button class="btn btn-secondary modal-close" style="width:100%; justify-content:center; margin-top: auto;">Bezárás</button>
              </div>
             <div class="wiki-main-area">
                 
@@ -347,7 +348,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.15.2-beta</li>
+                        <li><strong>Verzió:</strong> 0.15.3-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -431,14 +432,14 @@
                     </div>
                     <div class="detail-actions">
                         <button id="btn-read-book" class="btn btn-primary" style="width:100%;">OLVASÁS</button>
-                        <button class="btn btn-secondary modal-close" style="width:100%;">BEZÁRÁS</button>
+                        <button id="toggle-desc-btn" class="btn btn-secondary" style="width:100%; display:none;">Leírás</button>
+                        <button class="btn btn-secondary modal-close" style="width:100%;">Bezárás</button>
                     </div>
                     <div class="detail-actions-extra">
                          <button id="btn-delete-book" class="btn btn-danger" style="width:100%;">KÖNYV TÖRLÉSE</button>
                     </div>
                 </div>
                 <div class="detail-right-col">
-                    <button id="toggle-desc-btn" class="btn btn-secondary" style="width:100%; margin-bottom:15px; display:none;">Leírás mutatása</button>
                     <div id="detail-desc-wrapper">
                         <div id="detail-desc" class="book-desc"></div>
                     </div>
@@ -473,8 +474,8 @@
             </div>
             <div id="import-drop-zone" class="drop-zone" style="cursor:pointer;" onclick="document.getElementById('epub-file').click()">
                 <div style="font-size:3rem; margin-bottom:15px; opacity:0.7;">📂</div>
-                <p style="margin-bottom:10px; font-weight:600; font-size:1.1rem; color:var(--text);">Nyisd meg az eszközödről</p>
-                <p style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub, .pdf fájlt</p>
+                <p id="import-main-text" style="margin-bottom:10px; font-weight:600; font-size:1.1rem; color:var(--text);">Nyisd meg az eszközödről</p>
+                <p id="import-sub-text" style="color:var(--text-muted); font-size:0.9rem;">vagy húzd ide az .epub, .pdf fájlt</p>
                 <input type="file" id="epub-file" accept=".epub,.pdf" style="display:none">
             </div>
         </div>
