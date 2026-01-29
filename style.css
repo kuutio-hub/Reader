@@ -438,18 +438,7 @@ body.theme-light .btn-primary, body.theme-sepia .btn-primary { color: #fff; }
 .stat-box { background: rgba(128,128,128,0.1); padding: 8px; border-radius: var(--radius-s); text-align: center; }
 .stat-val { display: block; font-size: 1.1rem; font-weight: 700; color: var(--text); }
 .stat-lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
-#detail-desc-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-#btn-back-from-desc {
-    display: none;
-    margin-bottom: 15px;
-    width: fit-content;
-    align-self: flex-start;
-}
-.book-desc { font-size: 1.05rem; line-height: 1.7; color: var(--text); opacity: 0.9; white-space: pre-wrap; flex-grow: 1; overflow-y: auto; }
+.book-desc { font-size: 1.05rem; line-height: 1.7; color: var(--text); opacity: 0.9; white-space: pre-wrap; }
 .book-desc * { color: inherit !important; background: transparent !important; }
 
 /* Settings */
@@ -623,21 +612,8 @@ body.in-reader-mode #app-footer {
     .book-detail-layout { grid-template-columns: 1fr; }
     .detail-left-col { padding: 20px; border-right: none; border-bottom: 1px solid var(--border); }
     .book-detail-cover { width: 120px; }
-    #detail-desc-wrapper { display: flex; } /* Changed for focused view */
-    .detail-right-col { display: none; }
-
-    .book-detail-layout.desc-focused .detail-left-col {
-        display: none;
-    }
-    .book-detail-layout.desc-focused .detail-right-col {
-        display: flex;
-        flex-direction: column;
-        padding: 20px;
-        overflow-y: auto;
-    }
-     .book-detail-layout.desc-focused #btn-back-from-desc {
-        display: inline-flex;
-    }
+    #detail-desc-wrapper { display: none; }
+    #detail-desc-wrapper.visible { display: block; }
 
     .detail-left-col {
         grid-template-columns: 120px 1fr;
