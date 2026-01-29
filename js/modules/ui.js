@@ -18,6 +18,28 @@ export const UI = {
         // --- GLOBAL CLICKS ---
         document.body.addEventListener('click', e => this.handleClick(e));
 
+        // --- VISIBILITY API FOR TIME TRACKING ---
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'visible') {
+                // Resume session if book is open
+                if (Epubly.state.currentBookId) {
+                    Epubly.state.activeBookSessionStart = Date.now();
+                }
+            } else {
+                // Suspend session (save time, stop clock)
+                if (Epubly.reader && Epubly.reader.updateSessionStats) {
+                    Epubly.reader.updateSessionStats(true);
+                }
+            }
+        });
+        
+        // Attempt to save on close
+        window.addEventListener('beforeunload', () => {
+             if (Epubly.reader && Epubly.reader.updateSessionStats) {
+                Epubly.reader.updateSessionStats(true);
+            }
+        });
+
         // --- UNIFIED VIEWER CONTROLS (PDF & EPUB) ---
         const viewer = document.getElementById('viewer');
         if (viewer) {
@@ -171,7 +193,11 @@ export const UI = {
             }
         }
 
-        if (closest('#app-logo-btn')) { Epubly.reader.updateSessionStats(); this.showLibraryView(); }
+        if (closest('#app-logo-btn')) { 
+            Epubly.reader.updateSessionStats(true); // Suspend session
+            Epubly.ui.showLibraryView(); 
+        }
+        
         if (closest('.modal-close')) closest('.modal').classList.remove('visible');
         if (target.classList.contains('modal')) target.classList.remove('visible');
         
@@ -321,6 +347,11 @@ export const UI = {
         this.togglePDFControls(false); 
         const actions = document.getElementById('top-actions-container');
         if(actions) actions.innerHTML = ``;
+        
+        // Explicitly clear tracking state
+        Epubly.state.currentBookId = null;
+        Epubly.state.activeBookSessionStart = null;
+        
         Epubly.library.render();
     },
 

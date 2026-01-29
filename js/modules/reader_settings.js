@@ -3,14 +3,22 @@
  * Reader Style Applicator
  */
 export const Reader = {
-    updateSessionStats() {
+    updateSessionStats(suspend = false) {
         if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
         const now = Date.now();
         const duration = now - Epubly.state.activeBookSessionStart;
-        Epubly.state.activeBookSessionStart = now;
         
-        const progress = 0; 
-        Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, progress);
+        // Save if duration is realistic (> 1s and < 24h)
+        // Pass 0 as progress to avoid overwriting existing progress with 0
+        if (duration > 1000 && duration < 86400000) {
+            Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, 0);
+        }
+        
+        if (suspend) {
+            Epubly.state.activeBookSessionStart = null;
+        } else {
+            Epubly.state.activeBookSessionStart = Date.now();
+        }
     },
 
     applySettings(settings) {
