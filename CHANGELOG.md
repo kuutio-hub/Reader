@@ -1,5 +1,11 @@
 # Változási napló
 
+## [0.15.9-beta] - 2024-08-01
+
+### Kritikus Javítások
+- **Kódrészlet Megjelenés Javítva:** Kritikus hiba javítva, amely miatt a JavaScript fájlok tartalma megjelent a lábléc alatt. A fájlfeldolgozási stabilitás növelve lett a hiba jövőbeli előfordulásának megakadályozása érdekében.
+- **Dinamikus Margók Visszaállítva:** Az asztali nézetben a böngésző nagyítás (`Ctrl + Görgő`) ismét helyesen, arányosan kezeli a szöveg szélességét, javítva a korábbi verzióban visszatért hibát.
+
 ## [0.15.8-beta] - 2024-08-01
 
 ### Asztali & Mobil UI Javítások

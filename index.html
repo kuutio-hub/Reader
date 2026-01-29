@@ -368,7 +368,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.15.8-beta</li>
+                        <li><strong>Verzió:</strong> 0.15.9-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -520,72 +520,4 @@
     <footer id="app-footer"><span id="footer-year"></span></footer>
     <script type="module" src="app.js"></script>
 </body>
-</html>--- START OF FILE js/modules/reader_settings.js ---
-
-/**
- * Reader Style Applicator
- */
-export const Reader = {
-    updateSessionStats(suspend = false) {
-        if(!Epubly.state.currentBookId || !Epubly.state.activeBookSessionStart) return;
-        const now = Date.now();
-        const duration = now - Epubly.state.activeBookSessionStart;
-        
-        // Save if duration is realistic (> 1s and < 24h)
-        // Pass 0 as progress to avoid overwriting existing progress with 0
-        if (duration > 1000 && duration < 86400000) {
-            Epubly.storage.updateBookStats(Epubly.state.currentBookId, duration, 0);
-        }
-        
-        if (suspend) {
-            Epubly.state.activeBookSessionStart = null;
-        } else {
-            Epubly.state.activeBookSessionStart = Date.now();
-        }
-    },
-
-    applySettings(settings) {
-        const viewer = document.getElementById('viewer-content');
-        if(!viewer) return;
-        
-        const zoom = parseFloat(settings.globalZoom) || 1.0;
-        
-        // --- DYNAMIC MARGIN LOGIC (Fix for Browser Zoom) ---
-        // Instead of percentage padding, we control max-width.
-        // The slider (0-40) controls text column width. Higher value = narrower column (more margin).
-        const marginValue = parseFloat(settings.marginScroll) || 28;
-        // Map 0-40 slider to a pixel range e.g., 1400px down to 700px.
-        // BaseWidth - (sliderValue * scaleFactor) -> 1400 - (40 * 17.5) = 700.
-        const maxWidth = 1400 - (marginValue * 17.5);
-
-        const finalFontSize = (settings.fontSize || 100) * zoom;
-        
-        const verticalMargin = 60; 
-
-        // Apply styles
-        Object.assign(viewer.style, {
-            fontFamily: settings.fontFamily,
-            fontSize: `${finalFontSize}%`,
-            lineHeight: settings.lineHeight, 
-            textAlign: settings.textAlign,
-            fontWeight: settings.fontWeight,
-            color: settings.fontColor,
-            letterSpacing: `${settings.letterSpacing * zoom}px`,
-            maxWidth: `${maxWidth}px`,
-            paddingTop: `${verticalMargin}px`,
-            paddingBottom: `${verticalMargin}px`,
-            paddingLeft: `20px`, // Keep minimal padding for smaller screens
-            paddingRight: `20px`,
-        });
-        
-        // --- THEME & MODE ---
-        document.body.className = `theme-${settings.theme}`;
-        if (Epubly.state.currentFormat === 'pdf') {
-             document.body.classList.add('mode-pdf');
-        }
-
-        if (settings.theme === 'terminal') {
-            document.body.style.setProperty('--terminal-color', settings.terminalColor);
-        }
-    }
-};
+</html>

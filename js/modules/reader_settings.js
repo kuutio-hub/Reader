@@ -27,15 +27,15 @@ export const Reader = {
         
         const zoom = parseFloat(settings.globalZoom) || 1.0;
         
-        // --- DYNAMIC MARGIN LOGIC (Fix for Browser Zoom) ---
+        // --- DYNAMIC MARGIN LOGIC (Restored Fix for Browser Zoom) ---
         const marginValue = parseFloat(settings.marginScroll) || 28; // 0-40 from slider
         // Map slider value to a responsive percentage margin. Higher value = more margin.
         // Range: 5% (max width) to 35% (min width) margin on each side.
         let baseMarginPercent = 5 + (marginValue / 40) * 30;
 
-        // When using the IN-APP zoom, reduce the margin to use screen space better.
+        // When using the IN-APP zoom, reduce the margin to use more screen space.
         // This does not affect browser (Ctrl+wheel) zoom, which works correctly with percentages.
-        const reductionFactor = Math.max(0, 1 - (zoom - 1) * 2);
+        const reductionFactor = Math.max(0.5, 1 - (zoom - 1) * 0.5);
         let effectiveMarginPercent = baseMarginPercent * reductionFactor;
 
         const finalFontSize = (settings.fontSize || 100) * zoom;
@@ -50,7 +50,7 @@ export const Reader = {
             fontWeight: settings.fontWeight,
             color: settings.fontColor,
             letterSpacing: `${settings.letterSpacing * zoom}px`,
-            maxWidth: 'none', // This is the key fix for browser zoom.
+            maxWidth: 'none', // This is the key fix to allow browser zoom to work correctly.
             paddingTop: `${verticalMargin}px`,
             paddingBottom: `${verticalMargin}px`,
             paddingLeft: `${effectiveMarginPercent}%`,
