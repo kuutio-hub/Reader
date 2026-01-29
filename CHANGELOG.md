@@ -1,5 +1,16 @@
 # Változási napló
 
+## [0.15.0-beta] - 2024-07-30
+
+### Újdonságok & Fejlesztések
+- **Mobil UI Optimalizálás:** Az alkalmazás teljes felülete reszponzív lett, kifejezetten mobil eszközökre (pl. iPhone 12 Pro) optimalizálva. A könyvtár, a menük és az olvasó nézet is kompaktabb, jobban használható kisebb képernyőn.
+- **Olvasó nézet:** Mobilon az EPUB könyvek kisebb margóval, a képernyőt jobban kihasználva jelennek meg.
+- **Támogatás Szekció:** A felület átalakult, a REpont opció került előre. A QR kódok egységes, letisztult dizájnt kaptak.
+
+### Változások
+- A "Könyv importálása a számítógépedről" szöveg általánosabb, "eszközödről" megfogalmazásra cserélve.
+
+
 ## [0.13.4-beta] - 2024-07-29
 
 ### Hibajavítások

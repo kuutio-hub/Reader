@@ -456,8 +456,7 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     align-items: center;
     justify-content: center;
 }
-.donate-card.revolut { background: linear-gradient(135deg, #000000 0%, #1e1e1e 100%); border-color: rgba(255,255,255,0.1); }
-.donate-card.paypal { background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%); border-color: #003087; }
+.donate-card h3 { color: var(--text); }
 
 /* QR Wrapper for Logo Overlay */
 .qr-wrapper {
@@ -556,6 +555,18 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
 
 /* --- MOBILE OPTIMIZATION --- */
 @media (max-width: 768px) {
+    #viewer-content {
+        /* Full width reading on mobile */
+        padding-left: 15px !important;
+        padding-right: 15px !important;
+    }
+
+    #library-grid {
+        /* More compact library on mobile */
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 20px;
+    }
+
     .book-detail-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     .detail-left-col { padding: 20px; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; text-align: left; }
     .book-detail-cover { width: 100px; margin-bottom: 0; }
