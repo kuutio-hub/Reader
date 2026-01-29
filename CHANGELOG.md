@@ -1,5 +1,12 @@
 # Változási napló
 
+## [0.15.8-beta] - 2024-08-01
+
+### Asztali & Mobil UI Javítások
+- **Dinamikus Margók Javítva:** Az asztali nézetben a böngésző beépített nagyítását (`Ctrl + Görgő`) használva a szöveg margói ismét dinamikusan igazodnak, megakadályozva a szöveg túlzott összeszűkülését.
+- **Súgó Ablak UI Javítva:** A súgó ablakban asztali nézetben ismét a gombos navigáció látható. A mobil lenyíló menü most már csak mobilon jelenik meg, és a stílusa is az alkalmazás dizájnjához igazodik.
+- **Reszponzív Gombok:** A könyv előnézetén a "Leírás" és "Vissza" gombok mostantól csak mobilon láthatók, asztali nézetben, ahol feleslegesek, rejtve maradnak.
+
 ## [0.15.7-beta] - 2024-07-31
 
 ### Mobil UI Finomhangolás
