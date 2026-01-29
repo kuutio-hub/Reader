@@ -131,8 +131,20 @@ export const UI = {
             this.showLibraryView(); 
         }
         
-        if (closest('.modal-close')) closest('.modal').classList.remove('visible');
-        if (target.classList.contains('modal')) target.classList.remove('visible');
+        if (closest('.modal-close')) {
+            closest('.modal').classList.remove('visible');
+            // Reset description view if closing the book details modal
+            if (closest('.modal').id === 'book-details-modal') {
+                document.querySelector('.book-detail-layout')?.classList.remove('desc-focused');
+            }
+        }
+
+        if (target.classList.contains('modal')) {
+             target.classList.remove('visible');
+              if (target.id === 'book-details-modal') {
+                document.querySelector('.book-detail-layout')?.classList.remove('desc-focused');
+            }
+        }
         
         if (closest('#btn-do-search')) Epubly.search.run(document.getElementById('search-input').value);
         if (closest('#btn-theme-toggle')) this.toggleTheme();
@@ -305,6 +317,11 @@ export const UI = {
     },
 
     showBookInfoModal(book) {
+        // Reset description view state every time modal is shown
+        const layout = document.querySelector('#book-details-modal .book-detail-layout');
+        if (layout) {
+            layout.classList.remove('desc-focused');
+        }
         this._renderBookInfoModal(book);
     },
 
@@ -338,11 +355,16 @@ export const UI = {
         // --- EVENT HANDLERS ---
         document.getElementById('btn-read-book').onclick = () => { this.hideModal('book-details-modal'); Epubly.engine.loadBook(book.data, book.id, book.format); };
         
+        const layout = document.querySelector('#book-details-modal .book-detail-layout');
         const toggleDescBtn = document.getElementById('toggle-desc-btn');
-        const descWrapper = document.getElementById('detail-desc-wrapper');
-        if(toggleDescBtn && descWrapper) {
+        const backFromDescBtn = document.getElementById('btn-back-from-desc');
+        
+        if(layout && toggleDescBtn && backFromDescBtn) {
             toggleDescBtn.onclick = () => {
-                descWrapper.classList.toggle('visible');
+                layout.classList.add('desc-focused');
+            };
+            backFromDescBtn.onclick = () => {
+                layout.classList.remove('desc-focused');
             };
         }
 
