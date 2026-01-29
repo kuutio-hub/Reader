@@ -341,7 +341,7 @@ body.mode-pdf #viewer:active { cursor: grabbing; }
 /* Image Sizing Fix */
 .chapter-container img, .chapter-container image, .chapter-container svg { 
     display: block !important; 
-    margin: 20px auto !important; 
+    margin: 10px auto !important; 
     border-radius: var(--radius-s) !important; 
     height: auto !important; 
     width: auto !important;
@@ -470,7 +470,8 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     width: 25mm; height: 25mm; 
     display: flex; align-items: center; justify-content: center; 
     position: absolute; 
-    right: 10mm; bottom: 8mm; /* Centered visually more */
+    left: 50%; bottom: 8mm; /* Horizontally Centered */
+    transform: translateX(-50%);
     z-index: 2; 
 }
 .mohu-qr img { width: 100%; height: 100%; }

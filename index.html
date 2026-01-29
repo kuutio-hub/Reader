@@ -204,7 +204,7 @@
                     
                     <!-- Global Zoom -->
                     <div class="setting-item" style="background:var(--surface-alt); padding:10px; border-radius:8px; border:1px solid var(--brand-dim);">
-                        <label style="font-weight:600; color:var(--brand);">Globális Nagyítás</label>
+                        <label style="font-weight:600; color:var(--brand);">Nagyítás</label>
                         <input type="range" id="global-zoom-range" min="0.8" max="2.0" step="0.1">
                     </div>
                 </div>
@@ -246,7 +246,7 @@
                         </div>
                         
                         <div class="setting-item">
-                            <label>Betűméret (Relatív)</label>
+                            <label>Betűméret</label>
                             <input type="range" id="font-size-range" min="80" max="250" step="10">
                         </div>
                         
@@ -261,12 +261,12 @@
                         </div>
                         
                         <div class="setting-item">
-                            <label>Betűköz (Tracking)</label>
+                            <label>Betűköz</label>
                             <input type="range" id="letter-spacing-range" min="-2" max="5" step="0.5">
                         </div>
 
                         <div class="setting-item" id="margin-scroll-control">
-                            <label>Alap Margó</label>
+                            <label>Szövegszélesség</label>
                             <input type="range" id="margin-scroll-range" min="0" max="40" step="1">
                         </div>
                     </div>
@@ -342,7 +342,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.14.19-beta</li>
+                        <li><strong>Verzió:</strong> 0.14.20-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -371,7 +371,7 @@
                             <div id="mohu-qr-container" class="mohu-qr"></div>
                         </div>
                         <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px;">
-                            <button class="btn btn-primary" onclick="window.print()">Kártya Nyomtatása</button>
+                            <button class="btn btn-primary" onclick="Epubly.ui.delayedPrint()">Kártya Nyomtatása</button>
                             <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon</button>
                         </div>
                     </div>

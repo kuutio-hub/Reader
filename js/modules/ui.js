@@ -407,5 +407,12 @@ export const UI = {
                 }
             }
         });
+    },
+
+    delayedPrint() {
+        // Simple trick to let the browser render the DOM before opening the print dialog
+        setTimeout(() => {
+            window.print();
+        }, 500);
     }
 };

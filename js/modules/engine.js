@@ -243,7 +243,10 @@ export const Engine = {
         await this.renderChapter(startIdx, 'clear');
         
         requestAnimationFrame(() => {
-             if(startOffset > 0) {
+             // FORCE TOP SCROLL if starting at index 0 (Cover) to fix clipping
+             if (startIdx === 0 && startOffset < 100) {
+                 viewer.scrollTop = 0;
+             } else if(startOffset > 0) {
                  viewer.scrollTop = startOffset;
              }
              viewer.style.opacity = '1';
@@ -282,7 +285,6 @@ export const Engine = {
         doc.querySelectorAll('*').forEach(el => { 
             el.removeAttribute('style'); 
             el.removeAttribute('class');
-            // Remove dimensions that might break the flow
             el.removeAttribute('width');
             el.removeAttribute('height');
         });
@@ -297,6 +299,8 @@ export const Engine = {
                 const blob = await imgFile.async("blob");
                 const url = URL.createObjectURL(blob);
                 img.src = url;
+                // Force natural aspect ratio containment
+                img.style.objectFit = "contain"; 
                 if(img.tagName.toLowerCase() === 'image') {
                     img.setAttribute('href', url);
                 }
