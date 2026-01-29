@@ -32,19 +32,21 @@ export const UI = {
                         const rect = viewer.getBoundingClientRect();
                         const mouseX = e.clientX - rect.left;
                         const mouseY = e.clientY - rect.top;
-                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                        // Slower zoom step for PDF too
+                        const delta = e.deltaY > 0 ? -0.05 : 0.05;
                         Epubly.engine.updatePDFZoom(delta, mouseX, mouseY);
                     } else {
                         // EPUB Font/CSS Zoom
                         const s = Epubly.settings.get();
                         let current = parseFloat(s.globalZoom);
-                        let next = e.deltaY > 0 ? current - 0.1 : current + 0.1;
+                        // Much slower zoom step (0.025 instead of 0.1)
+                        let next = e.deltaY > 0 ? current - 0.025 : current + 0.025;
                         next = Math.min(Math.max(0.8, next), 2.5); // limits
                         
                         // Update settings and UI range
-                        Epubly.settings.handleUpdate('globalZoom', next.toFixed(1));
+                        Epubly.settings.handleUpdate('globalZoom', next.toFixed(3)); // 3 decimals for smooth storage
                         const range = document.getElementById('global-zoom-range');
-                        if(range) range.value = next.toFixed(1);
+                        if(range) range.value = next.toFixed(3);
                     }
                     return;
                 }
@@ -52,14 +54,25 @@ export const UI = {
                 // ALT + WHEEL = HORIZONTAL SCROLL
                 if (e.altKey) {
                     e.preventDefault();
-                    viewer.scrollLeft += e.deltaY;
+                    if (Epubly.state.currentFormat === 'pdf') {
+                         // Pan PDF X-axis. 
+                         // deltaY positive = scroll right = move view right = content moves left (negative X)
+                         Epubly.engine.panPDF(-e.deltaY, 0);
+                    } else {
+                        viewer.scrollLeft += e.deltaY;
+                    }
                     return;
                 }
 
-                // DEFAULT: Normal Scroll (handled natively unless PDF Canvas Logic needs override)
-                // For PDF Transform Mode, native scroll doesn't move content if it's transformed off-screen without container size changes.
-                // However, our PDF implementation uses CSS Transform. 
-                // Since we allow native scrolling in EPUB, let's leave it.
+                // DEFAULT: Vertical Scroll
+                if (Epubly.state.currentFormat === 'pdf') {
+                    // Manual vertical pan for PDF Canvas mode (since overflow is hidden)
+                    e.preventDefault(); // Prevent page bounce
+                    Epubly.engine.panPDF(0, -e.deltaY);
+                } else {
+                    // EPUB: Allow native scroll behavior
+                    // No preventDefault() here
+                }
             }, { passive: false });
 
             // 2. MOUSE DRAG (PANNING)
@@ -151,6 +164,11 @@ export const UI = {
             btn.classList.add('active');
             document.querySelectorAll('.wiki-page').forEach(p => p.classList.remove('active'));
             document.getElementById(targetId).classList.add('active');
+            
+            // Check storage usage when opening About tab (if present there)
+            if (targetId === 'wiki-about') {
+                this.updateStorageStats();
+            }
         }
 
         if (closest('#app-logo-btn')) { Epubly.reader.updateSessionStats(); this.showLibraryView(); }
@@ -176,6 +194,23 @@ export const UI = {
             Epubly.storage.clearBooks().then(() => location.reload());
         }
         if (closest('#floating-back-btn')) Epubly.navigation.popState();
+    },
+
+    async updateStorageStats() {
+        const el = document.getElementById('storage-usage');
+        if (!el) return;
+        
+        if (navigator.storage && navigator.storage.estimate) {
+            try {
+                const estimate = await navigator.storage.estimate();
+                const usedMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+                el.innerHTML = `<strong>Tárhely használat:</strong> ${usedMB} MB`;
+            } catch (e) {
+                el.innerHTML = "Tárhely info nem elérhető.";
+            }
+        } else {
+             el.innerHTML = "Tárhely info nem támogatott.";
+        }
     },
 
     handleTabClick(tab) {
@@ -219,7 +254,10 @@ export const UI = {
         }
     },
 
-    showModal(id) { document.getElementById(id)?.classList.add('visible'); },
+    showModal(id) { 
+        document.getElementById(id)?.classList.add('visible'); 
+        if(id === 'wiki-modal') this.updateStorageStats(); // Auto update on open if elements visible
+    },
     hideModal(id) { document.getElementById(id)?.classList.remove('visible'); },
     
     showLoader() { document.getElementById('loader')?.classList.remove('hidden'); },

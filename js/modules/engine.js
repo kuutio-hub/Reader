@@ -277,7 +277,15 @@ export const Engine = {
         const doc = parser.parseFromString(htmlContent, "text/html");
 
         doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => el.remove());
-        doc.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('class'); });
+        
+        // AGGRESSIVE CSS STRIPPING to prevent layout bugs
+        doc.querySelectorAll('*').forEach(el => { 
+            el.removeAttribute('style'); 
+            el.removeAttribute('class');
+            // Remove dimensions that might break the flow
+            el.removeAttribute('width');
+            el.removeAttribute('height');
+        });
 
         const images = doc.querySelectorAll("img, image");
         for (const img of images) {
@@ -311,6 +319,9 @@ export const Engine = {
         } else {
             viewerContent.appendChild(chapterContainer);
         }
+        
+        // Force full opacity
+        viewerContent.style.opacity = '1';
 
         Epubly.state.renderedChapters.add(index);
         Epubly.reader.applySettings(Epubly.settings.get());
