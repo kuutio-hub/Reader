@@ -85,7 +85,7 @@ export const Storage = {
             if (!isValid) throw new Error("Nem támogatott fájlformátum. Csak .epub vagy .pdf.");
 
             const arrayBuffer = await file.arrayBuffer();
-            let metadata = { title: file.name, creator: "Ismeretlen" };
+            let metadata = { title: file.name, creator: "Ismeretlen", description: "" };
             let coverData = null; // Changed from coverUrl to coverData (Base64)
             let format = 'epub';
 
@@ -93,6 +93,7 @@ export const Storage = {
                 format = 'pdf';
                 metadata.title = file.name.replace('.pdf', '');
                 metadata.creator = "PDF Dokumentum";
+                metadata.description = "PDF dokumentum.";
                 
                 // PDF Thumbnail (requires pdfjsLib global)
                 if(window.pdfjsLib) {
@@ -120,8 +121,10 @@ export const Storage = {
                     const containerXml = await zip.file("META-INF/container.xml").async("string");
                     const opfPath = new DOMParser().parseFromString(containerXml, "application/xml").querySelector("rootfile").getAttribute("full-path");
                     const opfDoc = new DOMParser().parseFromString(await zip.file(opfPath).async("string"), "application/xml");
+                    
                     metadata.title = opfDoc.getElementsByTagName("dc:title")[0]?.textContent || file.name;
                     metadata.creator = opfDoc.getElementsByTagName("dc:creator")[0]?.textContent || "";
+                    metadata.description = opfDoc.getElementsByTagName("dc:description")[0]?.textContent || "";
                     
                     const coverItem = opfDoc.querySelector("item[properties~='cover-image'], item[id='cover']");
                     if (coverItem) {

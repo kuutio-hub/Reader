@@ -22,17 +22,27 @@ export const TOC = {
                 document.getElementById('viewer-content').innerHTML = '';
                 Epubly.state.renderedChapters.clear();
                 
-                // 3. Render target chapter
-                await Epubly.engine.renderChapter(idx, 'clear');
+                // 3. Render Logic for Immediate Backward Scroll
+                if (idx > 0) {
+                    // Load Previous chapter first (it will be at the top)
+                    await Epubly.engine.renderChapter(idx - 1, 'append'); 
+                    // Load Target chapter second (it will be below previous)
+                    await Epubly.engine.renderChapter(idx, 'append');
+
+                    // Scroll to the Target chapter (the second one)
+                    const targetEl = document.querySelector(`.chapter-container[data-index="${idx}"]`);
+                    if(targetEl) targetEl.scrollIntoView({ block: "start" });
+                } else {
+                    // If it's the very first chapter, just load it
+                    await Epubly.engine.renderChapter(idx, 'clear');
+                    document.getElementById('viewer').scrollTop = 0;
+                }
                 
-                // 4. Ensure we have enough content to scroll (prevents getting stuck on short chapters)
+                // 4. Ensure we have enough content to scroll (load next if needed)
                 await Epubly.engine.ensureContentFillsScreen(idx);
                 
                 // 5. Re-init observers for the new content
                 Epubly.engine.initObservers();
-                
-                // 6. Reset scroll to top
-                document.getElementById('viewer').scrollTop = 0;
             };
         });
     },

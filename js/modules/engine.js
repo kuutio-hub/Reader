@@ -118,7 +118,14 @@ export const Engine = {
                 if (entry.isIntersecting) {
                     const container = entry.target;
                     const pageNum = parseInt(container.dataset.pageNumber);
-                    if (!container.querySelector('canvas')) this.renderPDFPage(container, pageNum);
+                    
+                    // Render current page if needed
+                    if (!container.querySelector('canvas') && !container.classList.contains('rendering')) {
+                        this.renderPDFPage(container, pageNum);
+                    }
+                    
+                    // Pre-load neighbors (Buffer)
+                    this.bufferPDFPages(pageNum);
                     
                     // SAVE POSITION: Just Page Number
                     Epubly.storage.saveLocation(Epubly.state.currentBookId, pageNum, 0);
@@ -127,12 +134,31 @@ export const Engine = {
                     this.throttledStatsUpdate(pageNum, false, progress);
                 }
             });
-        }, { root: document.getElementById('viewer'), threshold: 0.5 }); // Require 50% visibility to count as "current page"
+        }, { root: document.getElementById('viewer'), threshold: 0.1 }); // Lower threshold to trigger earlier
         document.querySelectorAll('.pdf-page-container').forEach(el => Epubly.state.observer.observe(el));
+    },
+
+    bufferPDFPages(centerPage) {
+        // Buffer range: +/- 3 pages
+        const bufferRange = 3;
+        const total = Epubly.state.pdfDoc.numPages;
+        
+        const start = Math.max(1, centerPage - bufferRange);
+        const end = Math.min(total, centerPage + bufferRange);
+
+        for (let i = start; i <= end; i++) {
+            if (i === centerPage) continue;
+            const container = document.getElementById(`pdf-page-${i}`);
+            if (container && !container.querySelector('canvas') && !container.classList.contains('rendering')) {
+                // Low priority render for neighbors
+                requestIdleCallback ? requestIdleCallback(() => this.renderPDFPage(container, i)) : setTimeout(() => this.renderPDFPage(container, i), 10);
+            }
+        }
     },
 
     async renderPDFPage(container, pageNum) {
         if(!Epubly.state.pdfDoc) return;
+        container.classList.add('rendering');
         try {
             const page = await Epubly.state.pdfDoc.getPage(pageNum);
             const scale = 2.0; 
@@ -145,7 +171,11 @@ export const Engine = {
             await page.render(renderContext).promise;
             container.innerHTML = '';
             container.appendChild(canvas);
-        } catch(e) { console.warn(`Error rendering page ${pageNum}`, e); }
+        } catch(e) { 
+            console.warn(`Error rendering page ${pageNum}`, e); 
+        } finally {
+            container.classList.remove('rendering');
+        }
     },
 
     updatePDFZoom(delta, mouseX, mouseY) {
@@ -259,7 +289,7 @@ export const Engine = {
 
     async ensureContentFillsScreen(lastLoadedIndex) {
         const viewer = document.getElementById('viewer');
-        if (viewer.scrollHeight < viewer.clientHeight * 1.5 && lastLoadedIndex < Epubly.state.spine.length - 1) {
+        if (viewer.scrollHeight < viewer.clientHeight * 2 && lastLoadedIndex < Epubly.state.spine.length - 1) {
              const nextIdx = lastLoadedIndex + 1;
              await this.renderChapter(nextIdx, 'append');
              await this.ensureContentFillsScreen(nextIdx);
@@ -359,27 +389,30 @@ export const Engine = {
         const viewerContent = document.getElementById('viewer-content');
         if (Epubly.state.renderedChapters.size === 0) return;
 
-        // INFINITE SCROLL DOWN (APPEND)
-        if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 600 && !Epubly.state.isLoadingNext) {
+        // INFINITE SCROLL DOWN (APPEND) - Aggressive triggering (4000px before end)
+        // Keeps user from waiting
+        if (viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 4000 && !Epubly.state.isLoadingNext) {
            const lastIdx = Math.max(...Epubly.state.renderedChapters);
            if (isFinite(lastIdx) && lastIdx < Epubly.state.spine.length - 1) {
                Epubly.state.isLoadingNext = true;
-               document.getElementById('scroll-loader').style.display = 'block';
+               // No visual loader needed for seamless experience if triggered early enough
+               // document.getElementById('scroll-loader').style.display = 'block'; 
                this.renderChapter(lastIdx + 1, 'append').then(async () => {
-                    document.getElementById('scroll-loader').style.display = 'none';
+                    // document.getElementById('scroll-loader').style.display = 'none';
                     this.initObservers();
                     Epubly.state.isLoadingNext = false;
                });
            }
         }
 
-        // INFINITE SCROLL UP (PREPEND)
-        // Check if we are near the top and have chapters before us
-        if (viewer.scrollTop < 100 && !Epubly.state.isLoadingPrev) {
+        // INFINITE SCROLL UP (PREPEND) - Aggressive triggering (1000px from top)
+        if (viewer.scrollTop < 1000 && !Epubly.state.isLoadingPrev) {
             const firstIdx = Math.min(...Epubly.state.renderedChapters);
             if (isFinite(firstIdx) && firstIdx > 0) {
                 Epubly.state.isLoadingPrev = true;
-                document.getElementById('top-loader').style.display = 'block';
+                
+                // Only show loader if we are REALLY close to top (running out of buffer)
+                if (viewer.scrollTop < 200) document.getElementById('top-loader').style.display = 'block';
                 
                 // Capture old scroll height to adjust position after prepend
                 const oldHeight = viewerContent.scrollHeight;
