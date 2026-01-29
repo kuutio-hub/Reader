@@ -470,8 +470,10 @@ body.theme-terminal .wiki-nav-btn.active { color: #000; }
     width: 25mm; height: 25mm; 
     display: flex; align-items: center; justify-content: center; 
     position: absolute; 
-    left: 50%; bottom: 8mm; /* Horizontally Centered */
-    transform: translateX(-50%);
+    top: 50%;
+    right: 8mm;
+    transform: translateY(-50%);
+    left: auto; bottom: auto;
     z-index: 2; 
 }
 .mohu-qr img { width: 100%; height: 100%; }

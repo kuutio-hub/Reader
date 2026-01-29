@@ -342,7 +342,7 @@
                     <h2>Névjegy</h2>
                     <p>Az Epubly egy nyílt forráskódú projekt.</p>
                     <ul style="list-style:none; padding:0; margin:20px 0; color:var(--text-muted);">
-                        <li><strong>Verzió:</strong> 0.14.20-beta</li>
+                        <li><strong>Verzió:</strong> 0.14.22-beta</li>
                         <li id="storage-usage" style="margin-top:5px; font-size:0.9rem;"></li>
                     </ul>
                     
@@ -355,12 +355,22 @@
 
                 <!-- DONATE -->
                 <div id="wiki-donate" class="wiki-page">
-                    <h2>Támogatás</h2>
-                    <p style="margin-bottom:20px;">Az Epubly használata ingyenes. Amennyiben támogatná a fejlesztést, a MOHU visszaváltó automatáknál használható QR kóddal teheti meg.</p>
+                    <h2>Támogatás MOHU REpont-on keresztül</h2>
+                    <p class="lead" style="margin-bottom:15px;">Az Epubly egy teljesen ingyenes, nyílt forráskódú projekt, amely nem gyűjt adatokat és nem tartalmaz reklámokat. A fejlesztés és fenntartás azonban időt és energiát igényel.</p>
+                    
+                    <p style="margin-bottom:20px; color:var(--text);">Ha szeretné támogatni a munkámat, azt egyszerűen megteheti a palackvisszaváltás során:</p>
+                    
+                    <ol style="margin-left:20px; margin-bottom:25px; line-height:1.8; color:var(--text-muted);">
+                        <li>Vigye el a visszaváltandó palackokat egy <strong>REpont automatához</strong>.</li>
+                        <li>A folyamat végén a kifizetés módjánál válassza a <strong style="color:var(--brand);">"Banki átutalás"</strong> lehetőséget.</li>
+                        <li>Amikor a gép kéri a QR kódot, ne a sajátját, hanem az <strong>alább található támogatói kódot</strong> olvassa be.</li>
+                    </ol>
+
+                    <p style="margin-bottom:20px; font-size:0.9rem; color:var(--text-muted);">Az összeg közvetlenül a fejlesztőhöz kerül, ezzel segítve a további funkciók elkészítését. Köszönöm!</p>
                     
                     <div class="mohu-print-area">
-                        <h3 style="color:var(--brand);">MOHU REpont Kártya</h3>
-                        <p style="font-size:0.9rem; margin-bottom:15px;">Nyomtassa ki vagy mentse le telefonjára. Az automatánál válassza a "Kifizetés banki átutalással" opciót, majd olvassa be a kódot.</p>
+                        <h3 style="color:var(--brand); margin-bottom:5px;">MOHU REpont Kártya</h3>
+                        <p style="font-size:0.8rem; margin-bottom:15px; color:var(--text-muted);">Nyomtassa ki ezt a kártyát, és tartsa magánál a következő visszaváltáskor.</p>
                         
                         <div class="mohu-card">
                             <div class="mohu-card-bg-text">EPUBLY</div>
@@ -372,7 +382,7 @@
                         </div>
                         <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px;">
                             <button class="btn btn-primary" onclick="Epubly.ui.delayedPrint()">Kártya Nyomtatása</button>
-                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Megnyitás telefonon</button>
+                            <button class="btn btn-secondary" onclick="Epubly.ui.showModal('mobile-qr-modal')">Kód megnyitása telefonon</button>
                         </div>
                     </div>
                 </div>
